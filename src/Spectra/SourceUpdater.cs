@@ -42,23 +42,49 @@ public static class SourceUpdater
    var commit=await Net.Get(Repo+"/commits/"+sha);var treeSha=commit?["commit"]?["tree"].Str("sha")??"";if(!ValidCommit(treeSha))throw new IOException("Нет дерева коммита");
    var tree=await Net.Get(Repo+"/git/trees/"+treeSha+"?recursive=1");if(tree?["truncated"]?.GetValue<bool>()==true)throw new IOException("Дерево GitHub неполное");
    var files=tree?["tree"]?.AsArray().Where(x=>x.Str("type")=="blob").ToArray()??[];if(files.Length>10000)throw new IOException("Слишком большой репозиторий");
-   int downloaded=0,done=0;long total=0;
+   long total=0;
+   var downloads=new List<(string Path,string Destination,string Hash,long Size)>();
    foreach(var file in files)
    {
     var path=file.Str("path");if(file.Str("mode") is not ("100644" or "100755"))throw new IOException("Ссылки в исходниках не поддерживаются");
     if(path.Split('/').Any(x=>x is "." or ".."||x.Contains(':')||x.Contains('\\'))||path.StartsWith('/'))throw new IOException("Небезопасный путь исходника");
     if(Path.GetFileName(path) is "api-keys.local.json" or "build-commit.txt")continue;
     if(path.Split('/').Any(x=>x is "bin" or "obj" or ".git" or "node_modules"))continue;
-    var size=file?["size"]?.GetValue<long>()??0;total+=size;if(size>32*1024*1024||total>256L*1024*1024)throw new IOException("Исходники слишком большие");
+    var size=file?["size"]?.GetValue<long>()??0;total+=size;if(size<0||size>32*1024*1024||total>256L*1024*1024)throw new IOException("Исходники слишком большие");
     var dest=Store.SafePath(source,path);Directory.CreateDirectory(Path.GetDirectoryName(dest)!);var old=Store.SafePath(cache,path);var hash=file.Str("sha");
     if(File.Exists(old)&&await GitHash(old)==hash)File.Copy(old,dest);
-    else
-    {
-     var url="https://raw.githubusercontent.com/MineShprot1/Spectra/"+sha+"/"+string.Join('/',path.Split('/').Select(Uri.EscapeDataString));await Net.Download(url,dest);
-     if(await GitHash(dest)!=hash)throw new IOException("Контрольная сумма Git не совпала: "+path);downloaded++;
-    }
-    emit(new{type="progress",message=$"Исходники {++done}/{files.Length} · скачано {downloaded} изменённых файлов",percent=done*100d/files.Length});
+    else downloads.Add((path,dest,hash,size));
    }
+   // Reuse one HTTP connection pool and bound concurrency instead of serial requests.
+   var downloadTotal=downloads.Sum(x=>x.Size);long received=0,lastReport=0;int completed=0;var progressLock=new object();
+   void Report(long delta,bool finished=false)
+   {
+    lock(progressLock)
+    {
+     received+=delta;if(finished)completed++;var now=Environment.TickCount64;
+     if(!finished&&now-lastReport<150)return;lastReport=now;
+     emit(new{type="progress",message=$"Исходники · {completed}/{downloads.Count} файлов",downloadedBytes=received,totalBytes=downloadTotal,percent=downloadTotal>0?received*100d/downloadTotal:100,scope="update"});
+    }
+   }
+   Report(0);
+   await Parallel.ForEachAsync(downloads,new ParallelOptions{MaxDegreeOfParallelism=8},async(file,cancellation)=>
+   {
+    var url="https://raw.githubusercontent.com/MineShprot1/Spectra/"+sha+"/"+string.Join('/',file.Path.Split('/').Select(Uri.EscapeDataString));
+    using var response=await Net.Http.GetAsync(url,HttpCompletionOption.ResponseHeadersRead,cancellation);response.EnsureSuccessStatusCode();
+    await using(var input=await response.Content.ReadAsStreamAsync(cancellation))
+    await using(var output=new FileStream(file.Destination,FileMode.CreateNew,FileAccess.Write,FileShare.None,65536,true))
+    {
+     var buffer=new byte[65536];long fileReceived=0;int count;
+     while((count=await input.ReadAsync(buffer.AsMemory(),cancellation))>0)
+     {
+      fileReceived+=count;if(fileReceived>file.Size)throw new IOException("Размер исходника не совпадает: "+file.Path);
+      await output.WriteAsync(buffer.AsMemory(0,count),cancellation);Report(count);
+     }
+     if(fileReceived!=file.Size)throw new IOException("Исходник загружен не полностью: "+file.Path);
+    }
+    if(await GitHash(file.Destination)!=file.Hash)throw new IOException("Контрольная сумма Git не совпала: "+file.Path);
+    Report(0,true);
+   });
    var project=Path.Combine(source,"src","Spectra","Spectra.csproj");if(!File.Exists(project))throw new IOException("В корне репозитория нет src/Spectra/Spectra.csproj");
    // The marker is part of the rebuilt application, not inferred from its version number.
    await File.WriteAllTextAsync(Path.Combine(source,"src","Spectra","build-commit.txt"),sha);
