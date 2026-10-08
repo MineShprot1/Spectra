@@ -169,6 +169,20 @@ public partial class MainWindow : Window
    case "launch":await game.Launch(d.Str("instanceId"));return State();
    case "stop":game.Stop(d.Str("instanceId"));return null;
    case "files":return await Task.Run(()=>game.Files(d.Str("instanceId"),d.Str("kind")));
+   case "deleteInstance":new LibraryActions(store,game).DeleteInstance(d.Str("instanceId"));return State();
+   case "enableFiles":new LibraryActions(store,game).Enable(d.Str("instanceId"),d.Str("kind"),d["paths"]!.Deserialize<string[]>(Store.Json)!,d["enabled"]!.GetValue<bool>());return null;
+   case "serverAction":new LibraryActions(store,game).Server(d.Str("instanceId"),d.Str("operation"),d["index"]?.GetValue<int>()??-1,d.Str("name"),d.Str("address"));return null;
+   case "worldAction":
+    var library=new LibraryActions(store,game);
+    if(d.Str("operation")=="rename")library.RenameWorld(d.Str("instanceId"),d.Str("path"),d.Str("name"));
+    else if(d.Str("operation")=="delete")library.DeleteWorld(d.Str("instanceId"),d.Str("path"));
+    else if(d.Str("operation")=="import"){using var picker=new System.Windows.Forms.FolderBrowserDialog{Description="Папка мира с level.dat"};if(picker.ShowDialog()==System.Windows.Forms.DialogResult.OK)await Task.Run(()=>library.ImportWorld(d.Str("instanceId"),picker.SelectedPath));}return null;
+   case "renameScreenshot":new LibraryActions(store,game).RenameScreenshot(d.Str("instanceId"),d.Str("path"),d.Str("name"));return null;
+   case "copyScreenshots":
+    var screenshots=d["paths"]!.Deserialize<string[]>(Store.Json)!;var screenshotPaths=screenshots.Select(p=>new LibraryActions(store,game).PathFor(d.Str("instanceId"),"screenshots",p)).ToArray();
+    if(screenshotPaths.Length==1){var bitmap=new System.Windows.Media.Imaging.BitmapImage();bitmap.BeginInit();bitmap.CacheOption=System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;bitmap.UriSource=new Uri(screenshotPaths[0]);bitmap.EndInit();bitmap.Freeze();Clipboard.SetImage(bitmap);}
+    else if(screenshotPaths.Length>1){var collection=new System.Collections.Specialized.StringCollection();collection.AddRange(screenshotPaths);Clipboard.SetFileDropList(collection);}return null;
+   case "launchTarget":await game.Launch(d.Str("instanceId"),d.Str("kind"),d.Str("target"));return State();
    case "toggle":game.Toggle(d.Str("instanceId"),d.Str("path"));return null;
    case "readLog":return await game.ReadLog(d.Str("instanceId"),d.Str("path"));
    case "openFolder":

@@ -22,7 +22,9 @@ try {
   w.Write((byte)10);Str("");w.Write((byte)9);Str("servers");w.Write((byte)10);w.Write(new byte[]{0,0,0,1});w.Write((byte)8);Str("name");Str("Тест сервер");w.Write((byte)8);Str("ip");Str("localhost:25565");w.Write((byte)0);w.Write((byte)0);
  }
  var json=JsonSerializer.Serialize(Nbt.Servers(nbtFile));Assert(json.Contains("localhost:25565"),"Read Java NBT server list");
-}finally{File.Delete(nbtFile);}
+ var rootData=Nbt.Load(nbtFile)!;var servers=(List<object>)rootData["servers"];((Dictionary<string,object>)servers[0])["name"]="Updated server";rootData["emptyLongs"]=new Nbt.NbtList(4);rootData["longs"]=new long[]{-1,1234567890123};Nbt.Save(nbtFile,rootData,true);
+ var reloaded=Nbt.Load(nbtFile)!;Assert(((Dictionary<string,object>)((List<object>)reloaded["servers"])[0])["name"].ToString()=="Updated server","Write compressed NBT server changes");Assert(((Nbt.NbtList)reloaded["emptyLongs"]).ElementType==4,"Preserve empty list NBT type");Assert(((long[])reloaded["longs"])[1]==1234567890123,"Preserve long array NBT values");
+}finally{File.Delete(nbtFile);File.Delete(nbtFile+".spectra-backup");}
 Assert(UpdateService.ParseVersion("v0.4.2")==new Version(0,4,2,0),"Update tag normalization");
 Assert(UpdateService.ParseVersion("0.4.10")>UpdateService.ParseVersion("0.4.2"),"Numeric update ordering");
 Assert(UpdateService.ParseVersion("v0.5.0-beta")==null,"Prerelease tag excluded");

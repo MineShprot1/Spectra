@@ -3,7 +3,7 @@
     <OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.7.3</Version><ApplicationIcon>Assets\spectra.ico</ApplicationIcon><AssemblyName>Spectra</AssemblyName>
+    <Version>0.8.0</Version><ApplicationIcon>Assets\spectra.ico</ApplicationIcon><AssemblyName>Spectra</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets\spectra.ico" />

@@ -77,7 +77,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   if(preference=="system")key.DeleteValue(path,false);
   else key.SetValue(path,"GpuPreference="+(preference=="high"?"2":"1")+";",RegistryValueKind.String);
  }
- public async Task Launch(string id)
+ public async Task Launch(string id,string targetKind="",string target="")
  {
   var i=store.Get(id);Store.Validate(i.Settings);
   if(Running.ContainsKey(id)||!busy.TryAdd(id,0))throw new IOException("Сборка уже запускается или запущена");
@@ -103,6 +103,18 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    var process=await launcher.InstallAndBuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.5.0"});
+   if(targetKind!=""){
+    if(target.Contains('"')||target.Contains('\\')&&targetKind=="servers"||target.Any(char.IsControl))throw new IOException("Некорректная цель запуска");
+    var modern=Version.TryParse(i.Version,out var mc)&&mc>=new Version(1,20);
+    if(targetKind=="worlds"){
+     var world=new LibraryActions(store,this).PathFor(id,"worlds",target);if(!Directory.Exists(world))throw new IOException("Мир не найден");
+     if(!modern)throw new IOException("Прямой запуск мира поддерживается с Minecraft 1.20. Для старой версии откройте мир в меню игры.");target=Path.GetFileName(world);
+    }else if(targetKind!="servers")throw new IOException("Неизвестная цель запуска");
+    var args=new List<string>();
+    if(modern){args.Add(targetKind=="worlds"?"--quickPlaySingleplayer":"--quickPlayMultiplayer");args.Add(target);}
+    else{var address=new Uri("minecraft://"+target);args.AddRange(new[]{"--server",address.Host,"--port",(address.Port>0?address.Port:25565).ToString()});}
+    foreach(var arg in args){if(process.StartInfo.ArgumentList.Count>0)process.StartInfo.ArgumentList.Add(arg);else process.StartInfo.Arguments+=" \""+arg+"\"";}
+   }
    process.StartInfo.UseShellExecute=false;process.StartInfo.RedirectStandardOutput=true;process.StartInfo.RedirectStandardError=true;process.StartInfo.CreateNoWindow=true;process.EnableRaisingEvents=true;
    void Log(string? line) { if(line!=null)emit(new{type="log",instanceId=id,line=Redact(line)}); }
    process.OutputDataReceived+=(s,e)=>Log(e.Data);process.ErrorDataReceived+=(s,e)=>Log(e.Data);
@@ -142,7 +154,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    using var zip=ZipFile.OpenRead(p);var entry=zip.GetEntry("fabric.mod.json")??zip.GetEntry("quilt.mod.json");
    if(entry!=null){using var reader=new StreamReader(entry.Open());var n=JsonNode.Parse(reader.ReadToEnd())!;if(n["quilt_loader"]!=null)n=n["quilt_loader"]!;label=n["metadata"].Str("name");if(label=="")label=n.Str("name");version=n.Str("version");game=n["depends"]?.Str("minecraft")??"";var iconName=n.Str("icon");if(iconName!=""&&zip.GetEntry(iconName) is {} image&&image.Length<2*1024*1024){using var stream=image.Open();using var ms=new MemoryStream();stream.CopyTo(ms);icon="data:image/png;base64,"+Convert.ToBase64String(ms.ToArray());}}
   }catch(Exception ex) when(ex is IOException or JsonException or InvalidOperationException){}
-  return new{name,label=string.IsNullOrEmpty(label)?name:label,version,game,icon,path=Path.GetRelativePath(root,p),enabled=!p.EndsWith(".disabled"),size=new System.IO.FileInfo(p).Length,modified=File.GetLastWriteTimeUtc(p),image=kind=="screenshots"?Asset(p):""};
+  return new{name,label=string.IsNullOrEmpty(label)?name:label,version,game,icon,path=Path.GetRelativePath(root,p),enabled=!p.EndsWith(".disabled",StringComparison.OrdinalIgnoreCase),size=new System.IO.FileInfo(p).Length,modified=File.GetLastWriteTimeUtc(p),image=kind=="screenshots"?Asset(p):""};
  }
  public static string KindFolder(string kind)=>kind switch{"mods"=>"mods","shaders"=>"shaderpacks","resources"=>"resourcepacks","worlds"=>"saves","servers"=>"", "screenshots"=>"screenshots","logs"=>"logs",_=>throw new IOException("Неизвестная папка")};
  public string Asset(string p)=>"https://data.spectra.local/"+Uri.EscapeDataString(Path.GetRelativePath(store.Root,p).Replace('\\','/')).Replace("%2F","/");

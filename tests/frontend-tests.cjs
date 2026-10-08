@@ -29,3 +29,8 @@ assert(!evaluate("quickCard('',{name:'X',banner:'javascript:alert(1)'})").includ
  evaluate("onMessage({type:'logBatch',items:[{type:'log',instanceId:'batched',line:'first'},{type:'log',instanceId:'batched',line:'second'}]})");assert.equal(evaluate("logs.get('batched').join(',')"),'first,second');
  console.log('PASS: escaping, image URLs, preview integrity, RPC replies, bounded log buffer');
 })().catch(e=>{console.error(e);process.exit(1)});
+
+assert.equal(evaluate("creationVersions([{type:'release'},{type:'snapshot'},{type:'old_beta'},{type:'old_alpha'}]).length"),1);
+assert.equal(evaluate("creationVersions([{type:'release'},{type:'snapshot'},{type:'old_beta'},{type:'old_alpha'}],{beta:true}).length"),2);
+assert.equal(evaluate("creationVersions([{type:'release'},{type:'snapshot'},{type:'old_beta'},{type:'old_alpha'}],{snapshots:true,beta:true,alpha:true}).length"),4);
+console.log('PASS: creation filters exclude snapshots, beta and alpha by default');
