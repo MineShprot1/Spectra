@@ -9,6 +9,7 @@ C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\w
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\win-x64\Web\assets\edit.svg
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\win-x64\Web\assets\folder.svg
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\win-x64\Web\assets\home.svg
+C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\win-x64\Web\assets\minecraft.ttf
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\win-x64\Web\assets\mods.svg
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\win-x64\Web\assets\pack.svg
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\win-x64\Web\assets\play.svg

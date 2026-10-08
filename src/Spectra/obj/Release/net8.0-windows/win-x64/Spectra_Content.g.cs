@@ -18,6 +18,7 @@
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/edit.svg")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/folder.svg")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/home.svg")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/minecraft.ttf")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/mods.svg")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/pack.svg")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/play.svg")]

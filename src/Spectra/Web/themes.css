@@ -30,3 +30,10 @@ body[data-theme=windows] :is(.primary,.play){background:#60cdff!important;color:
 body[data-theme=windows] :is(nav,#titlebar,footer){background:#202020}
 body[data-theme=windows] .hero{background:linear-gradient(120deg,#252b34,#20242b);border-color:#ffffff15;text-shadow:none}
 body[data-theme=windows] .hero h2{font-family:var(--ui-font);text-shadow:none}
+/* Reading text uses the supplied font; key headings retain pixel glyphs. */
+@font-face{font-family:SpectraReading;src:url('assets/minecraft.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+body{--ui-font:SpectraReading,'Segoe UI',sans-serif;--heading-font:SpectraPixel,Consolas,monospace}
+body:is([data-theme=steam],[data-theme=windows],[data-theme=aero]){--heading-font:var(--ui-font)}
+body :is(h1,h2,.wordmark,.eyebrow,nav>button,.boot-logo,.version-art span,.quick-title){font-family:var(--heading-font)!important}
+body :is(h1,h2,.wordmark,.eyebrow,nav>button) *{font-family:inherit!important}
+body :is(.primary,.play){font-family:var(--heading-font)!important}
