@@ -25,6 +25,9 @@ public record Instance
  public string Icon { get; set; } = "";
  public string Banner { get; set; } = "";
  public GameSettings Settings { get; set; } = new();
+ public string PackSource {get;set;}="";
+ public string PackId {get;set;}="";
+ public string PackVersion {get;set;}="";
  public DateTime? LastPlayed { get; set; }
 }
 public record SavedSkin
@@ -39,6 +42,8 @@ public record Configuration
 {
  [JsonIgnore] public string CurseForgeKey { get; set; } = "";
  [JsonIgnore] public string CraftyKey { get; set; } = "";
+ public string FriendsEndpoint {get;set;}="";
+ public bool ShareGameActivity {get;set;}=true;
  public string AppliedInstallerLanguage {get;set;}="";
  public string AppearanceJson {get;set;}="{}";
  public GameSettings Defaults { get; set; } = new();

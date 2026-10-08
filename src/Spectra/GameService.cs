@@ -77,9 +77,18 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   if(preference=="system")key.DeleteValue(path,false);
   else key.SetValue(path,"GpuPreference="+(preference=="high"?"2":"1")+";",RegistryValueKind.String);
  }
+ public readonly ConcurrentDictionary<string,GameActivity> Activities=new();
+ public record GameActivity(string Version,string Loader,string LoaderVersion,string Pack,string TargetKind,string Target,string PackSource,string PackId,string PackVersion);
+ public object FriendPresence(bool share,string lanAddress="")
+ {
+  var item=Activities.FirstOrDefault(x=>Running.ContainsKey(x.Key)).Value;
+  if(!share||item==null)return new{playing=false};
+  return new{playing=true,version=item.Version,loader=item.Loader,loaderVersion=item.LoaderVersion,pack=item.Pack,targetKind=string.IsNullOrEmpty(lanAddress)?item.TargetKind:"lan",target=string.IsNullOrEmpty(lanAddress)?item.Target:lanAddress,packSource=item.PackSource,packId=item.PackId,packVersion=item.PackVersion};
+ }
  public async Task Launch(string id,string targetKind="",string target="")
  {
-  var i=store.Get(id);Store.Validate(i.Settings);
+  var i=store.Get(id);Store.Validate(i.Settings);var activityTarget=target;
+  if(targetKind=="worlds")activityTarget=Nbt.World(Path.Combine(new LibraryActions(store,this).PathFor(id,"worlds",target),"level.dat")).Name;
   if(Running.ContainsKey(id)||!busy.TryAdd(id,0))throw new IOException("Сборка уже запускается или запущена");
   try
   {
@@ -118,8 +127,9 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    process.StartInfo.UseShellExecute=false;process.StartInfo.RedirectStandardOutput=true;process.StartInfo.RedirectStandardError=true;process.StartInfo.CreateNoWindow=true;process.EnableRaisingEvents=true;
    void Log(string? line) { if(line!=null)emit(new{type="log",instanceId=id,line=Redact(line)}); }
    process.OutputDataReceived+=(s,e)=>Log(e.Data);process.ErrorDataReceived+=(s,e)=>Log(e.Data);
-   process.Exited+=(s,e)=>{Running.TryRemove(id,out _);emit(new{type="exited",instanceId=id,code=process.ExitCode});process.Dispose();};
-   Running[id]=process;try{if(!process.Start())throw new IOException("Java не запустилась");}catch{Running.TryRemove(id,out _);process.Dispose();throw;}process.BeginOutputReadLine();process.BeginErrorReadLine();i.LastPlayed=DateTime.UtcNow;store.Save();
+   process.Exited+=(s,e)=>{Running.TryRemove(id,out _);Activities.TryRemove(id,out _);emit(new{type="exited",instanceId=id,code=process.ExitCode});process.Dispose();};
+   Activities[id]=new(i.Version,i.Loader,i.LoaderVersion,i.Name,targetKind,activityTarget,i.PackSource,i.PackId,i.PackVersion);
+   Running[id]=process;try{if(!process.Start())throw new IOException("Java не запустилась");}catch{Running.TryRemove(id,out _);Activities.TryRemove(id,out _);process.Dispose();throw;}process.BeginOutputReadLine();process.BeginErrorReadLine();i.LastPlayed=DateTime.UtcNow;store.Save();
    emit(new{type="started",instanceId=id,hide=i.Settings.HideOnLaunch});
   }
   finally{busy.TryRemove(id,out _);}

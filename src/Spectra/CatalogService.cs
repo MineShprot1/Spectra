@@ -129,19 +129,19 @@ public sealed class CatalogService(Store store,GameService game,Action<object> e
   catch{if(instance!=null)Directory.Delete(Path.GetDirectoryName(store.Folder(instance))!,true);throw;}
   finally{installation.Release();}
  }
- public async Task<Instance> InstallPack(string source,string id)
+ public async Task<Instance> InstallPack(string source,string id,string pinnedVersion="")
  {
-  string url,filename;string? hash;string algorithm;JsonNode? project=null;
+  string url,filename;string? hash;string algorithm;JsonNode? project=null;string packVersion="";
   if(source=="modrinth")
   {
    project=await Net.Get("https://api.modrinth.com/v2/project/"+Q(id));
-   var versions=await Net.Get("https://api.modrinth.com/v2/project/"+Q(id)+"/version");var v=versions[0]??throw new IOException("Нет версии модпака");var file=v["files"]!.AsArray().FirstOrDefault(x=>x.Str("filename").EndsWith(".mrpack"))??throw new IOException("Нет .mrpack");
+   var versions=await Net.Get("https://api.modrinth.com/v2/project/"+Q(id)+"/version");var v=(string.IsNullOrEmpty(pinnedVersion)?versions[0]:versions.AsArray().FirstOrDefault(x=>x.Str("id")==pinnedVersion))??throw new IOException("Нет версии модпака");packVersion=v.Str("id");var file=v["files"]!.AsArray().FirstOrDefault(x=>x.Str("filename").EndsWith(".mrpack"))??throw new IOException("Нет .mrpack");
    url=file.Str("url");filename=Guid.NewGuid()+".mrpack";hash=file["hashes"].Str("sha512");algorithm="SHA512";
   }
   else if(source=="curseforge")
   {
    project=(await Curse("https://api.curseforge.com/v1/mods/"+Q(id)))["data"]!;
-   var versions=(await Curse("https://api.curseforge.com/v1/mods/"+Q(id)+"/files"))["data"]!.AsArray();var file=versions.OrderByDescending(x=>x.Str("fileDate")).FirstOrDefault()??throw new IOException("Нет версии модпака");
+   var versions=(await Curse("https://api.curseforge.com/v1/mods/"+Q(id)+"/files"))["data"]!.AsArray();var file=(string.IsNullOrEmpty(pinnedVersion)?versions.OrderByDescending(x=>x.Str("fileDate")).FirstOrDefault():(await Curse("https://api.curseforge.com/v1/mods/"+Q(id)+"/files/"+Q(pinnedVersion)))["data"])??throw new IOException("Нет версии модпака");packVersion=file.Str("id");
    url=file.Str("downloadUrl");if(string.IsNullOrWhiteSpace(url))throw new IOException("Автор запретил загрузку модпака через сторонние лаунчеры");filename=Guid.NewGuid()+".zip";hash=file["hashes"]?.AsArray().FirstOrDefault(x=>x?["algo"]?.GetValue<int>()==1)?.Str("value");algorithm="SHA1";
   }
   else throw new IOException("Неизвестный источник");
@@ -149,6 +149,7 @@ public sealed class CatalogService(Store store,GameService game,Action<object> e
   try
   {
    var i=source=="modrinth"?await ImportMrpack(p):await ImportCursePack(p);
+   i.PackSource=source;i.PackId=id;i.PackVersion=packVersion;
    i.Icon=source=="modrinth"?project.Str("icon_url"):project?["logo"].Str("thumbnailUrl")??"";
    i.Banner=source=="modrinth"?project?["gallery"]?.AsArray().FirstOrDefault()?.Str("url")??"":project?["screenshots"]?.AsArray().FirstOrDefault()?.Str("url")??"";
    store.Save();return i;

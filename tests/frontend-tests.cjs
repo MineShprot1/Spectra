@@ -34,3 +34,29 @@ assert.equal(evaluate("creationVersions([{type:'release'},{type:'snapshot'},{typ
 assert.equal(evaluate("creationVersions([{type:'release'},{type:'snapshot'},{type:'old_beta'},{type:'old_alpha'}],{beta:true}).length"),2);
 assert.equal(evaluate("creationVersions([{type:'release'},{type:'snapshot'},{type:'old_beta'},{type:'old_alpha'}],{snapshots:true,beta:true,alpha:true}).length"),4);
 console.log('PASS: creation filters exclude snapshots, beta and alpha by default');
+
+// Exercise real pointer handlers: toggling selected rows preserves other selections,
+// empty space clears them, and mouse capture starts only on drag (so image double-click works).
+context.selectionHost={querySelectorAll:()=>[],setPointerCapture(){throw Error('Capture must not begin on a click');}};
+context.selectionRow={dataset:{select:'1'}};
+context.selectionChanges=0;
+evaluate('globalThis.testSelection=new Set([1,2]);bindFileSelection(selectionHost,testSelection,()=>selectionChanges++)');
+const pointer=(row,ctrl=false)=>({button:0,ctrlKey:ctrl,clientX:20,clientY:20,pointerId:1,target:{closest:selector=>selector==='[data-select]'?row:null}});
+context.selectionHost.onpointerdown(pointer(context.selectionRow));assert.deepEqual([...context.testSelection],[2]);context.selectionHost.onpointerup();
+context.selectionHost.onpointerdown(pointer(context.selectionRow,true));assert.deepEqual([...context.testSelection],[2,1]);context.selectionHost.onpointerup();
+context.selectionHost.onpointerdown(pointer(null));assert.equal(context.testSelection.size,0);context.selectionHost.onpointerup();
+console.log('PASS: selection toggle, additive selection, empty-space clearing, no pointer capture on click');
+
+// Screenshot click/drag behavior without a renderer: drag must never act as a click.
+const viewerImage={clientWidth:400,clientHeight:200,style:{},onload:null};
+const viewerStage={clientWidth:400,clientHeight:200,classList:{toggle(){}},querySelector:()=>viewerImage,setPointerCapture(){},releasePointerCapture(){},getBoundingClientRect:()=>({left:0,top:0,width:400,height:200})};
+const viewerDialog={classList:{add(){},remove(){}},showModal(){}};
+const previousQuery=context.document.querySelector;
+context.document.querySelector=selector=>selector==='#shotViewport'?viewerStage:selector==='#modal'?viewerDialog:selector==='#modalContent'?{innerHTML:''}:null;
+evaluate("screenshotViewer('https://example.test/screenshot.png')");
+const point=(x,y)=>({button:0,pointerId:1,clientX:x,clientY:y,preventDefault(){}});
+viewerStage.onpointerdown(point(200,100));viewerStage.onpointerup(point(200,100));assert.match(viewerImage.style.transform,/scale\(2.5\)/);
+viewerStage.onpointerdown(point(200,100));viewerStage.onpointermove(point(250,110));viewerStage.onpointerup(point(250,110));assert.equal(viewerImage.style.transform,'translate(50px,10px) scale(2.5)');
+viewerStage.onpointerdown(point(200,100));viewerStage.onpointerup(point(200,100));assert.equal(viewerImage.style.transform,'translate(0px,0px) scale(1)');
+context.document.querySelector=previousQuery;
+console.log('PASS: screenshot zoom, drag pan, click-to-reset');
