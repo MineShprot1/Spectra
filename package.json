@@ -1,0 +1,9 @@
+{
+  "name": "spectra-ui-checks",
+  "private": true,
+  "scripts": {
+    "test": "node tests/frontend-tests.cjs",
+    "test:ui": "node tests/ui-smoke.cjs"
+  },
+  "devDependencies": { "playwright": "1.58.2" }
+}
