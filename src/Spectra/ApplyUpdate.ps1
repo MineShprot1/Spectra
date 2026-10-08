@@ -1,60 +1,100 @@
 param([Parameter(Mandatory=$true)][string]$JobFile)
-# Enable long paths in Windows PowerShell's .NET Framework host.
-[AppContext]::SetSwitch('Switch.System.IO.UseLegacyPathHandling', $false)
-[AppContext]::SetSwitch('Switch.System.IO.BlockLongPaths', $false)
 $ErrorActionPreference='Stop'
-$task=Get-Content -LiteralPath $JobFile -Raw | ConvertFrom-Json
-$backup=Join-Path $task.job 'backup'
+# Windows PowerShell 5.1 uses legacy .NET path handling. Use Unicode Win32
+# file APIs with extended paths throughout the installation transaction.
+Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using Microsoft.Win32.SafeHandles;
+public static class SpectraUpdateFiles {
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool CopyFileW(string from,string to,bool failIfExists);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool DeleteFileW(string path);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool CreateDirectoryW(string path,IntPtr security);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern uint GetFileAttributesW(string path);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern SafeFileHandle CreateFileW(string path,uint access,uint share,IntPtr security,uint creation,uint flags,IntPtr template);
+ static string Extended(string path) {
+  path=path.Replace('/','\\');
+  if(path.StartsWith(@"\\?\"))return path;
+  if(path.StartsWith(@"\\"))return @"\\?\UNC\"+path.Substring(2);
+  if(path.Length<3||path[1]!=':'||path[2]!='\\')throw new IOException("Absolute path required: "+path);
+  return @"\\?\"+path;
+ }
+ static void Fail(string operation,string path){throw new IOException(operation+": "+path,new Win32Exception(Marshal.GetLastWin32Error()));}
+ public static bool Exists(string path){return GetFileAttributesW(Extended(path))!=0xffffffff;}
+ public static string Under(string root,string relative){
+  if(String.IsNullOrEmpty(relative))throw new IOException("Empty update path");
+  relative=relative.Replace('/','\\');
+  foreach(string part in relative.Split('\\'))if(part.Length==0||part=="."||part==".."||part.IndexOf(':')>=0)throw new IOException("Invalid update path: "+relative);
+  // Root is supplied by the running launcher; no legacy GetFullPath call.
+  Extended(root);return root.TrimEnd('\\')+"\\"+relative;
+ }
+ public static void Directory(string path){
+  string full=Extended(path).TrimEnd('\\');if(Exists(full))return;
+  int separator=full.LastIndexOf('\\');
+  if(separator>6)Directory(full.Substring(0,separator));
+  if(!CreateDirectoryW(full,IntPtr.Zero)&&Marshal.GetLastWin32Error()!=183)Fail("Create directory",path);
+ }
+ public static void Copy(string from,string to){
+  Directory(to.Substring(0,to.LastIndexOf('\\')));
+  if(!CopyFileW(Extended(from),Extended(to),false))Fail("Copy file",to);
+ }
+ public static void Delete(string path){if(Exists(path)&&!DeleteFileW(Extended(path)))Fail("Delete file",path);}
+ static FileStream Open(string path,uint access,uint creation){
+  SafeFileHandle handle=CreateFileW(Extended(path),access,7,IntPtr.Zero,creation,128,IntPtr.Zero);
+  if(handle.IsInvalid){handle.Dispose();Fail("Open file",path);}
+  return new FileStream(handle,access==0x80000000?FileAccess.Read:FileAccess.Write);
+ }
+ public static string Hash(string path){using(var stream=Open(path,0x80000000,3))using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","");}
+ public static string Read(string path){using(var stream=Open(path,0x80000000,3))using(var reader=new StreamReader(stream))return reader.ReadToEnd();}
+ public static void Write(string path,string text){Directory(path.Substring(0,path.LastIndexOf('\\')));using(var stream=Open(path,0x40000000,2))using(var writer=new StreamWriter(stream))writer.Write(text);}
+}
+'@
+$task=[SpectraUpdateFiles]::Read($JobFile) | ConvertFrom-Json
+$backup=[SpectraUpdateFiles]::Under($task.job,'backup')
 $changed=New-Object 'System.Collections.Generic.List[string]'
 $created=New-Object 'System.Collections.Generic.List[string]'
-function ReportResult([bool]$Success,[string]$Message) {
- if($task.report){@{success=$Success;message=$Message;commit=$task.commit;install=$task.install;time=[DateTime]::UtcNow.ToString('o')} | ConvertTo-Json | Set-Content -LiteralPath $task.report -Encoding UTF8}
-}
-function Under([string]$Root,[string]$Relative) {
- $prefix=[IO.Path]::GetFullPath($Root).TrimEnd('\')+'\'
- $path=[IO.Path]::GetFullPath((Join-Path $Root $Relative))
- if(-not $path.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)){throw 'Invalid update path'}
- return $path
+function Under([string]$Root,[string]$Relative){return [SpectraUpdateFiles]::Under($Root,$Relative)}
+function ReportResult([bool]$Success,[string]$Message){
+ if($task.report){$report=@{success=$Success;message=$Message;commit=$task.commit;install=$task.install;time=[DateTime]::UtcNow.ToString('o')} | ConvertTo-Json;[SpectraUpdateFiles]::Write($task.report,$report)}
 }
 try {
  $running=Get-Process -Id $task.pid -ErrorAction SilentlyContinue
  if($running){Wait-Process -Id $task.pid -Timeout 45 -ErrorAction Stop}
- New-Item -ItemType Directory -Path $backup -Force | Out-Null
- $fresh=@(Get-Content -LiteralPath (Join-Path $task.publish 'installed-files.json') -Raw | ConvertFrom-Json)+@('installed-files.json')
- $oldManifest=Join-Path $task.install 'installed-files.json'
- $old=@();if(Test-Path -LiteralPath $oldManifest){$old=@(Get-Content -LiteralPath $oldManifest -Raw | ConvertFrom-Json)+@('installed-files.json')}
+ [SpectraUpdateFiles]::Directory($backup)
+ $fresh=@([SpectraUpdateFiles]::Read((Under $task.publish 'installed-files.json')) | ConvertFrom-Json)+@('installed-files.json')
+ $oldManifest=Under $task.install 'installed-files.json'
+ $old=@();if([SpectraUpdateFiles]::Exists($oldManifest)){$old=@([SpectraUpdateFiles]::Read($oldManifest) | ConvertFrom-Json)+@('installed-files.json')}
  foreach($relative in @($fresh+$old | Select-Object -Unique)) {
   $destination=Under $task.install $relative
   $incoming=Under $task.publish $relative
   $hasFresh=$fresh -contains $relative
-  if($hasFresh -and (Test-Path -LiteralPath $destination) -and ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $incoming -Algorithm SHA256).Hash)){continue}
-  if(Test-Path -LiteralPath $destination){$saved=Under $backup $relative;New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName($saved)) -Force | Out-Null;Copy-Item -LiteralPath $destination -Destination $saved;$changed.Add($relative)}else{$created.Add($relative)}
-  if($hasFresh){New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName($destination)) -Force | Out-Null;Copy-Item -LiteralPath $incoming -Destination $destination -Force}else{Remove-Item -LiteralPath $destination -Force}
+  if($hasFresh -and [SpectraUpdateFiles]::Exists($destination) -and [SpectraUpdateFiles]::Hash($destination) -eq [SpectraUpdateFiles]::Hash($incoming)){continue}
+  if([SpectraUpdateFiles]::Exists($destination)){
+   $saved=Under $backup $relative;[SpectraUpdateFiles]::Copy($destination,$saved);$changed.Add($relative)
+  }else{$created.Add($relative)}
+  if($hasFresh){[SpectraUpdateFiles]::Copy($incoming,$destination)}else{[SpectraUpdateFiles]::Delete($destination)}
  }
- # Verify every published file before reporting success or starting the new app.
  if($task.hashesFile){
-  $hashes=Get-Content -LiteralPath $task.hashesFile -Raw | ConvertFrom-Json
+  $hashes=[SpectraUpdateFiles]::Read($task.hashesFile) | ConvertFrom-Json
   foreach($entry in $hashes.PSObject.Properties){
    $installed=Under $task.install $entry.Name
-   if(-not (Test-Path -LiteralPath $installed) -or (Get-FileHash -LiteralPath $installed -Algorithm SHA256).Hash -ne $entry.Value){throw "Installed file verification failed: $($entry.Name)"}
+   if(-not [SpectraUpdateFiles]::Exists($installed) -or [SpectraUpdateFiles]::Hash($installed) -ne $entry.Value){throw "Installed file verification failed: $($entry.Name)"}
   }
  }
- $marker=Join-Path $task.install 'build-commit.txt'
- if((Get-Content -LiteralPath $marker -Raw).Trim() -ne $task.commit){throw 'Installed commit verification failed'}
- # Source cache is disposable; every cached blob is verified before reuse.
- try {if(Test-Path -LiteralPath $task.cache){Remove-Item -LiteralPath $task.cache -Recurse -Force};Move-Item -LiteralPath $task.source -Destination $task.cache} catch {Write-Warning 'Source cache could not be moved; next update will download it again.'}
- if(Test-Path -LiteralPath $task.failureMarker){Remove-Item -LiteralPath $task.failureMarker -Force}
- Start-Process -FilePath (Join-Path $task.install 'Spectra.exe') -WorkingDirectory $task.install -ErrorAction Stop
- ReportResult $true 'Installed files verified; new executable started.'
+ if([SpectraUpdateFiles]::Read((Under $task.install 'build-commit.txt')).Trim() -ne $task.commit){throw 'Installed commit verification failed'}
+ # Cache is optional and never part of the application transaction.
+ try{if(Test-Path -LiteralPath $task.cache){Remove-Item -LiteralPath $task.cache -Recurse -Force};Move-Item -LiteralPath $task.source -Destination $task.cache}catch{}
+ [SpectraUpdateFiles]::Delete($task.failureMarker)
+ ReportResult $true 'Installed files verified; starting new executable.'
+ Start-Process -FilePath (Under $task.install 'Spectra.exe') -WorkingDirectory $task.install -ErrorAction Stop
 } catch {
  $failure=$_.Exception.Message
- $task.commit | Set-Content -LiteralPath $task.failureMarker
- foreach($relative in $changed){try{Copy-Item -LiteralPath (Under $backup $relative) -Destination (Under $task.install $relative) -Force}catch{Write-Warning "Restore failed: $relative"}}
- foreach($relative in $created){try{Remove-Item -LiteralPath (Under $task.install $relative) -Force -ErrorAction SilentlyContinue}catch{}}
- $failure | Set-Content -LiteralPath (Join-Path $task.job 'apply-error.txt')
- ReportResult $false $failure
- Write-Host "Update failed. Previous files restored where possible. $failure"
- if(-not (Get-Process -Id $task.pid -ErrorAction SilentlyContinue)){Start-Process -FilePath (Join-Path $task.install 'Spectra.exe') -WorkingDirectory $task.install -ErrorAction SilentlyContinue}
+ foreach($relative in $changed){try{[SpectraUpdateFiles]::Copy((Under $backup $relative),(Under $task.install $relative))}catch{$failure+="; Restore failed: $relative"}}
+ foreach($relative in $created){try{[SpectraUpdateFiles]::Delete((Under $task.install $relative))}catch{}}
+ try{[SpectraUpdateFiles]::Write($task.failureMarker,$task.commit);ReportResult $false $failure;[SpectraUpdateFiles]::Write((Under $task.job 'apply-error.txt'),$failure)}catch{}
+ if(-not (Get-Process -Id $task.pid -ErrorAction SilentlyContinue)){Start-Process -FilePath (Under $task.install 'Spectra.exe') -WorkingDirectory $task.install -ErrorAction SilentlyContinue}
  exit 1
 }
-# Keep backup in the update job for manual recovery; no game/config folders are copied.
