@@ -30,10 +30,12 @@ public static class SourceUpdater
  public static async Task Prepare(string sha,Store store,Action<object> emit)
  {
   if(!ValidCommit(sha))throw new IOException("Некорректный SHA коммита");
+  var installedMarker=Path.Combine(AppContext.BaseDirectory,"build-commit.txt");
+  if(File.Exists(installedMarker)&&(await File.ReadAllTextAsync(installedMarker)).Trim()==sha)return;
   var sdk=new ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};sdk.ArgumentList.Add("--list-sdks");
   try{using var p=Process.Start(sdk)??throw new IOException("Не удалось найти .NET SDK");var output=await p.StandardOutput.ReadToEndAsync();await p.WaitForExitAsync();if(!output.Split('\n').Any(x=>x.TrimStart().StartsWith("8.")))throw new IOException("Для обновления из исходников установите .NET SDK 8 x64");}
   catch(System.ComponentModel.Win32Exception){throw new IOException("Для обновления из исходников установите .NET SDK 8 x64");}
-  var job=Path.Combine(store.Root,"updates","jobs",Guid.NewGuid().ToString("N"));var source=Path.Combine(job,"source");var publish=Path.Combine(job,"publish");var cache=Path.Combine(store.Root,"updates","source");Directory.CreateDirectory(source);
+  var job=Path.Combine(Path.GetTempPath(),"SpU",Guid.NewGuid().ToString("N")[..12]);var source=Path.Combine(job,"source");var publish=Path.Combine(job,"publish");var cache=Path.Combine(store.Root,"updates","source");Directory.CreateDirectory(source);
   bool handedOff=false;
   try
   {
@@ -46,6 +48,7 @@ public static class SourceUpdater
     var path=file.Str("path");if(file.Str("mode") is not ("100644" or "100755"))throw new IOException("Ссылки в исходниках не поддерживаются");
     if(path.Split('/').Any(x=>x is "." or ".."||x.Contains(':')||x.Contains('\\'))||path.StartsWith('/'))throw new IOException("Небезопасный путь исходника");
     if(Path.GetFileName(path) is "api-keys.local.json" or "build-commit.txt")continue;
+    if(path.Split('/').Any(x=>x is "bin" or "obj" or ".git" or "node_modules"))continue;
     var size=file?["size"]?.GetValue<long>()??0;total+=size;if(size>32*1024*1024||total>256L*1024*1024)throw new IOException("Исходники слишком большие");
     var dest=Store.SafePath(source,path);Directory.CreateDirectory(Path.GetDirectoryName(dest)!);var old=Store.SafePath(cache,path);var hash=file.Str("sha");
     if(File.Exists(old)&&await GitHash(old)==hash)File.Copy(old,dest);
@@ -76,7 +79,7 @@ public static class SourceUpdater
    await File.WriteAllTextAsync(Path.Combine(publish,"installed-files.json"),JsonSerializer.Serialize(currentFiles));
    var helper=Path.Combine(job,"ApplyUpdate.ps1");File.Copy(Path.Combine(AppContext.BaseDirectory,"ApplyUpdate.ps1"),helper);
    var manifest=Path.Combine(job,"job.json");await File.WriteAllTextAsync(manifest,JsonSerializer.Serialize(new{pid=Environment.ProcessId,install=AppContext.BaseDirectory,publish,source,cache,job,commit=sha,failureMarker=Path.Combine(store.Root,"updates","failed-commit.txt")},Store.Json));
-   var helperStart=new ProcessStartInfo("powershell.exe"){UseShellExecute=false,WorkingDirectory=job};
+   var helperStart=new ProcessStartInfo("powershell.exe"){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=job};
    foreach(var arg in new[]{"-NoProfile","-ExecutionPolicy","Bypass","-File",helper,"-JobFile",manifest})helperStart.ArgumentList.Add(arg);
    _=Process.Start(helperStart)??throw new IOException("Не удалось запустить замену обновления");handedOff=true;
   }

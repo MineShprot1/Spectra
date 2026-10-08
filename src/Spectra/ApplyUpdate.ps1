@@ -1,4 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$JobFile)
+# Enable long paths in Windows PowerShell's .NET Framework host.
+[AppContext]::SetSwitch('Switch.System.IO.UseLegacyPathHandling', $false)
+[AppContext]::SetSwitch('Switch.System.IO.BlockLongPaths', $false)
 $ErrorActionPreference='Stop'
 $task=Get-Content -LiteralPath $JobFile -Raw | ConvertFrom-Json
 $backup=Join-Path $task.job 'backup'

@@ -1,6 +1,7 @@
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\runtimes\win-x86\native\WebView2Loader.dll
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\runtimes\win-x64\native\WebView2Loader.dll
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\runtimes\win-arm64\native\WebView2Loader.dll
+C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\ApplyUpdate.ps1
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\microsoft-oauth.json
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\app.js
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets\arrow.svg
@@ -18,7 +19,9 @@ C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets\sun.svg
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets\terrain.svg
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\index.html
+C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\list-renderer.js
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\minecraft.css
+C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\skin-preview.js
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\style.css
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Spectra.exe
 C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Spectra.deps.json
@@ -65,6 +68,3 @@ C:\Users\majnk\Desktop\Spectra\src\Spectra\obj\Release\net8.0-windows\refint\Spe
 C:\Users\majnk\Desktop\Spectra\src\Spectra\obj\Release\net8.0-windows\Spectra.pdb
 C:\Users\majnk\Desktop\Spectra\src\Spectra\obj\Release\net8.0-windows\Spectra.genruntimeconfig.cache
 C:\Users\majnk\Desktop\Spectra\src\Spectra\obj\Release\net8.0-windows\ref\Spectra.dll
-C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\ApplyUpdate.ps1
-C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\list-renderer.js
-C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\skin-preview.js
