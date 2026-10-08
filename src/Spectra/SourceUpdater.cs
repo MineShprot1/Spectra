@@ -114,7 +114,7 @@ public static class SourceUpdater
    var hashesFile=Path.Combine(job,"hashes.json");await File.WriteAllTextAsync(hashesFile,JsonSerializer.Serialize(hashes));
    var helper=Path.Combine(job,"ApplyUpdate.ps1");File.Copy(Path.Combine(publish,"ApplyUpdate.ps1"),helper);
    var manifest=Path.Combine(job,"job.json");await File.WriteAllTextAsync(manifest,JsonSerializer.Serialize(new{hashesFile,report=Path.Combine(store.Root,"updates","last-apply.json"),pid=Environment.ProcessId,install=AppContext.BaseDirectory,publish,source,cache,job,commit=sha,failureMarker=Path.Combine(store.Root,"updates","failed-commit.txt")},Store.Json));
-   bool elevate=false;var probe=Path.Combine(AppContext.BaseDirectory,".spectra-write-"+Guid.NewGuid().ToString("N"));
+   bool elevate=new[]{Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)}.Any(root=>!string.IsNullOrEmpty(root)&&AppContext.BaseDirectory.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase));var probe=Path.Combine(AppContext.BaseDirectory,".spectra-write-"+Guid.NewGuid().ToString("N"));
    try{File.WriteAllText(probe,"");File.Delete(probe);}catch(UnauthorizedAccessException){elevate=true;}
    var helperStart=new ProcessStartInfo("powershell.exe"){UseShellExecute=elevate,CreateNoWindow=!elevate,WorkingDirectory=job};
    if(elevate)helperStart.Verb="runas";

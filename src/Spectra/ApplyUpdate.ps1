@@ -1,5 +1,17 @@
 param([Parameter(Mandatory=$true)][string]$JobFile)
 $ErrorActionPreference='Stop'
+# Program Files requires an elevated installer even if the directory itself
+# happens to allow creating a probe file. Existing files can have stricter ACLs.
+$initialTask=Get-Content -LiteralPath $JobFile -Raw | ConvertFrom-Json
+$identity=[Security.Principal.WindowsIdentity]::GetCurrent()
+$principal=New-Object Security.Principal.WindowsPrincipal($identity)
+$protectedInstall=$false
+foreach($root in @($env:ProgramFiles,${env:ProgramFiles(x86)})){if($root -and $initialTask.install.StartsWith($root.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){$protectedInstall=$true}}
+if($protectedInstall -and -not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){
+ $arguments='-NoProfile -ExecutionPolicy Bypass -File "'+$PSCommandPath+'" -JobFile "'+$JobFile+'"'
+ Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $arguments -ErrorAction Stop | Out-Null
+ exit
+}
 # Windows PowerShell 5.1 uses legacy .NET path handling. Use Unicode Win32
 # file APIs with extended paths throughout the installation transaction.
 Add-Type -TypeDefinition @'
@@ -22,7 +34,8 @@ public static class SpectraUpdateFiles {
   if(path.Length<3||path[1]!=':'||path[2]!='\\')throw new IOException("Absolute path required: "+path);
   return @"\\?\"+path;
  }
- static void Fail(string operation,string path){throw new IOException(operation+": "+path,new Win32Exception(Marshal.GetLastWin32Error()));}
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool SetFileAttributesW(string path,uint attributes);
+ static void Fail(string operation,string path){int error=Marshal.GetLastWin32Error();throw new IOException(operation+": "+path+"; Win32 "+error+": "+new Win32Exception(error).Message); }
  public static bool Exists(string path){return GetFileAttributesW(Extended(path))!=0xffffffff;}
  public static string Under(string root,string relative){
   if(String.IsNullOrEmpty(relative))throw new IOException("Empty update path");
@@ -39,7 +52,14 @@ public static class SpectraUpdateFiles {
  }
  public static void Copy(string from,string to){
   Directory(to.Substring(0,to.LastIndexOf('\\')));
-  if(!CopyFileW(Extended(from),Extended(to),false))Fail("Copy file",to);
+  string destination=Extended(to);uint attributes=GetFileAttributesW(destination);
+  if(attributes!=0xffffffff&&(attributes&1)!=0&&!SetFileAttributesW(destination,attributes&~1u))Fail("Clear read-only attribute",to);
+  for(int attempt=0;attempt<20;attempt++){
+   if(CopyFileW(Extended(from),destination,false))return;
+   int error=Marshal.GetLastWin32Error();
+   if((error!=32&&error!=33&&error!=5)||attempt==19)Fail("Copy file",to);
+   System.Threading.Thread.Sleep(250);
+  }
  }
  public static void Delete(string path){if(Exists(path)&&!DeleteFileW(Extended(path)))Fail("Delete file",path);}
  static FileStream Open(string path,uint access,uint creation){
@@ -102,7 +122,7 @@ try {
  Start-Process -FilePath (Under $task.install 'Spectra.exe') -WorkingDirectory $task.install -ErrorAction Stop
 } catch {
  $failure=$_.Exception.Message
- foreach($relative in $changed){try{[SpectraUpdateFiles]::Copy((Under $backup $relative),(Under $task.install $relative))}catch{$failure+="; Restore failed: $relative"}}
+ foreach($relative in $changed){try{[SpectraUpdateFiles]::Copy((Under $backup $relative),(Under $task.install $relative))}catch{$failure+="; Restore failed: $relative; $($_.Exception.Message)"}}
  foreach($relative in $created){try{[SpectraUpdateFiles]::Delete((Under $task.install $relative))}catch{}}
  try{[SpectraUpdateFiles]::Write($task.failureMarker,$task.commit);ReportResult $false $failure;[SpectraUpdateFiles]::Write((Under $task.job 'apply-error.txt'),$failure)}catch{}
  if(-not (Get-Process -Id $task.pid -ErrorAction SilentlyContinue)){Start-Process -FilePath (Under $task.install 'Spectra.exe') -WorkingDirectory $task.install -ErrorAction SilentlyContinue}
