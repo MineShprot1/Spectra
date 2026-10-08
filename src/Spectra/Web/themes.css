@@ -55,3 +55,5 @@ body #toast{color:var(--theme-text)}body .dropdown button{background:transparent
 body[data-theme=minecraft] :is(.primary,.play){color:#fff!important}body[data-theme=minecraft] .spectra-logo{background:#52a535}
 
 footer{justify-content:flex-start;gap:14px}footer .installed-version{margin-left:auto;flex-shrink:0;max-width:35%;justify-content:flex-end}footer #progressText{min-width:0;max-width:45%}footer #footerUpdate{flex-shrink:0}
+
+#updateScreen .boot-logo,#boot .boot-logo{background:none!important;border:0!important;box-shadow:none!important;animation:none!important;padding:0;border-radius:0!important}#updateScreen .boot-logo .spectra-logo,#boot .boot-logo .spectra-logo{width:100%;height:100%}

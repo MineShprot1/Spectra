@@ -36,5 +36,8 @@ const SpectraLocales=(()=>{
  ja:'バージョンを検索…|バージョンを検索|コレクション|MODパックをインポート|新しいMODパックを探す|MODパックを検索…|バージョンやインスタンスを検索|クイック起動検索|新たな冒険|自分の設定|新規インスタンス|自分だけの遊び場を作ろう。|例えば静かな谷|自分のプロフィール|プレイヤープロフィール|アカウント接続済み|プレビュー|ゲスト|公式バージョン一覧を取得|Mojang に接続…',
  ko:'버전 검색…|버전 검색|내 컬렉션|모드팩 가져오기|새 모드팩 찾기|모드팩 검색…|버전 또는 인스턴스 검색|빠른 실행 검색|새로운 모험|내 환경 설정|새 인스턴스|나만의 게임 공간을 만드세요.|예: 조용한 계곡|내 프로필|플레이어 프로필|계정 연결됨|미리보기|게스트|공식 버전 목록 불러오는 중|Mojang 연결 중…'};
  function dictionary(language){if(language==='ru')return {};return Object.assign({},english,Object.fromEntries(extraKeys.map((k,i)=>[k,(extraRows[language]||extraRows.en).split('|')[i]])),Object.fromEntries(keys.map((k,i)=>[k,(rows[language]||rows.en).split('|')[i]])));}
- return{dictionary,keys,rows,extraKeys,extraRows};
+ const sectionTitles={en:['Discover','Profile'],de:['Entdecken','Profil'],fr:['Découvrir','Profil'],es:['Explorar','Perfil'],pt:['Explorar','Perfil'],it:['Esplora','Profilo'],pl:['Odkrywaj','Profil'],uk:['Огляд','Профіль'],tr:['Keşfet','Profil'],zh:['发现','个人资料'],ja:['探索','プロフィール'],ko:['탐색','프로필']};
+ const originalDictionary=dictionary;
+ function fullDictionary(language){const result=originalDictionary(language);if(language!=='ru'){result['Обзор']=sectionTitles[language]?.[0]||'Discover';result['Профиль']=sectionTitles[language]?.[1]||'Profile';}return result;}
+ return{dictionary:fullDictionary,keys,rows,extraKeys,extraRows};
 })();

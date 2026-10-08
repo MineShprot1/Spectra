@@ -2,19 +2,23 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
+using System.Text.Json;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 namespace Spectra.Installer;
 public partial class MainWindow:Window
 {
+ readonly Dictionary<string,string> languages=new(){["ru"]="Русский",["en"]="English",["de"]="Deutsch",["fr"]="Français",["es"]="Español",["pt"]="Português",["it"]="Italiano",["pl"]="Polski",["uk"]="Українська",["tr"]="Türkçe",["zh"]="简体中文",["ja"]="日本語",["ko"]="한국어"};
+ string selectedLanguage="ru";
+ void LanguageChanged(object sender,System.Windows.Controls.SelectionChangedEventArgs e){if(Language.SelectedValue is string language)selectedLanguage=language;}
  int step;bool installing,installed;string target="";
- public MainWindow(){InitializeComponent();Folder.Text=Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);Folder.TextChanged+=(_,_)=>TargetHint.Text="Будет установлено в: "+Path.Combine(Folder.Text,"Spectra");TargetHint.Text="Будет установлено в: "+Path.Combine(Folder.Text,"Spectra");Closing+=(_,e)=>{if(installing)e.Cancel=true;};}
+ public MainWindow(){InitializeComponent();Language.ItemsSource=languages;Language.DisplayMemberPath="Value";Language.SelectedValuePath="Key";Language.SelectedValue="ru";Folder.Text=Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);Folder.TextChanged+=(_,_)=>TargetHint.Text="Будет установлено в: "+Path.Combine(Folder.Text,"Spectra");TargetHint.Text="Будет установлено в: "+Path.Combine(Folder.Text,"Spectra");Closing+=(_,e)=>{if(installing)e.Cancel=true;};}
  void DragHeader(object sender,MouseButtonEventArgs e){if(e.ChangedButton==MouseButton.Left)DragMove();}
  void CloseClick(object sender,RoutedEventArgs e){if(!installing)Close();}
  void BrowseClick(object sender,RoutedEventArgs e){using var picker=new System.Windows.Forms.FolderBrowserDialog{SelectedPath=Folder.Text,Description="Выберите папку, в которой будет создана Spectra"};if(picker.ShowDialog()==System.Windows.Forms.DialogResult.OK)Folder.Text=picker.SelectedPath;}
  void BackClick(object sender,RoutedEventArgs e){if(!installing&&step>0){step--;ShowStep();}}
- void ShowStep(){FolderPanel.Visibility=step==1?Visibility.Visible:Visibility.Collapsed;ShortcutPanel.Visibility=step==2?Visibility.Visible:Visibility.Collapsed;ProgressPanel.Visibility=step==3?Visibility.Visible:Visibility.Collapsed;Back.Visibility=step is 1 or 2?Visibility.Visible:Visibility.Collapsed;Heading.Text=step switch{0=>"Добро пожаловать в Spectra",1=>"Где установить Spectra?",2=>"Быстрый доступ",_=>"Установка Spectra"};Description.Text=step switch{0=>"Ваш Minecraft. Ваши сборки. Ваш стиль.",1=>"В выбранной папке будет создана папка Spectra.",2=>"Выберите, где разместить ярлыки лаунчера.",_=>"Копируем файлы лаунчера…"};Next.Content=step==2?"Установить":"Далее →";}
+ void ShowStep(){Next.Visibility=step==3?Visibility.Collapsed:Visibility.Visible;LanguagePanel.Visibility=step==0?Visibility.Visible:Visibility.Collapsed;FolderPanel.Visibility=step==1?Visibility.Visible:Visibility.Collapsed;ShortcutPanel.Visibility=step==2?Visibility.Visible:Visibility.Collapsed;ProgressPanel.Visibility=step==3?Visibility.Visible:Visibility.Collapsed;Back.Visibility=step is 1 or 2?Visibility.Visible:Visibility.Collapsed;Heading.Text=step switch{0=>"Добро пожаловать в Spectra",1=>"Где установить Spectra?",2=>"Быстрый доступ",_=>"Установка Spectra"};Description.Text=step switch{0=>"Ваш Minecraft. Ваши сборки. Ваш стиль.",1=>"В выбранной папке будет создана папка Spectra.",2=>"Выберите, где разместить ярлыки лаунчера.",_=>"Копируем файлы лаунчера…"};Next.Content=step==2?"Установить":"Далее →";}
  async void NextClick(object sender,RoutedEventArgs e)
  {
   if(installed){Launch();return;}if(installing)return;
@@ -25,10 +29,11 @@ public partial class MainWindow:Window
    var desktop=DesktopShortcut.IsChecked==true;var start=StartShortcut.IsChecked==true;step=3;ShowStep();installing=true;Next.IsEnabled=false;
    var progress=new Progress<(string File,long Done,long Total)>(p=>{Detail.Text=p.File+"\n"+Size(p.Done)+" / "+Size(p.Total);Progress.Value=p.Total>0?p.Done*100d/p.Total:100;});
    await Task.Run(()=>Install(target,progress));
+   File.WriteAllText(Path.Combine(target,"install-preferences.json"),JsonSerializer.Serialize(new{language=selectedLanguage,id=Guid.NewGuid().ToString("N")}));
    var exe=Path.Combine(target,"Spectra.exe");
    if(desktop)Shortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),"Spectra.lnk"),exe);
    if(start){var menu=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"Spectra");Directory.CreateDirectory(menu);Shortcut(Path.Combine(menu,"Spectra.lnk"),exe);}
-   installing=false;installed=true;Heading.Text="Spectra установлена";Description.Text="Лаунчер готов к запуску.";Progress.Value=100;Detail.Text=target;Next.IsEnabled=true;Next.Content="Запустить Spectra";Launch();
+   installing=false;installed=true;Heading.Text="Spectra установлена";Description.Text="Лаунчер готов к запуску.";Progress.Value=100;Detail.Text=target;Next.IsEnabled=true;Next.Visibility=Visibility.Visible;Next.Content="Запустить Spectra";Launch();
   }catch(Exception ex){installing=false;Next.IsEnabled=true;step=2;ShowStep();MessageBox.Show(this,ex.Message,"Установка Spectra",MessageBoxButton.OK,MessageBoxImage.Error);}
  }
  static string Size(long size)=>size>=1048576?(size/1048576d).ToString("0.0")+" МБ":(size/1024d).ToString("0.0")+" КБ";

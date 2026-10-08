@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Security.Cryptography;
 using System.Text;
@@ -38,6 +39,7 @@ public record Configuration
 {
  [JsonIgnore] public string CurseForgeKey { get; set; } = "";
  [JsonIgnore] public string CraftyKey { get; set; } = "";
+ public string AppliedInstallerLanguage {get;set;}="";
  public string AppearanceJson {get;set;}="{}";
  public GameSettings Defaults { get; set; } = new();
  public string SelectedVersion {get;set;}="";
@@ -62,6 +64,13 @@ public sealed class Store
   if(imported.TryGetValue("curseforge",out var curseforge))Config.CurseForgeKey=curseforge;
   if(imported.TryGetValue("crafty",out var crafty))Config.CraftyKey=crafty;
   Save();File.Delete(localKeys); // Consume the explicitly supplied local setup file after DPAPI persistence.
+ }
+ var preferences=Path.Combine(AppContext.BaseDirectory,"install-preferences.json");
+ if(File.Exists(preferences)){
+  var settings=JsonNode.Parse(File.ReadAllText(preferences));var id=settings?["id"]?.ToString()??"";var language=settings?["language"]?.ToString()??"ru";
+  if(!string.IsNullOrEmpty(id)&&Config.AppliedInstallerLanguage!=id&&new[]{"ru","en","de","fr","es","pt","it","pl","uk","tr","zh","ja","ko"}.Contains(language)){
+   var appearance=JsonNode.Parse(Config.AppearanceJson)?.AsObject()??new JsonObject();appearance["language"]=language;Config.AppearanceJson=appearance.ToJsonString();Config.AppliedInstallerLanguage=id;Save();
+  }
  }
  }
  public void Save() { var p=Path.Combine(Root,"config.json"); File.WriteAllText(p+".tmp",JsonSerializer.Serialize(Config,Json)); File.Move(p+".tmp",p,true);
