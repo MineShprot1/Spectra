@@ -1,4 +1,5 @@
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\Spectra.exe
+C:\Users\majnk\Desktop\Spectra\dist\Spectra\ApplyUpdate.ps1
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\microsoft-oauth.json
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\Web\app.js
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\Web\assets\arrow.svg
@@ -16,7 +17,9 @@ C:\Users\majnk\Desktop\Spectra\dist\Spectra\Web\assets\spectra-pixel.ttf
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\Web\assets\sun.svg
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\Web\assets\terrain.svg
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\Web\index.html
+C:\Users\majnk\Desktop\Spectra\dist\Spectra\Web\list-renderer.js
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\Web\minecraft.css
+C:\Users\majnk\Desktop\Spectra\dist\Spectra\Web\skin-preview.js
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\Web\style.css
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\runtimes\win-x64\native\WebView2Loader.dll
 C:\Users\majnk\Desktop\Spectra\dist\Spectra\Spectra.dll

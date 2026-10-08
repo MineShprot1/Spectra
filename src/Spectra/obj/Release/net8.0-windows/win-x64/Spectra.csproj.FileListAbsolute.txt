@@ -523,3 +523,6 @@ C:\Users\majnk\Desktop\Spectra\src\Spectra\obj\Release\net8.0-windows\win-x64\re
 C:\Users\majnk\Desktop\Spectra\src\Spectra\obj\Release\net8.0-windows\win-x64\Spectra.pdb
 C:\Users\majnk\Desktop\Spectra\src\Spectra\obj\Release\net8.0-windows\win-x64\Spectra.genruntimeconfig.cache
 C:\Users\majnk\Desktop\Spectra\src\Spectra\obj\Release\net8.0-windows\win-x64\ref\Spectra.dll
+C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\win-x64\ApplyUpdate.ps1
+C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\win-x64\Web\list-renderer.js
+C:\Users\majnk\Desktop\Spectra\src\Spectra\bin\Release\net8.0-windows\win-x64\Web\skin-preview.js

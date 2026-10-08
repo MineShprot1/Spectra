@@ -7,6 +7,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("applyupdate.ps1")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("microsoft-oauth.json")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/app.js")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/arrow.svg")]
@@ -24,7 +25,9 @@
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/sun.svg")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/terrain.svg")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/index.html")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/list-renderer.js")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/minecraft.css")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/skin-preview.js")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/style.css")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("webview2loader.dll")]
 
