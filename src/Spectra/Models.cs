@@ -42,7 +42,8 @@ public record Configuration
 {
  [JsonIgnore] public string CurseForgeKey { get; set; } = "";
  [JsonIgnore] public string CraftyKey { get; set; } = "";
- public string FriendsEndpoint {get;set;}="";
+ public string FriendsEndpoint {get;set;}="https://spectra-friends.spectrafriends.workers.dev";
+ public bool FriendsEndpointInitialized {get;set;}
  public bool ShareGameActivity {get;set;}=true;
  public string AppliedInstallerLanguage {get;set;}="";
  public string AppearanceJson {get;set;}="{}";
@@ -61,6 +62,7 @@ public sealed class Store
  public Configuration Config { get; private set; }
  public Store() { Directory.CreateDirectory(Root); var p=Path.Combine(Root,"config.json"); Config=File.Exists(p)?JsonSerializer.Deserialize<Configuration>(File.ReadAllText(p),Json)??new():new();
  var secretPath=Path.Combine(Root,"connections.dat");if(File.Exists(secretPath)){var decrypted=ProtectedData.Unprotect(File.ReadAllBytes(secretPath),null,DataProtectionScope.CurrentUser);var secret=JsonSerializer.Deserialize<Dictionary<string,string>>(decrypted)!;Config.CurseForgeKey=secret.GetValueOrDefault("curseforge","");Config.CraftyKey=secret.GetValueOrDefault("crafty","");}
+ if(!Config.FriendsEndpointInitialized){if(string.IsNullOrWhiteSpace(Config.FriendsEndpoint))Config.FriendsEndpoint="https://spectra-friends.spectrafriends.workers.dev";Config.FriendsEndpointInitialized=true;Save();}
  var localKeys=Path.Combine(AppContext.BaseDirectory,"api-keys.local.json");
  if(File.Exists(localKeys))
  {
