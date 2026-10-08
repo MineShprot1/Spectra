@@ -8,6 +8,7 @@
 //------------------------------------------------------------------------------
 
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("applyupdate.ps1")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("build-commit-name.txt")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("build-commit.txt")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("microsoft-oauth.json")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/app.js")]
@@ -24,6 +25,7 @@
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/play.svg")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/plus.svg")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/shots.svg")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/spectra-logo.png")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/spectra-pixel.ttf")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/sun.svg")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/terrain.svg")]

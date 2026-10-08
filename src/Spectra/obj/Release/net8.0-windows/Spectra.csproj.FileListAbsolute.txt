@@ -2,6 +2,7 @@ C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\r
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\runtimes\win-x64\native\WebView2Loader.dll
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\runtimes\win-arm64\native\WebView2Loader.dll
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\ApplyUpdate.ps1
+C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\build-commit-name.txt
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\build-commit.txt
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\microsoft-oauth.json
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\app.js
@@ -18,6 +19,7 @@ C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\W
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets\play.svg
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets\plus.svg
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets\shots.svg
+C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets\spectra-logo.png
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets\spectra-pixel.ttf
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets\sun.svg
 C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\bin\Release\net8.0-windows\Web\assets\terrain.svg

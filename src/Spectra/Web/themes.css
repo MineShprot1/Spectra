@@ -37,3 +37,19 @@ body:is([data-theme=steam],[data-theme=windows],[data-theme=aero]){--heading-fon
 body :is(h1,h2,.wordmark,.eyebrow,nav>button,.boot-logo,.version-art span,.quick-title){font-family:var(--heading-font)!important}
 body :is(h1,h2,.wordmark,.eyebrow,nav>button) *{font-family:inherit!important}
 body :is(.primary,.play){font-family:var(--heading-font)!important}
+.spectra-logo{display:inline-block;width:100%;height:100%;background:var(--theme-accent);mask:url('assets/spectra-logo.png') center/contain no-repeat;-webkit-mask:url('assets/spectra-logo.png') center/contain no-repeat}
+.wordmark .prism{width:26px;height:26px}.boot-logo{width:72px;height:72px;color:var(--theme-accent)}
+.installed-version{display:flex;gap:8px;min-width:0;max-width:38%;align-items:center}.installed-version b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--theme-text);font-size:11px}
+body[data-theme=windows] :is(nav button,.text-button,.settings-link,.modal-close,.account){background:transparent!important;border-color:transparent!important;box-shadow:none!important}
+body[data-theme=windows] :is(nav button,.text-button,.settings-link,.modal-close,.account):hover{background:#ffffff09!important}
+body[data-theme=windows] .window-controls button{background:transparent!important;border:0;box-shadow:none}
+body[data-theme=windows] .window-controls button:last-child:hover{background:#c42b1c!important;color:white!important}
+body :is(a,.prism,.boot-logo,.status-dot,.skin-stage,.empty .symbol){color:var(--theme-accent)}
+body :is(.profile-avatar,.avatar,.instance-icon){background:color-mix(in srgb,var(--theme-accent) 18%,var(--theme-panel));border-color:color-mix(in srgb,var(--theme-accent) 35%,transparent);color:var(--theme-text)}
+body .editor-tabs button.active{background:color-mix(in srgb,var(--theme-accent) 18%,var(--theme-panel));border-color:var(--theme-accent);color:var(--theme-text)}
+body :is(.pill,.version-kind,.switch){background:color-mix(in srgb,var(--theme-accent) 12%,var(--theme-panel));color:var(--theme-text);border-color:color-mix(in srgb,var(--theme-text) 20%,transparent)}
+body :is(#progressBar,#updateBar,.status-dot){background:var(--theme-accent)}body input[type=checkbox]{accent-color:var(--theme-accent)}
+body .skin-stage{background:radial-gradient(ellipse at bottom,color-mix(in srgb,var(--theme-accent) 10%,transparent),transparent)}
+body .hero h2{color:var(--theme-text);text-shadow:none}body .hero:before,body .hero:after{border-color:color-mix(in srgb,var(--theme-accent) 35%,transparent);background:color-mix(in srgb,var(--theme-accent) 8%,transparent);box-shadow:none}
+body #toast{color:var(--theme-text)}body .dropdown button{background:transparent}body .log,body pre.log{background:var(--theme-bg);color:var(--theme-text)}body .quick-header{color:var(--theme-text)}
+body[data-theme=minecraft] :is(.primary,.play){color:#fff!important}body[data-theme=minecraft] .spectra-logo{background:#52a535}

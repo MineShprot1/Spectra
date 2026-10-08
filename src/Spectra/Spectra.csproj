@@ -3,9 +3,10 @@
     <OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.6.4</Version><AssemblyName>Spectra</AssemblyName>
+    <Version>0.6.5</Version><ApplicationIcon>Assets\spectra.ico</ApplicationIcon><AssemblyName>Spectra</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="Assets\spectra.ico" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="CmlLib.Core" Version="4.0.6" />
     <PackageReference Include="CmlLib.Core.Auth.Microsoft" Version="3.3.1" />
@@ -17,6 +18,7 @@
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
     <Content Include="ApplyUpdate.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="build-commit-name.txt" CopyToOutputDirectory="PreserveNewest" Condition="Exists('build-commit-name.txt')" />
     <Content Include="build-commit.txt" CopyToOutputDirectory="PreserveNewest" Condition="Exists('build-commit.txt')" />
     <Content Include="microsoft-oauth.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Web\**\*" CopyToOutputDirectory="PreserveNewest" />

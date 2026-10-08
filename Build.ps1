@@ -24,6 +24,15 @@ if ($gitCommand) {
   $commitProcess.WaitForExit()
   if ($commitProcess.ExitCode -eq 0 -and $sourceCommit -match '^[0-9a-f]{40}$') {
    [IO.File]::WriteAllText("$PSScriptRoot/src/Spectra/build-commit.txt", $sourceCommit)
+   $commitProcess.Dispose()
+   $gitInfo.Arguments = 'log -1 --format=%s'
+   $commitProcess = New-Object System.Diagnostics.Process
+   $commitProcess.StartInfo = $gitInfo
+   [void]$commitProcess.Start()
+   $commitName = $commitProcess.StandardOutput.ReadToEnd().Trim()
+   [void]$commitProcess.StandardError.ReadToEnd()
+   $commitProcess.WaitForExit()
+   if ($commitProcess.ExitCode -eq 0) { [IO.File]::WriteAllText("$PSScriptRoot/src/Spectra/build-commit-name.txt", $commitName) }
   }
  } catch {
   Write-Warning 'Could not read optional Git metadata; continuing the build.'

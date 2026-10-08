@@ -40,6 +40,7 @@ public static class SourceUpdater
   try
   {
    var commit=await Net.Get(Repo+"/commits/"+sha);var treeSha=commit?["commit"]?["tree"].Str("sha")??"";if(!ValidCommit(treeSha))throw new IOException("Нет дерева коммита");
+   var commitName=commit?["commit"].Str("message").Split('\n')[0].Trim()??sha[..7];
    var tree=await Net.Get(Repo+"/git/trees/"+treeSha+"?recursive=1");if(tree?["truncated"]?.GetValue<bool>()==true)throw new IOException("Дерево GitHub неполное");
    var files=tree?["tree"]?.AsArray().Where(x=>x.Str("type")=="blob").ToArray()??[];if(files.Length>10000)throw new IOException("Слишком большой репозиторий");
    long total=0;
@@ -48,7 +49,7 @@ public static class SourceUpdater
    {
     var path=file.Str("path");if(file.Str("mode") is not ("100644" or "100755"))throw new IOException("Ссылки в исходниках не поддерживаются");
     if(path.Split('/').Any(x=>x is "." or ".."||x.Contains(':')||x.Contains('\\'))||path.StartsWith('/'))throw new IOException("Небезопасный путь исходника");
-    if(Path.GetFileName(path) is "api-keys.local.json" or "build-commit.txt")continue;
+    if(Path.GetFileName(path) is "api-keys.local.json" or "build-commit.txt" or "build-commit-name.txt")continue;
     if(path.Split('/').Any(x=>x is "bin" or "obj" or ".git" or "node_modules"))continue;
     var size=file?["size"]?.GetValue<long>()??0;total+=size;if(size<0||size>32*1024*1024||total>256L*1024*1024)throw new IOException("Исходники слишком большие");
     var dest=Store.SafePath(source,path);Directory.CreateDirectory(Path.GetDirectoryName(dest)!);var old=Store.SafePath(cache,path);var hash=file.Str("sha");
@@ -100,6 +101,7 @@ public static class SourceUpdater
     if(p.ExitCode!=0||!File.Exists(Path.Combine(publish,"Spectra.exe")))throw new IOException("Новый коммит не собрался. Текущая версия сохранена; подробности: updates/last-build.log");
    }
    await File.WriteAllTextAsync(Path.Combine(publish,"build-commit.txt"),sha);
+   await File.WriteAllTextAsync(Path.Combine(publish,"build-commit-name.txt"),commitName);
    var localOauth=Path.Combine(AppContext.BaseDirectory,"microsoft-oauth.json");if(File.Exists(localOauth))File.Copy(localOauth,Path.Combine(publish,"microsoft-oauth.json"),true);
    var currentFiles=Directory.EnumerateFiles(publish,"*",SearchOption.AllDirectories).Select(p=>Path.GetRelativePath(publish,p)).ToArray();
    await File.WriteAllTextAsync(Path.Combine(publish,"installed-files.json"),JsonSerializer.Serialize(currentFiles));
