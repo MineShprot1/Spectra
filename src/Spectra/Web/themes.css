@@ -57,3 +57,25 @@ body[data-theme=minecraft] :is(.primary,.play){color:#fff!important}body[data-th
 footer{justify-content:flex-start;gap:14px}footer .installed-version{margin-left:auto;flex-shrink:0;max-width:35%;justify-content:flex-end}footer #progressText{min-width:0;max-width:45%}footer #footerUpdate{flex-shrink:0}
 
 #updateScreen .boot-logo,#boot .boot-logo{background:none!important;border:0!important;box-shadow:none!important;animation:none!important;padding:0;border-radius:0!important}#updateScreen .boot-logo .spectra-logo,#boot .boot-logo .spectra-logo{width:100%;height:100%}
+
+/* All form and quick-launch states use the selected palette. */
+body :is(input,textarea)::placeholder{color:color-mix(in srgb,var(--theme-text) 55%,var(--theme-bg))!important;opacity:1}
+body .toolbar label{color:var(--theme-text)!important}
+body input[type=checkbox]{appearance:none;-webkit-appearance:none;display:inline-grid;place-content:center;width:15px;height:15px;min-width:15px;flex:none;padding:0!important;margin:0 5px 0 0;vertical-align:middle;background:var(--theme-panel)!important;border:1px solid color-mix(in srgb,var(--theme-text) 55%,var(--theme-panel))!important;border-radius:0!important}
+body input[type=checkbox]:checked{background:var(--theme-accent)!important;border-color:var(--theme-accent)!important}
+body input[type=checkbox]:checked::after{content:'';width:7px;height:4px;border-left:2px solid var(--theme-bg);border-bottom:2px solid var(--theme-bg);transform:translateY(-1px) rotate(-45deg)}
+body input[type=checkbox]:disabled{opacity:.45}
+body :is(.version-card.selected,.quick-option:hover .quick-card){border-color:var(--theme-accent)!important}
+body :is(.quick-card,.quick-option .quick-card){background:var(--theme-panel)!important;border-color:color-mix(in srgb,var(--theme-accent) 40%,var(--theme-panel))!important}
+body .quick-shade{background:linear-gradient(0deg,color-mix(in srgb,var(--theme-bg) 95%,transparent),color-mix(in srgb,var(--theme-bg) 25%,transparent))!important}
+body :is(.quick-caption strong,.quick-caption span:not(.pixel-icon),#quickChoose,#quickToggle){color:var(--theme-text)!important}
+body .quick-caption span:not(.pixel-icon){opacity:.8}
+body .pixel-icon{position:relative;color:inherit;background:none}
+body .pixel-icon::before{content:'';position:absolute;inset:0;background:currentColor;mask:var(--icon-mask) center/contain no-repeat;-webkit-mask:var(--icon-mask) center/contain no-repeat}
+body .pixel-icon img{visibility:hidden;filter:none!important}
+body .quick-caption>.pixel-icon{color:var(--theme-accent)!important}
+body .version-play .pixel-icon{color:var(--theme-accent)}
+body .primary .pixel-icon,body .play .pixel-icon{color:inherit}
+body[data-theme=minecraft] :is(.quick-caption>.pixel-icon,.version-play .pixel-icon){color:#52a535!important}
+body[data-theme=minecraft] :is(.quick-caption strong,.quick-caption span:not(.pixel-icon),.toolbar label){color:#fff!important}
+body[data-theme=light] .quick-caption,body[data-theme=windows] .quick-caption{color:var(--theme-text)}

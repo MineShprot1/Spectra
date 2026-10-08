@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=u=>/^(https:\/\/|data:image\/(png|jpeg|webp);base64,)/.test(u||'')?u:'';
 const image=(u,cls='')=>safeImage(u)?`<img class="${cls}" src="${esc(u)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" alt="">`:'';
-const pixelIcon=name=>`<span class="pixel-icon" aria-hidden="true"><img src="assets/${esc(name)}.svg" alt=""></span>`;
+const pixelIcon=name=>`<span class="pixel-icon" style="--icon-mask:url('assets/${esc(name)}.svg')" aria-hidden="true"><img src="assets/${esc(name)}.svg" alt=""></span>`;
 const pending=new Map();let seq=0,state={instances:[],defaults:{minRam:512,maxRam:4096,width:1280,height:720,javaPath:'',gpu:'system'},profile:null,running:[]},versions=[],versionArt={},page='instances',editorId=null,editorTab='logs',searchTimer,viewSeq=0;
 const logs=new Map(), busy=new Set();
 const preview=!window.chrome?.webview;
@@ -16,7 +16,7 @@ async function run(fn){try{return await fn();}catch(e){toast(e.message||String(e
 function bind(root=document){root.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>navigate(b.dataset.page));}
 function date(s){return s?new Date(s).toLocaleDateString(SpectraAppearance.language(),{day:'numeric',month:'short',year:'numeric'}):'Ещё не запускалась';}
 let latestCommitLabel=null;
-function updateState(s){if(!s)return;state=s;const build=$('#installedVersion');if(build){build.textContent=latestCommitLabel?.name||s.installedCommitName||s.installedCommit?.slice(0,7)||'0.7.2';build.title=latestCommitLabel?latestCommitLabel.name+' · GitHub '+latestCommitLabel.sha+' · installed '+(s.installedCommit||'unknown'):(s.installedCommit||'0.7.2');build.setAttribute('data-no-i18n','');}SpectraAppearance.hydrate(s.appearance);const name=state.profile?.name||'Войти';$('#accountName').textContent=name;$('#profileTab').textContent=state.profile?.name?.toUpperCase()||'ПРОФИЛЬ';if(state.profile?.name)$('#profileTab').removeAttribute('data-i18n');else $('#profileTab').setAttribute('data-i18n','ПРОФИЛЬ');SpectraAppearance.navigation();$('.avatar').textContent=name[0];if(state.profile)paintFace($('.avatar'),skinUrl(state.profile));renderQuick();syncPlayButtons();}
+function updateState(s){if(!s)return;state=s;const build=$('#installedVersion');if(build){build.textContent=latestCommitLabel?.name||s.installedCommitName||s.installedCommit?.slice(0,7)||'0.7.3';build.title=latestCommitLabel?latestCommitLabel.name+' · GitHub '+latestCommitLabel.sha+' · installed '+(s.installedCommit||'unknown'):(s.installedCommit||'0.7.3');build.setAttribute('data-no-i18n','');}SpectraAppearance.hydrate(s.appearance);const name=state.profile?.name||'Войти';$('#accountName').textContent=name;$('#profileTab').textContent=state.profile?.name?.toUpperCase()||'ПРОФИЛЬ';if(state.profile?.name)$('#profileTab').removeAttribute('data-i18n');else $('#profileTab').setAttribute('data-i18n','ПРОФИЛЬ');SpectraAppearance.navigation();$('.avatar').textContent=name[0];if(state.profile)paintFace($('.avatar'),skinUrl(state.profile));renderQuick();syncPlayButtons();}
 function onMessage(m){
  if(m.type==='reply'){const p=pending.get(m.id);if(p){pending.delete(m.id);m.ok?p.resolve(m.result):p.reject(new Error(m.error));}return;}
  if(m.type==='auth'){if(!$('#boot').hidden)$('#bootStatus').textContent=m.message;if(m.state==='waiting')$('#status').textContent='Ожидаем Microsoft';return;}
