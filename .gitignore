@@ -9,3 +9,6 @@ test-results/
 **/api-keys.local.json
 
 **/build-commit.txt
+
+src/Spectra.Installer/payload.zip
+build-commit-name.txt
