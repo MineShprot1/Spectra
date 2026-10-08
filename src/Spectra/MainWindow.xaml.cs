@@ -111,29 +111,56 @@ public partial class MainWindow : Window
  {
   switch(action)
   {
-   case "state":return State();
+   case "state":
+   {
+    return State();
+   }
    case "appearance":
+   {
     var appearance=d.ToJsonString();if(appearance.Length>131072)throw new IOException("Тема слишком большая");
     store.Config.AppearanceJson=appearance;store.Save();return State();
-   case "bootstrap":return await SourceUpdater.Check();
+   }
+   case "bootstrap":
+   {
+    return await SourceUpdater.Check();
+   }
    case "updateSource":
+   {
     if(game.Running.Count>0)throw new IOException("Закройте Minecraft перед обновлением лаунчера");
     Browser.IsEnabled=false;
     try{await SourceUpdater.Prepare(d.Str("commit"),store,Emit);Application.Current.Shutdown();return new{restarting=true};}
     catch{if(SourceUpdater.ValidCommit(d.Str("commit"))){Directory.CreateDirectory(Path.Combine(store.Root,"updates"));File.WriteAllText(Path.Combine(store.Root,"updates","failed-commit.txt"),d.Str("commit"));}throw;}
     finally{Browser.IsEnabled=true;}
-   case "login":await auth.Login(d["interactive"]?.GetValue<bool>()??true);ExpandLibrary();return State();
-   case "expand":ExpandLibrary();return State();
-   case "logout":await auth.Logout();return State();
-   case "window":switch(d.Str("command")){case "close":Close();break;case "minimize":WindowState=WindowState.Minimized;break;case "maximize":WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;break;case "drag":if((GetAsyncKeyState(0x01)&0x8000)!=0){ReleaseCapture();SendMessage(new WindowInteropHelper(this).Handle,0x00A1,2,0);}break;}return null;
+   }
+   case "login":
+   {
+    await auth.Login(d["interactive"]?.GetValue<bool>()??true);ExpandLibrary();return State();
+   }
+   case "expand":
+   {
+    ExpandLibrary();return State();
+   }
+   case "logout":
+   {
+    await auth.Logout();return State();
+   }
+   case "window":
+   {
+    switch(d.Str("command")){case "close":Close();break;case "minimize":WindowState=WindowState.Minimized;break;case "maximize":WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;break;case "drag":if((GetAsyncKeyState(0x01)&0x8000)!=0){ReleaseCapture();SendMessage(new WindowInteropHelper(this).Handle,0x00A1,2,0);}break;}return null;
+   }
    case "select":
+   {
     if(!string.IsNullOrEmpty(d.Str("instanceId")))store.Get(d.Str("instanceId"));
     else await game.Metadata(d.Str("version"));
     store.Config.SelectedInstance=d.Str("instanceId");store.Config.SelectedVersion=d.Str("version");store.Save();return State();
+   }
    case "view":
+   {
     var mode=d.Str("mode");if(mode is not ("cards" or "tiles" or "list"))throw new IOException("Неизвестный вид");
     if(d.Str("kind")=="versions")store.Config.VersionsView=mode;else store.Config.InstancesView=mode;store.Save();return State();
+   }
    case "addSkin":
+   {
     if(auth.Session==null)throw new IOException("Сначала войдите в аккаунт");
     var picker=new Microsoft.Win32.OpenFileDialog{Filter="Minecraft PNG|*.png"};if(picker.ShowDialog()!=true)return State();
     if(new FileInfo(picker.FileName).Length>1024*1024)throw new IOException("Скин больше 1 МБ");
@@ -141,12 +168,18 @@ public partial class MainWindow : Window
     if(bitmap.PixelWidth!=64||bitmap.PixelHeight is not (32 or 64))throw new IOException("Нужен PNG размером 64×64 или 64×32");
     var skin=new SavedSkin{Name=Path.GetFileNameWithoutExtension(picker.FileName),Owner=auth.Profile.Str("id"),Variant=d.Str("variant")=="slim"?"slim":"classic"};
     Directory.CreateDirectory(Path.Combine(store.Root,"skins"));File.Copy(picker.FileName,Store.SafePath(store.Root,"skins/"+skin.Id+".png"));store.Config.Skins.Add(skin);store.Save();return State();
+   }
    case "removeSkin":
+   {
     var removed=store.Config.Skins.Single(x=>x.Id==d.Str("id")&&x.Owner==auth.Profile.Str("id"));store.Config.Skins.Remove(removed);File.Delete(Store.SafePath(store.Root,"skins/"+removed.Id+".png"));store.Save();return State();
+   }
    case "applySkin":
+   {
     var saved=store.Config.Skins.Single(x=>x.Id==d.Str("id")&&x.Owner==auth.Profile.Str("id"));
     await auth.ApplySavedSkin(Store.SafePath(store.Root,"skins/"+saved.Id+".png"),saved.Variant);return State();
+   }
    case "skinTexture":
+   {
     var textureUri=new Uri(d.Str("url"));if(textureUri.Scheme!="https"||textureUri.Host!="textures.minecraft.net")throw new IOException("Неизвестный источник текстуры");
     using(var response=await Net.Http.GetAsync(textureUri,HttpCompletionOption.ResponseHeadersRead))
     {
@@ -154,60 +187,150 @@ public partial class MainWindow : Window
      while((count=await input.ReadAsync(buffer))>0){if(output.Length+count>1024*1024)throw new IOException("Слишком большая текстура");output.Write(buffer,0,count);}
      return "data:image/png;base64,"+Convert.ToBase64String(output.ToArray());
     }
-   case "player":return await Player(d.Str("name"));
-   case "versions":return await game.Versions();
-   case "artwork":return await game.Artwork();
-   case "components":return await game.Components(d.Str("instanceId"));
-   case "loaders":return await game.Loaders(d.Str("version"),d.Str("loader"));
+   }
+   case "player":
+   {
+    return await Player(d.Str("name"));
+   }
+   case "versions":
+   {
+    return await game.Versions();
+   }
+   case "artwork":
+   {
+    return await game.Artwork();
+   }
+   case "components":
+   {
+    return await game.Components(d.Str("instanceId"));
+   }
+   case "loaders":
+   {
+    return await game.Loaders(d.Str("version"),d.Str("loader"));
+   }
    case "saveInstance":
+   {
     var incoming=d.Deserialize<Instance>(Store.Json)??throw new IOException("Нет сборки");if(incoming.Name.Trim().Length is <1 or >80)throw new IOException("Название: от 1 до 80 символов");await game.Metadata(incoming.Version);Store.Validate(incoming.Settings);
     if(!new[]{"vanilla","fabric","forge","quilt","neoforge"}.Contains(incoming.Loader))throw new IOException("Неизвестный загрузчик");
     var current=store.Config.Instances.Find(x=>x.Id==incoming.Id);if(current==null){incoming.Id=Guid.NewGuid().ToString("N");store.Config.Instances.Add(incoming);}else{if(game.Running.ContainsKey(current.Id))throw new IOException("Закройте игру перед изменением сборки");store.Config.Instances[store.Config.Instances.IndexOf(current)]=incoming;}store.Folder(incoming);store.Save();return State();
+   }
    case "settings":
+   {
     var settings=d["defaults"]!.Deserialize<GameSettings>(Store.Json)!;Store.Validate(settings);store.Config.Defaults=settings;
     if(d.Str("curseForgeKey")!="")store.Config.CurseForgeKey=d.Str("curseForgeKey");if(d.Str("craftyKey")!="")store.Config.CraftyKey=d.Str("craftyKey");store.Save();return State();
-   case "launch":await game.Launch(d.Str("instanceId"));return State();
-   case "stop":game.Stop(d.Str("instanceId"));return null;
-   case "files":return await Task.Run(()=>game.Files(d.Str("instanceId"),d.Str("kind")));
-   case "deleteInstance":new LibraryActions(store,game).DeleteInstance(d.Str("instanceId"));return State();
-   case "enableFiles":new LibraryActions(store,game).Enable(d.Str("instanceId"),d.Str("kind"),d["paths"]!.Deserialize<string[]>(Store.Json)!,d["enabled"]!.GetValue<bool>());return null;
-   case "serverAction":new LibraryActions(store,game).Server(d.Str("instanceId"),d.Str("operation"),d["index"]?.GetValue<int>()??-1,d.Str("name"),d.Str("address"));return null;
+   }
+   case "launch":
+   {
+    await game.Launch(d.Str("instanceId"));return State();
+   }
+   case "stop":
+   {
+    game.Stop(d.Str("instanceId"));return null;
+   }
+   case "files":
+   {
+    return await Task.Run(()=>game.Files(d.Str("instanceId"),d.Str("kind")));
+   }
+   case "deleteInstance":
+   {
+    new LibraryActions(store,game).DeleteInstance(d.Str("instanceId"));return State();
+   }
+   case "enableFiles":
+   {
+    new LibraryActions(store,game).Enable(d.Str("instanceId"),d.Str("kind"),d["paths"]!.Deserialize<string[]>(Store.Json)!,d["enabled"]!.GetValue<bool>());return null;
+   }
+   case "serverAction":
+   {
+    new LibraryActions(store,game).Server(d.Str("instanceId"),d.Str("operation"),d["index"]?.GetValue<int>()??-1,d.Str("name"),d.Str("address"));return null;
+   }
    case "worldAction":
+   {
     var library=new LibraryActions(store,game);
     if(d.Str("operation")=="rename")library.RenameWorld(d.Str("instanceId"),d.Str("path"),d.Str("name"));
     else if(d.Str("operation")=="delete")library.DeleteWorld(d.Str("instanceId"),d.Str("path"));
-    else if(d.Str("operation")=="import"){using var picker=new System.Windows.Forms.FolderBrowserDialog{Description="Папка мира с level.dat"};if(picker.ShowDialog()==System.Windows.Forms.DialogResult.OK)await Task.Run(()=>library.ImportWorld(d.Str("instanceId"),picker.SelectedPath));}return null;
-   case "renameScreenshot":new LibraryActions(store,game).RenameScreenshot(d.Str("instanceId"),d.Str("path"),d.Str("name"));return null;
+    else if(d.Str("operation")=="import"){using var worldPicker=new System.Windows.Forms.FolderBrowserDialog{Description="Папка мира с level.dat"};if(worldPicker.ShowDialog()==System.Windows.Forms.DialogResult.OK)await Task.Run(()=>library.ImportWorld(d.Str("instanceId"),worldPicker.SelectedPath));}return null;
+   }
+   case "renameScreenshot":
+   {
+    new LibraryActions(store,game).RenameScreenshot(d.Str("instanceId"),d.Str("path"),d.Str("name"));return null;
+   }
    case "copyScreenshots":
+   {
     var screenshots=d["paths"]!.Deserialize<string[]>(Store.Json)!;var screenshotPaths=screenshots.Select(p=>new LibraryActions(store,game).PathFor(d.Str("instanceId"),"screenshots",p)).ToArray();
-    if(screenshotPaths.Length==1){var bitmap=new System.Windows.Media.Imaging.BitmapImage();bitmap.BeginInit();bitmap.CacheOption=System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;bitmap.UriSource=new Uri(screenshotPaths[0]);bitmap.EndInit();bitmap.Freeze();Clipboard.SetImage(bitmap);}
+    if(screenshotPaths.Length==1){var screenshotBitmap=new System.Windows.Media.Imaging.BitmapImage();screenshotBitmap.BeginInit();screenshotBitmap.CacheOption=System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;screenshotBitmap.UriSource=new Uri(screenshotPaths[0]);screenshotBitmap.EndInit();screenshotBitmap.Freeze();Clipboard.SetImage(screenshotBitmap);}
     else if(screenshotPaths.Length>1){var collection=new System.Collections.Specialized.StringCollection();collection.AddRange(screenshotPaths);Clipboard.SetFileDropList(collection);}return null;
-   case "launchTarget":await game.Launch(d.Str("instanceId"),d.Str("kind"),d.Str("target"));return State();
-   case "toggle":game.Toggle(d.Str("instanceId"),d.Str("path"));return null;
-   case "readLog":return await game.ReadLog(d.Str("instanceId"),d.Str("path"));
+   }
+   case "launchTarget":
+   {
+    await game.Launch(d.Str("instanceId"),d.Str("kind"),d.Str("target"));return State();
+   }
+   case "toggle":
+   {
+    game.Toggle(d.Str("instanceId"),d.Str("path"));return null;
+   }
+   case "readLog":
+   {
+    return await game.ReadLog(d.Str("instanceId"),d.Str("path"));
+   }
    case "openFolder":
+   {
     var inst=store.Get(d.Str("instanceId"));var root=store.Folder(inst);var kind=d.Str("kind");var path=kind=="instance"?Path.GetDirectoryName(root)!:kind=="minecraft"?root:Path.Combine(root,GameService.KindFolder(kind));Directory.CreateDirectory(path);Process.Start(new ProcessStartInfo(path){UseShellExecute=true});return null;
-   case "pickJava":var java=new Microsoft.Win32.OpenFileDialog{Filter="Java|javaw.exe;java.exe"};return java.ShowDialog()==true?java.FileName:null;
+   }
+   case "pickJava":
+   {
+    var java=new Microsoft.Win32.OpenFileDialog{Filter="Java|javaw.exe;java.exe"};return java.ShowDialog()==true?java.FileName:null;
+   }
    case "pickImage":
+   {
     var img=new Microsoft.Win32.OpenFileDialog{Filter="Изображения|*.png;*.jpg;*.jpeg;*.webp"};if(img.ShowDialog()!=true)return null;
     if(new FileInfo(img.FileName).Length>20*1024*1024)throw new IOException("Изображение больше 20 МБ");var asset=Path.Combine(store.Root,"artwork",Guid.NewGuid()+Path.GetExtension(img.FileName));Directory.CreateDirectory(Path.GetDirectoryName(asset)!);File.Copy(img.FileName,asset);return game.Asset(asset);
-   case "search":return await catalog.Search(d.Str("query"),d.Str("kind"),d.Str("instanceId"),d["offset"]?.GetValue<int>()??0);
-   case "install":await catalog.Install(d.Str("source"),d.Str("projectId"),d.Str("kind"),d.Str("instanceId"));return null;
-   case "installPack":await catalog.InstallPack(d.Str("source"),d.Str("projectId"));return State();
+   }
+   case "search":
+   {
+    return await catalog.Search(d.Str("query"),d.Str("kind"),d.Str("instanceId"),d["offset"]?.GetValue<int>()??0);
+   }
+   case "install":
+   {
+    await catalog.Install(d.Str("source"),d.Str("projectId"),d.Str("kind"),d.Str("instanceId"));return null;
+   }
+   case "installPack":
+   {
+    await catalog.InstallPack(d.Str("source"),d.Str("projectId"));return State();
+   }
    case "importInstance":
+   {
     var instanceZip=new Microsoft.Win32.OpenFileDialog{Filter="Prism / MultiMC ZIP|*.zip"};if(instanceZip.ShowDialog()==true)await Task.Run(()=>archives.Import(instanceZip.FileName));return State();
+   }
    case "exportInstance":
+   {
     var exportInstance=store.Get(d.Str("instanceId"));
     var exportDialog=new Microsoft.Win32.SaveFileDialog{Filter="Prism / MultiMC ZIP|*.zip",DefaultExt=".zip",FileName=string.Concat(exportInstance.Name.Select(c=>Path.GetInvalidFileNameChars().Contains(c)?'_':c))+".zip"};
     if(exportDialog.ShowDialog()!=true)return new{cancelled=true};await archives.Export(exportInstance.Id,exportDialog.FileName,d["includeWorlds"]?.GetValue<bool>()??false,d.Str("target"));return new{cancelled=false};
-   case "importPack":var pack=new Microsoft.Win32.OpenFileDialog{Filter="Модпаки|*.mrpack;*.zip"};if(pack.ShowDialog()==true){if(pack.FileName.EndsWith(".mrpack",StringComparison.OrdinalIgnoreCase))await catalog.ImportMrpack(pack.FileName);else await catalog.ImportCursePack(pack.FileName);}return State();
-   case "profileAction":await auth.ProfileAction(d.Str("operation"),d);return State();
+   }
+   case "importPack":
+   {
+    var pack=new Microsoft.Win32.OpenFileDialog{Filter="Модпаки|*.mrpack;*.zip"};if(pack.ShowDialog()==true){if(pack.FileName.EndsWith(".mrpack",StringComparison.OrdinalIgnoreCase))await catalog.ImportMrpack(pack.FileName);else await catalog.ImportCursePack(pack.FileName);}return State();
+   }
+   case "profileAction":
+   {
+    await auth.ProfileAction(d.Str("operation"),d);return State();
+   }
    case "crafty":
+   {
     if(string.IsNullOrWhiteSpace(store.Config.CraftyKey))throw new IOException("Укажите Crafty API-токен в настройках");using(var req=new HttpRequestMessage(HttpMethod.Get,"https://api.crafty.gg/api/v2/players/"+Uri.EscapeDataString(d.Str("name")))){req.Headers.Authorization=new("Bearer",store.Config.CraftyKey);return await Net.Send(req);}
+   }
    case "external":
+   {
     var url=d.Str("url");var uri=new Uri(url);if(uri.Scheme!="https"||!new[]{"github.com","crafty.gg","www.minecraft.net","www.curseforge.com","modrinth.com","microsoft.com","www.microsoft.com","login.microsoftonline.com"}.Contains(uri.Host))throw new IOException("Недопустимая ссылка");Process.Start(new ProcessStartInfo(url){UseShellExecute=true});return null;
-   case "gpus":return await Task.Run(()=>GetGpus());
-   default:throw new IOException("Неизвестная команда");
+   }
+   case "gpus":
+   {
+    return await Task.Run(()=>GetGpus());
+   }
+   default:
+   {
+    throw new IOException("Неизвестная команда");
+   }
   }
  }
  async Task<JsonNode> Player(string name)
