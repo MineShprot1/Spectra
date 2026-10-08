@@ -1454,7 +1454,7 @@
     "C:\\Users\\majnk\\.nuget\\packages\\": {}
   },
   "project": {
-    "version": "0.6.5",
+    "version": "0.6.6",
     "restore": {
       "projectUniqueName": "C:\\Users\\majnk\\Documents\\GitHub\\Spectra\\src\\Spectra\\Spectra.csproj",
       "projectName": "Spectra",

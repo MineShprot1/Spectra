@@ -53,3 +53,5 @@ body .skin-stage{background:radial-gradient(ellipse at bottom,color-mix(in srgb,
 body .hero h2{color:var(--theme-text);text-shadow:none}body .hero:before,body .hero:after{border-color:color-mix(in srgb,var(--theme-accent) 35%,transparent);background:color-mix(in srgb,var(--theme-accent) 8%,transparent);box-shadow:none}
 body #toast{color:var(--theme-text)}body .dropdown button{background:transparent}body .log,body pre.log{background:var(--theme-bg);color:var(--theme-text)}body .quick-header{color:var(--theme-text)}
 body[data-theme=minecraft] :is(.primary,.play){color:#fff!important}body[data-theme=minecraft] .spectra-logo{background:#52a535}
+
+footer{justify-content:flex-start;gap:14px}footer .installed-version{margin-left:auto;flex-shrink:0;max-width:35%;justify-content:flex-end}footer #progressText{min-width:0;max-width:45%}footer #footerUpdate{flex-shrink:0}

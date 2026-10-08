@@ -16,13 +16,17 @@ public static class SourceUpdater
   using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(8));
   try
   {
-   using var response=await Net.Http.GetAsync(Repo+"/commits?per_page=1",timeout.Token);
+   using var request=new HttpRequestMessage(HttpMethod.Get,Repo+"/commits?per_page=1");
+   request.Headers.CacheControl=new System.Net.Http.Headers.CacheControlHeaderValue{NoCache=true};
+   using var response=await Net.Http.SendAsync(request,timeout.Token);
    if(!response.IsSuccessStatusCode)return new{update="Проверка коммитов недоступна · GitHub "+(int)response.StatusCode,available=false};
    var commits=JsonNode.Parse(await response.Content.ReadAsStringAsync(timeout.Token));var sha=commits?[0].Str("sha");
    if(sha==null||!ValidCommit(sha))return new{update="Нет доступных коммитов Spectra",available=false};
    var marker=Path.Combine(AppContext.BaseDirectory,"build-commit.txt");var installed=File.Exists(marker)?(await File.ReadAllTextAsync(marker)).Trim():"";
+   var latestName=commits?[0]?["commit"].Str("message").Split('\n')[0].Trim()??"";
+   if(string.IsNullOrWhiteSpace(latestName))latestName=sha[..7];
    var failurePath=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Spectra","updates","failed-commit.txt");var failed=File.Exists(failurePath)?(await File.ReadAllTextAsync(failurePath)).Trim():"";
-   return new{update=installed==sha?"Исходники Spectra актуальны":"Найден новый коммит Spectra "+sha[..7],available=installed!=sha,automatic=failed!=sha,version=sha[..7],commit=sha};
+   return new{update=installed==sha?"Исходники Spectra актуальны":"Найден новый коммит Spectra "+sha[..7],available=installed!=sha,automatic=failed!=sha,version=latestName,commitName=latestName,commit=sha};
   }
   catch(Exception ex) when(ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
   {return new{update="Не удалось проверить коммиты · можно продолжить запуск",available=false};}
