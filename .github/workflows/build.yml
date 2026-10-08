@@ -36,6 +36,9 @@ jobs:
         run: dotnet build src/Spectra/Spectra.csproj -c Release --no-restore
       - name: Core tests
         run: dotnet run --project tests/Spectra.Tests.csproj -c Release
+      - name: Mark source commit
+        shell: pwsh
+        run: '[IO.File]::WriteAllText("$pwd/src/Spectra/build-commit.txt", "${{ github.sha }}")'
       - name: Publish Windows x64
         run: dotnet publish src/Spectra/Spectra.csproj -c Release -r win-x64 --self-contained true -o dist/Spectra
       - uses: actions/upload-artifact@v4
