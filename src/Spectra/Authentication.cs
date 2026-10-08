@@ -36,12 +36,23 @@ public sealed class Authentication
   {
    if(!interactive&&!HasSavedAccount)throw new InvalidOperationException("Войдите с Microsoft, чтобы продолжить");
    if(interactive)emit(new{type="auth",state="waiting",message="Подтвердите вход на странице Microsoft"});
+   var configPath=Path.Combine(AppContext.BaseDirectory,"microsoft-oauth.json");
+   var clientId=File.Exists(configPath)?JsonNode.Parse(await File.ReadAllTextAsync(configPath)).Str("clientId"):"";
+   MSession session;
+   if(string.IsNullOrWhiteSpace(clientId))
+   {
+    // Documented CmlLib default provider; no custom app configuration is supplied.
+    // This provider uses its own WebView2 OAuth window, not the external browser.
+    using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(5));
+    session=interactive?await handler.AuthenticateInteractively(timeout.Token)
+     :await handler.AuthenticateSilently(timeout.Token);
+   }
+   else
+   {
+   if(!Guid.TryParse(clientId,out var appId)||appId==Guid.Empty)
+    throw new InvalidOperationException("Некорректный clientId в microsoft-oauth.json");
    if(browserApp==null)
    {
-    var configPath=Path.Combine(AppContext.BaseDirectory,"microsoft-oauth.json");
-    var clientId=File.Exists(configPath)?JsonNode.Parse(await File.ReadAllTextAsync(configPath)).Str("clientId"):"";
-    if(!Guid.TryParse(clientId,out var appId)||appId==Guid.Empty)
-     throw new InvalidOperationException("Разработчик должен настроить регистрацию Microsoft для Spectra (microsoft-oauth.json). Пользователю вводить Client ID не требуется.");
     browserApp=PublicClientApplicationBuilder.Create(clientId).WithAuthority("https://login.microsoftonline.com/consumers")
      .WithRedirectUri("http://localhost").Build();
     var cacheFile=Path.Combine(store.Root,"msal-browser.dat");
@@ -76,7 +87,8 @@ public sealed class Authentication
    authenticator.AddMsalOAuth(browserApp,msal=>msal.FromResult(result));
    authenticator.AddXboxAuthForJE(xbox=>xbox.Basic());
    authenticator.AddForceJEAuthenticator();
-   var session=await authenticator.ExecuteForLauncherAsync();
+   session=await authenticator.ExecuteForLauncherAsync();
+   }
    using var request=new HttpRequestMessage(HttpMethod.Get,"https://api.minecraftservices.com/minecraft/profile");
    request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",session.AccessToken);
    var profile=await Net.Send(request);
@@ -100,6 +112,14 @@ public sealed class Authentication
    var legacy=Path.Combine(store.Root,"account.dat");if(File.Exists(legacy))File.Delete(legacy);
   }
   finally{loginGate.Release();}
+ }
+ public async Task ApplySavedSkin(string path,string variant)
+ {
+  if(Session==null)throw new InvalidOperationException("Сначала войдите");
+  using var req=new HttpRequestMessage(HttpMethod.Post,"https://api.minecraftservices.com/minecraft/profile/skins");
+  var content=new MultipartFormDataContent();content.Add(new StringContent(variant),"variant");
+  var image=new ByteArrayContent(await File.ReadAllBytesAsync(path));image.Headers.ContentType=new("image/png");content.Add(image,"file",Path.GetFileName(path));req.Content=content;req.Headers.Authorization=new("Bearer",Session.AccessToken);await Net.Send(req);
+  using var updated=new HttpRequestMessage(HttpMethod.Get,"https://api.minecraftservices.com/minecraft/profile");updated.Headers.Authorization=new("Bearer",Session.AccessToken);Profile=await Net.Send(updated);
  }
  public async Task<JsonNode> ProfileAction(string action,JsonNode data)
  {

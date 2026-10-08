@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+dist/
+.vs/
+*.user
+node_modules/
+test-results/
+
+**/api-keys.local.json
+
+**/build-commit.txt

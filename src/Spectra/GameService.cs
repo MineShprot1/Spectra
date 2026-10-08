@@ -16,13 +16,15 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
 {
  public ConcurrentDictionary<string,Process> Running { get; } = new();
  readonly ConcurrentDictionary<string,byte> busy=new();
+ readonly ConcurrentDictionary<string,JsonNode> metadata=new();
  JsonNode? manifest;
  public async Task<JsonNode> Versions() => (await Manifest())["versions"]!.DeepClone();
  async Task<JsonNode> Manifest() => manifest??=await Net.Get("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json");
  public async Task<JsonNode> Metadata(string version)
  {
+  if(metadata.TryGetValue(version,out var cached))return cached.DeepClone();
   var item=(await Manifest())["versions"]!.AsArray().FirstOrDefault(v=>v.Str("id")==version)??throw new IOException("Версия отсутствует в официальном манифесте");
-  return await Net.Get(item.Str("url"));
+  var result=await Net.Get(item.Str("url"));metadata[version]=result;return result.DeepClone();
  }
  Dictionary<string,string>? artwork;
  public async Task<object> Artwork()
@@ -86,6 +88,8 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    var root=store.Folder(i);var launcher=new MinecraftLauncher(new MinecraftPath(root));
    long lastProgress=0;
    launcher.FileProgressChanged+=(s,e)=>{var now=Environment.TickCount64;if(now-lastProgress<150)return;lastProgress=now;emit(new{type="progress",instanceId=id,message=e.Name,percent=e.TotalTasks>0?(double)e.ProgressedTasks/e.TotalTasks*100:0});};
+   void AttachBytes(MinecraftLauncher target){target.ByteProgressChanged+=(_,e)=>emit(new{type="progress",instanceId=id,message="Файлы Minecraft",downloadedBytes=e.ProgressedBytes,totalBytes=e.TotalBytes,percent=e.TotalBytes>0?e.ProgressedBytes*100d/e.TotalBytes:0,scope="stage"});}
+   AttachBytes(launcher);
    var version=i.Version;
    await launcher.InstallAsync(version);
    if(i.Loader is "fabric" or "quilt")
@@ -94,11 +98,11 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
     var host=i.Loader=="fabric"?"https://meta.fabricmc.net/v2":"https://meta.quiltmc.org/v3";
     var profile=await Net.Get(host+"/versions/loader/"+Uri.EscapeDataString(i.Version)+"/"+Uri.EscapeDataString(i.LoaderVersion)+"/profile/json");version=profile.Str("id");
     var file=Store.SafePath(root,"versions/"+version+"/"+version+".json");Directory.CreateDirectory(Path.GetDirectoryName(file)!);await File.WriteAllTextAsync(file,profile.ToJsonString());
-    launcher=new MinecraftLauncher(new MinecraftPath(root));
+    launcher=new MinecraftLauncher(new MinecraftPath(root));AttachBytes(launcher);
    }
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
-   var process=await launcher.InstallAndBuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.2.1"});
+   var process=await launcher.InstallAndBuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.5.0"});
    process.StartInfo.UseShellExecute=false;process.StartInfo.RedirectStandardOutput=true;process.StartInfo.RedirectStandardError=true;process.StartInfo.CreateNoWindow=true;process.EnableRaisingEvents=true;
    void Log(string? line) { if(line!=null)emit(new{type="log",instanceId=id,line=Redact(line)}); }
    process.OutputDataReceived+=(s,e)=>Log(e.Data);process.ErrorDataReceived+=(s,e)=>Log(e.Data);

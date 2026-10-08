@@ -23,4 +23,7 @@ try {
  }
  var json=JsonSerializer.Serialize(Nbt.Servers(nbtFile));Assert(json.Contains("localhost:25565"),"Read Java NBT server list");
 }finally{File.Delete(nbtFile);}
+Assert(UpdateService.ParseVersion("v0.4.2")==new Version(0,4,2,0),"Update tag normalization");
+Assert(UpdateService.ParseVersion("0.4.10")>UpdateService.ParseVersion("0.4.2"),"Numeric update ordering");
+Assert(UpdateService.ParseVersion("v0.5.0-beta")==null,"Prerelease tag excluded");
 Console.WriteLine($"{checks} core checks passed");
