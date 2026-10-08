@@ -8,7 +8,6 @@
 //------------------------------------------------------------------------------
 
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("applyupdate.ps1")]
-[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("build-commit.txt")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("microsoft-oauth.json")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/app.js")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/appearance.js")]

@@ -67,6 +67,8 @@ public partial class MainWindow : Window
    core.NewWindowRequested+=(_,e)=>e.Handled=true;
    core.PermissionRequested+=(_,e)=>e.State=CoreWebView2PermissionState.Deny;
    core.WebMessageReceived+=Receive;
+   // Clear only cached assets, preserving cookies and appearance storage.
+   try{await core.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache);}catch{ /* Cache cleanup must not prevent startup. */ }
    core.Navigate("https://app.spectra.local/index.html");
   }
   catch(Exception ex){MessageBox.Show("Для Spectra нужен Microsoft Edge WebView2 Runtime.\n"+ex.Message,"Spectra");Close();}
@@ -104,7 +106,7 @@ public partial class MainWindow : Window
   catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=ex.Message});}
   finally{Net.ProgressSink.Value=null;activeRequests.Remove(requestId);}
  }
- object State()=>new{appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,selection=new{version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
+ object State()=>new{installedCommit=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit.txt")).Trim():"",updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,selection=new{version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
  async Task<object?> Handle(string action,JsonNode d)
  {
   switch(action)

@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\majnk\\Documents\\GitHub\\Spectra\\tests\\Spectra.Tests.csproj": {}
+    "C:\\Users\\majnk\\Desktop\\Spectra\\tests\\Spectra.Tests.csproj": {}
   },
   "projects": {
-    "C:\\Users\\majnk\\Documents\\GitHub\\Spectra\\tests\\Spectra.Tests.csproj": {
+    "C:\\Users\\majnk\\Desktop\\Spectra\\tests\\Spectra.Tests.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\majnk\\Documents\\GitHub\\Spectra\\tests\\Spectra.Tests.csproj",
+        "projectUniqueName": "C:\\Users\\majnk\\Desktop\\Spectra\\tests\\Spectra.Tests.csproj",
         "projectName": "Spectra.Tests",
-        "projectPath": "C:\\Users\\majnk\\Documents\\GitHub\\Spectra\\tests\\Spectra.Tests.csproj",
+        "projectPath": "C:\\Users\\majnk\\Desktop\\Spectra\\tests\\Spectra.Tests.csproj",
         "packagesPath": "C:\\Users\\majnk\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\majnk\\Documents\\GitHub\\Spectra\\tests\\obj\\",
+        "outputPath": "C:\\Users\\majnk\\Desktop\\Spectra\\tests\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\majnk\\AppData\\Roaming\\NuGet\\NuGet.Config",

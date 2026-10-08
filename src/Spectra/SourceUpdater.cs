@@ -31,7 +31,7 @@ public static class SourceUpdater
  {
   if(!ValidCommit(sha))throw new IOException("Некорректный SHA коммита");
   var installedMarker=Path.Combine(AppContext.BaseDirectory,"build-commit.txt");
-  if(File.Exists(installedMarker)&&(await File.ReadAllTextAsync(installedMarker)).Trim()==sha)return;
+  if(File.Exists(installedMarker)&&(await File.ReadAllTextAsync(installedMarker)).Trim()==sha)throw new IOException("Этот коммит уже установлен");
   var sdk=new ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};sdk.ArgumentList.Add("--list-sdks");
   try{using var p=Process.Start(sdk)??throw new IOException("Не удалось найти .NET SDK");var output=await p.StandardOutput.ReadToEndAsync();await p.WaitForExitAsync();if(!output.Split('\n').Any(x=>x.TrimStart().StartsWith("8.")))throw new IOException("Для обновления из исходников установите .NET SDK 8 x64");}
   catch(System.ComponentModel.Win32Exception){throw new IOException("Для обновления из исходников установите .NET SDK 8 x64");}
@@ -103,8 +103,11 @@ public static class SourceUpdater
    var localOauth=Path.Combine(AppContext.BaseDirectory,"microsoft-oauth.json");if(File.Exists(localOauth))File.Copy(localOauth,Path.Combine(publish,"microsoft-oauth.json"),true);
    var currentFiles=Directory.EnumerateFiles(publish,"*",SearchOption.AllDirectories).Select(p=>Path.GetRelativePath(publish,p)).ToArray();
    await File.WriteAllTextAsync(Path.Combine(publish,"installed-files.json"),JsonSerializer.Serialize(currentFiles));
-   var helper=Path.Combine(job,"ApplyUpdate.ps1");File.Copy(Path.Combine(AppContext.BaseDirectory,"ApplyUpdate.ps1"),helper);
-   var manifest=Path.Combine(job,"job.json");await File.WriteAllTextAsync(manifest,JsonSerializer.Serialize(new{pid=Environment.ProcessId,install=AppContext.BaseDirectory,publish,source,cache,job,commit=sha,failureMarker=Path.Combine(store.Root,"updates","failed-commit.txt")},Store.Json));
+   var hashes=new Dictionary<string,string>();
+   foreach(var path in Directory.EnumerateFiles(publish,"*",SearchOption.AllDirectories))hashes[Path.GetRelativePath(publish,path)]=await Net.Hash(path,"SHA256");
+   var hashesFile=Path.Combine(job,"hashes.json");await File.WriteAllTextAsync(hashesFile,JsonSerializer.Serialize(hashes));
+   var helper=Path.Combine(job,"ApplyUpdate.ps1");File.Copy(Path.Combine(publish,"ApplyUpdate.ps1"),helper);
+   var manifest=Path.Combine(job,"job.json");await File.WriteAllTextAsync(manifest,JsonSerializer.Serialize(new{hashesFile,report=Path.Combine(store.Root,"updates","last-apply.json"),pid=Environment.ProcessId,install=AppContext.BaseDirectory,publish,source,cache,job,commit=sha,failureMarker=Path.Combine(store.Root,"updates","failed-commit.txt")},Store.Json));
    var helperStart=new ProcessStartInfo("powershell.exe"){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=job};
    foreach(var arg in new[]{"-NoProfile","-ExecutionPolicy","Bypass","-File",helper,"-JobFile",manifest})helperStart.ArgumentList.Add(arg);
    _=Process.Start(helperStart)??throw new IOException("Не удалось запустить замену обновления");handedOff=true;
