@@ -4,14 +4,14 @@
 winexe
 C#
 .cs
-C:\Users\majnk\Desktop\Spectra\src\Spectra\obj\Release\net8.0-windows\win-x64\
+C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\obj\Release\net8.0-windows\win-x64\
 Spectra
 none
 false
 TRACE;RELEASE;NET;NET8_0;NETCOREAPP;WINDOWS;WINDOWS7_0;NET5_0_OR_GREATER;NET6_0_OR_GREATER;NET7_0_OR_GREATER;NET8_0_OR_GREATER;NETCOREAPP3_0_OR_GREATER;NETCOREAPP3_1_OR_GREATER;WINDOWS7_0_OR_GREATER
-C:\Users\majnk\Desktop\Spectra\src\Spectra\App.xaml
+C:\Users\majnk\Documents\GitHub\Spectra\src\Spectra\App.xaml
 11407045341
-23-348617488
+262134537988
 13-932488766
 227-1338663989
 MainWindow.xaml;

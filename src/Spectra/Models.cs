@@ -38,6 +38,7 @@ public record Configuration
 {
  [JsonIgnore] public string CurseForgeKey { get; set; } = "";
  [JsonIgnore] public string CraftyKey { get; set; } = "";
+ public string AppearanceJson {get;set;}="{}";
  public GameSettings Defaults { get; set; } = new();
  public string SelectedVersion {get;set;}="";
  public string SelectedInstance {get;set;}="";
