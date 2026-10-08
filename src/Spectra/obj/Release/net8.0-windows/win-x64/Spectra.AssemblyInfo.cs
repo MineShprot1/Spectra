@@ -12,11 +12,11 @@ using System.Reflection;
 
 [assembly: System.Reflection.AssemblyCompanyAttribute("Spectra")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
-[assembly: System.Reflection.AssemblyFileVersionAttribute("0.6.1.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("0.6.1")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("0.6.2.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("0.6.2")]
 [assembly: System.Reflection.AssemblyProductAttribute("Spectra")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Spectra")]
-[assembly: System.Reflection.AssemblyVersionAttribute("0.6.1.0")]
+[assembly: System.Reflection.AssemblyVersionAttribute("0.6.2.0")]
 [assembly: System.Runtime.Versioning.TargetPlatformAttribute("Windows7.0")]
 [assembly: System.Runtime.Versioning.SupportedOSPlatformAttribute("Windows7.0")]
 

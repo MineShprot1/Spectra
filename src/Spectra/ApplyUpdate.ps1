@@ -64,10 +64,20 @@ try {
  $running=Get-Process -Id $task.pid -ErrorAction SilentlyContinue
  if($running){Wait-Process -Id $task.pid -Timeout 45 -ErrorAction Stop}
  [SpectraUpdateFiles]::Directory($backup)
- $fresh=@([SpectraUpdateFiles]::Read((Under $task.publish 'installed-files.json')) | ConvertFrom-Json)+@('installed-files.json')
+ # ConvertFrom-Json in Windows PowerShell may emit the whole JSON array as
+ # one pipeline object. Enumerate explicitly; never cast an array to a path.
+ $fresh=New-Object 'System.Collections.Generic.List[string]'
+ $manifest=[SpectraUpdateFiles]::Read((Under $task.publish 'installed-files.json')) | ConvertFrom-Json
+ foreach($entry in $manifest){if($entry -isnot [string]){throw 'Invalid file manifest entry'};$fresh.Add($entry)}
+ $fresh.Add('installed-files.json')
  $oldManifest=Under $task.install 'installed-files.json'
- $old=@();if([SpectraUpdateFiles]::Exists($oldManifest)){$old=@([SpectraUpdateFiles]::Read($oldManifest) | ConvertFrom-Json)+@('installed-files.json')}
- foreach($relative in @($fresh+$old | Select-Object -Unique)) {
+ $old=New-Object 'System.Collections.Generic.List[string]'
+ if([SpectraUpdateFiles]::Exists($oldManifest)){
+  $manifest=[SpectraUpdateFiles]::Read($oldManifest) | ConvertFrom-Json
+  foreach($entry in $manifest){if($entry -isnot [string]){throw 'Invalid old file manifest entry'};$old.Add($entry)}
+  $old.Add('installed-files.json')
+ }
+ foreach($relative in @(@($fresh.ToArray())+@($old.ToArray()) | Select-Object -Unique)) {
   $destination=Under $task.install $relative
   $incoming=Under $task.publish $relative
   $hasFresh=$fresh -contains $relative

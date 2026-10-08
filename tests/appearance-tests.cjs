@@ -5,4 +5,5 @@ vm.createContext(context);vm.runInContext(fs.readFileSync(require('node:path').j
 vm.runInContext("SpectraAppearance.apply({language:'en',theme:'light',css:'.hero{display:none}'})",context);assert.equal(text.nodeValue,'Play');assert.equal(context.document.body.dataset.theme,'light');assert.equal(styles.get('#customThemeStyle').textContent,'.hero{display:none}');
 vm.runInContext("SpectraAppearance.apply({language:'ru',theme:'gradient',colors:['#112233','#abcdef'],angle:90})",context);assert.equal(text.nodeValue,'Играть');assert(styles.get('#themeStyle').textContent.includes('linear-gradient(90deg,#112233,#abcdef)'));
 const clean=vm.runInContext("SpectraAppearance.validate({language:'bad',theme:'bad',colors:['red','#123456'],angle:999})",context);assert.equal(clean.language,'ru');assert.equal(clean.angle,360);assert.equal(clean.colors.length,1);
+vm.runInContext("SpectraAppearance.hydrate({theme:'steam'});SpectraAppearance.apply({theme:'aero'});SpectraAppearance.hydrate({theme:'steam'})",context);assert.equal(context.document.body.dataset.theme,'aero');
 console.log('PASS: theme validation, CSS override, gradient and reversible translation');
