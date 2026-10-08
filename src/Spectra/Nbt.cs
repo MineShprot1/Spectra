@@ -25,7 +25,23 @@ public static class Nbt
    if(File.Exists(path))File.Copy(path,path+".spectra-backup",true);File.Move(temp,path,true);
   }finally{if(File.Exists(temp))File.Delete(temp);}
  }
- static byte Type(object value)=>value switch{sbyte=>1,short=>2,int=>3,long=>4,float=>5,double=>6,byte[]=>7,string=>8,List<object>=>9,Dictionary<string,object>=>10,int[]=>11,long[]=>12,_=>throw new InvalidDataException("Unsupported NBT type")};
+ static byte Type(object value) => value switch
+ {
+  sbyte _ => 1,
+  short _ => 2,
+  int _ => 3,
+  long _ => 4,
+  float _ => 5,
+  double _ => 6,
+  byte[] _ => 7,
+  string _ => 8,
+  List<object> _ => 9,
+  Dictionary<string, object> _ => 10,
+  int[] _ => 11,
+  long[] _ => 12,
+  _ => throw new InvalidDataException("Unsupported NBT type")
+ };
+
  static void Number(BinaryWriter w,long number,int count){for(int n=count-1;n>=0;n--)w.Write((byte)(number>>(n*8)));}
  static void String(BinaryWriter w,string text){var bytes=Encoding.UTF8.GetBytes(text);if(bytes.Length>65535)throw new InvalidDataException("NBT string too long");Number(w,bytes.Length,2);w.Write(bytes);}
  static void Write(BinaryWriter w,object value){switch(value){

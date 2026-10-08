@@ -97,6 +97,8 @@ public static class SourceUpdater
    var start=new ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,WorkingDirectory=source};
    foreach(var arg in new[]{"publish",project,"-c","Release","-r","win-x64","--self-contained","true","-o",publish})start.ArgumentList.Add(arg);
    start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"]="1";
+   start.Environment["DOTNET_CLI_UI_LANGUAGE"]="en";
+   start.StandardOutputEncoding=Encoding.UTF8;start.StandardErrorEncoding=Encoding.UTF8;
    using(var p=Process.Start(start)??throw new IOException("Не удалось запустить сборку"))
    {
     var stdout=p.StandardOutput.ReadToEndAsync();var stderr=p.StandardError.ReadToEndAsync();using var buildTimeout=new CancellationTokenSource(TimeSpan.FromMinutes(15));
