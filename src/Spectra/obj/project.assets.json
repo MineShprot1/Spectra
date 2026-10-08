@@ -1454,13 +1454,13 @@
     "C:\\Users\\majnk\\.nuget\\packages\\": {}
   },
   "project": {
-    "version": "0.6.2",
+    "version": "0.6.3",
     "restore": {
-      "projectUniqueName": "C:\\Users\\majnk\\Desktop\\Spectra\\src\\Spectra\\Spectra.csproj",
+      "projectUniqueName": "C:\\Users\\majnk\\Documents\\GitHub\\Spectra\\src\\Spectra\\Spectra.csproj",
       "projectName": "Spectra",
-      "projectPath": "C:\\Users\\majnk\\Desktop\\Spectra\\src\\Spectra\\Spectra.csproj",
+      "projectPath": "C:\\Users\\majnk\\Documents\\GitHub\\Spectra\\src\\Spectra\\Spectra.csproj",
       "packagesPath": "C:\\Users\\majnk\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\majnk\\Desktop\\Spectra\\src\\Spectra\\obj\\",
+      "outputPath": "C:\\Users\\majnk\\Documents\\GitHub\\Spectra\\src\\Spectra\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\majnk\\AppData\\Roaming\\NuGet\\NuGet.Config",

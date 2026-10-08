@@ -8,6 +8,7 @@
 //------------------------------------------------------------------------------
 
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("applyupdate.ps1")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("build-commit.txt")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("microsoft-oauth.json")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/app.js")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/appearance.js")]
@@ -27,6 +28,7 @@
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/assets/terrain.svg")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/index.html")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/list-renderer.js")]
+[assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/locales.js")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/minecraft.css")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/skin-preview.js")]
 [assembly: System.Windows.Resources.AssemblyAssociatedContentFileAttribute("web/style.css")]

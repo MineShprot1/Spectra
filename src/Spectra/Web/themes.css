@@ -14,3 +14,19 @@ body[data-theme=aero] .hero:before,body[data-theme=aero] .hero:after{display:non
 body[data-theme=aero] .instance-meta{color:#fff;text-shadow:0 1px 3px #0008}
 body[data-theme=aero] :is(.instance-card,.catalog-card):has(.card-bg){background:#25475b!important}
 body[data-theme=aero] .instance-card:has(.card-bg){border-color:#b4d9e6}
+
+/* A theme owns typography across all controls, not only headings. */
+body{--ui-font:SpectraPixel,Consolas,monospace}
+body[data-theme=steam]{--ui-font:Arial,'Segoe UI',sans-serif}
+body:is([data-theme=windows],[data-theme=aero]){--ui-font:'Segoe UI Variable','Segoe UI',sans-serif}
+body,body *{font-family:var(--ui-font)!important}
+body:is([data-theme=steam],[data-theme=windows],[data-theme=aero]) :is(h1,h2,h3,.wordmark,.eyebrow,nav button,.pill){font-weight:600;line-height:1.4}
+body[data-theme=windows]{background:#171717;color:#f2f2f2}
+body[data-theme=windows] :is(.panel,.glass,dialog){background:#242424!important;border-color:#ffffff16;box-shadow:0 3px 12px #0003}
+body[data-theme=windows] :is(input,select,textarea){background:#303030;border-color:#ffffff25;color:#f2f2f2}
+body[data-theme=windows] button{background:#343434;border-color:#ffffff18;box-shadow:none}
+body[data-theme=windows] button:hover{background:#414141}
+body[data-theme=windows] :is(.primary,.play){background:#60cdff!important;color:#072536!important}
+body[data-theme=windows] :is(nav,#titlebar,footer){background:#202020}
+body[data-theme=windows] .hero{background:linear-gradient(120deg,#252b34,#20242b);border-color:#ffffff15;text-shadow:none}
+body[data-theme=windows] .hero h2{font-family:var(--ui-font);text-shadow:none}

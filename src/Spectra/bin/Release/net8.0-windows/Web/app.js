@@ -14,7 +14,7 @@ async function api(action,data={}){
 function toast(message){$('#toast').textContent=message;$('#toast').hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').hidden=true,6000);}
 async function run(fn){try{return await fn();}catch(e){toast(e.message||String(e));return null;}}
 function bind(root=document){root.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>navigate(b.dataset.page));}
-function date(s){return s?new Date(s).toLocaleDateString('ru-RU',{day:'numeric',month:'short',year:'numeric'}):'Ещё не запускалась';}
+function date(s){return s?new Date(s).toLocaleDateString(SpectraAppearance.language(),{day:'numeric',month:'short',year:'numeric'}):'Ещё не запускалась';}
 function updateState(s){if(!s)return;state=s;const build=$('footer b');if(build&&s.installedCommit)build.textContent=s.installedCommit.slice(0,7);SpectraAppearance.hydrate(s.appearance);const name=state.profile?.name||'Войти';$('#accountName').textContent=name;$('#profileTab').textContent=state.profile?.name?.toUpperCase()||'ПРОФИЛЬ';$('.avatar').textContent=name[0];if(state.profile)paintFace($('.avatar'),skinUrl(state.profile));renderQuick();syncPlayButtons();}
 function onMessage(m){
  if(m.type==='reply'){const p=pending.get(m.id);if(p){pending.delete(m.id);m.ok?p.resolve(m.result):p.reject(new Error(m.error));}return;}
