@@ -104,7 +104,7 @@ public partial class MainWindow : Window
   try
   {
    var message=JsonNode.Parse(e.WebMessageAsJson)!;requestId=message.Str("id");if(!activeRequests.Add(requestId))return;
-   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "packContents" or "bedrockLaunch" or "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
+   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "packContents" or "bedrockLaunch" or "bedrockDownload" or "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
    if(action is "launch" or "launchTarget" or "joinFriend" or "install" or "installPack" or "installFriendPack" or "importPack" or "importInstance" or "dropPack" or "exportInstance" or "saveInstance" or "deleteInstance" or "enableFiles" or "toggle" or "serverAction" or "worldAction"){await libraryMutation.WaitAsync();mutating=true;}
    if(action=="dropPack")
    {
@@ -112,7 +112,7 @@ public partial class MainWindow : Window
     await Task.Run(()=>archives.Import(files[0].Path));result=State();Emit(new{type="transferComplete"});
    }
    else result=await Handle(action,d);
-   if(action is "packContents" or "bedrockLaunch" or "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
+   if(action is "packContents" or "bedrockLaunch" or "bedrockDownload" or "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
    Emit(new{type="reply",id=requestId,ok=true,result});
   }
   catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=ex.Message});}
@@ -378,7 +378,8 @@ public partial class MainWindow : Window
    {
     store.Config.SelectedEdition="bedrock";store.Config.SelectedBedrock=d.Str("id");store.Config.SelectedBedrockLabel=d.Str("label");store.Save();return State();
    }
-   case "bedrockLaunch":await bedrock.Launch(d.Str("id"),d["install"]?.GetValue<bool>()??false);return null;
+   case "bedrockLaunch":return await bedrock.Launch(d.Str("id"),d["install"]?.GetValue<bool>()??false);
+   case "bedrockDownload":return await bedrock.Download(d.Str("id"));
    case "bedrockStore":BedrockService.OpenStore();return null;
    case "packContents":return await catalog.PackContents(d.Str("source"),d.Str("projectId"),d.Str("versionId"));
    case "projectDetails":return await catalog.Details(d.Str("source"),d.Str("projectId"),d.Str("kind"),d.Str("instanceId"));

@@ -7,3 +7,10 @@ assert.deepEqual(versions("SpectraBedrock.visiblePackages(items,'',true,true,tru
 assert.deepEqual(versions("SpectraBedrock.visiblePackages(items,'BETA',true)"),['1.30.0']);
 assert.equal(items[0].version,'1.20.0');
 console.log('PASS: Bedrock hides preview and legacy by default, filters case-insensitively, sorts versions numerically without mutating catalogue');
+
+assert.equal(vm.runInContext("SpectraBedrock.editionName({preview:true,legacy:true})",context),'Bedrock Preview');
+assert.equal(vm.runInContext("SpectraBedrock.editionName({format:'UWP'})",context),'Windows 10 Edition');
+assert.equal(vm.runInContext("SpectraBedrock.editionName({format:'GDK'})",context),'Bedrock Edition');
+assert.equal(vm.runInContext("SpectraBedrock.latestPackage().id",context),'latest');
+assert.equal(vm.runInContext("SpectraBedrock.visiblePackages([{id:'latest',latest:true,version:'Последняя версия',name:'Minecraft'},...items],'',true,true,true)[0].id",context),'latest');
+console.log('PASS: Preview/Windows 10 labels and latest choice pinned above sorted releases');

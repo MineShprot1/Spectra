@@ -30,7 +30,7 @@ public sealed partial class BedrockService
    var current=MicrosoftUrl(url);
    for(var redirect=0;redirect<=5;redirect++){
     using var request=new HttpRequestMessage(HttpMethod.Get,current);
-    request.Headers.UserAgent.ParseAdd("Spectra/0.14.1");
+    request.Headers.UserAgent.ParseAdd("Spectra/0.14.2");
     var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);
     var status=(int)response.StatusCode;
     if(status is not (301 or 302 or 303 or 307 or 308))return response;
@@ -85,9 +85,9 @@ public sealed partial class BedrockService
   foreach(var item in document.Descendants().Where(e=>e.Name.LocalName=="Url")){try{var url=MicrosoftUrl(item.Value);if(new Uri(url).Host=="tlu.dl.delivery.mp.microsoft.com")return url;}catch{}}
   throw new IOException("Microsoft больше не выдаёт ссылку для этой версии или требует доступ Store. Выберите другую версию; импорт пакета остаётся доступен.");
  }
- async Task<Package?> InstallRelease(string id,List<Package> current)
+ async Task<(Release Release,string Path)> DownloadRelease(string id)
  {
-  var release=(await Catalogue()).FirstOrDefault(r=>r.Id==id)??throw new IOException("Версия отсутствует в каталоге Bedrock");var selected=current.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);if(selected!=null)return selected;
+  var release=(await Catalogue()).FirstOrDefault(r=>r.Id==id)??throw new IOException("Версия отсутствует в каталоге Bedrock");
   var folder=Path.Combine(store.Root,"bedrock","downloads");Directory.CreateDirectory(folder);var filename=id.Replace(':','-')+(release.Format=="GDK"?".msixvc":".appx");var path=Path.Combine(folder,filename);var receipt=path+".json";
   bool cached=false;try{var saved=JsonNode.Parse(await File.ReadAllTextAsync(receipt));cached=File.Exists(path)&&new FileInfo(path).Length>0&&saved.Str("sha256")==await Net.Hash(path,"SHA256");}catch{}
   if(!cached){var urls=release.Format=="GDK"?release.Urls:new[]{await ResolveUwp(release)};Exception? last=null;bool ready=false;
@@ -98,7 +98,22 @@ public sealed partial class BedrockService
    }
    await File.WriteAllTextAsync(receipt,JsonSerializer.Serialize(new{sha256=await Net.Hash(path,"SHA256"),release.Id,release.Version,release.PackageVersion},Store.Json));
   }
-  Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Bedrock "+release.Version,percent=100});selected=(await Bridge("install",path)).FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);
-  if(selected==null)throw new IOException("Windows не зарегистрировал выбранную версию Bedrock. Убедитесь, что установлены Gaming Services и лицензия Minecraft доступна в Microsoft Store.");return selected;
+  return (release,path);
+ }
+ public async Task<object> Download(string id)
+ {
+  await gate.WaitAsync();try{var downloaded=await DownloadRelease(id);return new{status="downloaded",path=downloaded.Path,version=downloaded.Release.Version,message="Пакет сохранён. Установленная игра не изменена."};}finally{gate.Release();}
+ }
+ internal static bool WouldReplace(string name,string version,IEnumerable<Package> current)=>current.Any(p=>p.Name==name&&p.Version!=version);
+ internal static Package? LatestInstalled(IEnumerable<Package> packages)=>packages.Where(p=>!p.Preview&&!p.Legacy).OrderByDescending(p=>p.Name=="Microsoft.MinecraftWindows").ThenByDescending(p=>System.Version.TryParse(p.Version,out var v)?v:new System.Version()).FirstOrDefault();
+ async Task<Package?> InstallRelease(string id,List<Package> current)
+ {
+  var release=(await Catalogue()).FirstOrDefault(r=>r.Id==id)??throw new IOException("Версия отсутствует в каталоге Bedrock");
+  var selected=current.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);if(selected!=null)return selected;
+  if(WouldReplace(release.Name,release.PackageVersion,current))throw new IOException("Эта версия заменит установленный выпуск Minecraft. Spectra отменил установку. Используйте «Скачать пакет», чтобы сохранить его отдельно.");
+  var downloaded=await DownloadRelease(id);
+  if(release.Format=="GDK")throw new IOException("Пакет MSIXVC сохранён, но Add-AppxPackage не является установщиком Xbox Gaming Services. Используйте «Последняя версия» для установки через Microsoft Store. Текущая игра не изменена.");
+  Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Bedrock "+release.Version,percent=100});var registered=await Bridge("install",downloaded.Path,release.Name,release.PackageVersion);selected=registered.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);
+  if(selected==null)throw new IOException("Установка завершилась, но выбранный пакет не найден: "+release.Name+" "+release.PackageVersion+". Найдены: "+string.Join(", ",registered.Select(p=>p.Name+" "+p.Version))+". Пакет сохранён: "+downloaded.Path);return selected;
  }
 }

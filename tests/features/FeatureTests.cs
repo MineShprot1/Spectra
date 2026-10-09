@@ -27,6 +27,13 @@ static class FeatureTests
    Console.WriteLine("PASS: Bedrock CDN schemes, redirects, host restrictions, cleanup and HTTPS-only general downloads");
   }finally{Directory.Delete(downloadFolder,true);}
 
+  var installed=new[]{new BedrockService.Package("stable","Microsoft.MinecraftUWP","1.21.10000.0","family","app",false,false,true),new BedrockService.Package("preview","Microsoft.MinecraftWindowsBeta","1.99.0.0","family","app",true,false,true),new BedrockService.Package("legacy","Microsoft.MinecraftUWP","1.1.0.0","family","app",false,true,true)};
+  Check(BedrockService.LatestInstalled(installed)?.Id=="stable","latest launch ignores Preview and legacy");
+  Check(BedrockService.LatestInstalled(installed.Where(p=>p.Preview||p.Legacy))==null,"missing regular edition invokes Store path");
+  Check(BedrockService.WouldReplace("Microsoft.MinecraftUWP","1.20.0.0",installed),"version replacement blocked");
+  Check(!BedrockService.WouldReplace("Microsoft.MinecraftWindowsPreview","1.20.0.0",installed),"independent Preview identity allowed");
+  Check(!BedrockService.WouldReplace("Microsoft.MinecraftUWP","1.21.10000.0",installed.Take(1)),"existing exact version launches without install");
+  Console.WriteLine("PASS: latest stable selection and replacement guard");
   using(var zip=Archive(new(){["modrinth.index.json"]="""{"files":[{"path":"mods/client.jar","hashes":{},"env":{"client":"optional"}},{"path":"mods/server.jar","env":{"client":"unsupported"}},{"path":"shaderpacks/light.zip"},{"path":"resourcepacks/art.zip"},{"path":"mods/../fake.jar"}]}""",["overrides/mods/client.jar"]="override",["client-overrides/mods/local.jar"]="local",["overrides/config/settings.json"]="ignored"})){
    var items=CatalogService.ReadPackContents(zip,"modrinth");Check(items.Count==4,"client-only files, overrides and paths");Check(items.Count(i=>i.Kind=="mods")==2,"mod count");Check(items.Single(i=>i.File=="mods/client.jar").Origin=="override","override supersedes manifest");Check(items.All(i=>!i.File.Contains("..")),"invalid paths excluded");Check(items.Count(i=>i.Kind=="shaders")==1&&items.Count(i=>i.Kind=="resources")==1,"shader/resource classification");
   }
