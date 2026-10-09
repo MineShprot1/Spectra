@@ -30,7 +30,7 @@ public sealed partial class BedrockService
    var current=MicrosoftUrl(url);
    for(var redirect=0;redirect<=5;redirect++){
     using var request=new HttpRequestMessage(HttpMethod.Get,current);
-    request.Headers.UserAgent.ParseAdd("Spectra/0.14.4");
+    request.Headers.UserAgent.ParseAdd("Spectra/0.14.5");
     var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);
     var status=(int)response.StatusCode;
     if(status is not (301 or 302 or 303 or 307 or 308))return response;
@@ -107,6 +107,9 @@ public sealed partial class BedrockService
  }
  internal static bool MatchesUwpVersion(string display,string actual)=>System.Version.TryParse(display,out var expected)&&System.Version.TryParse(actual,out var installed)&&(installed==expected||actual==PackageVersion(display)||actual==$"{expected.Major}.{expected.Minor}.{expected.Build*100+Math.Max(0,expected.Revision)}.0");
  internal static bool WouldReplace(string name,string version,IEnumerable<Package> current)=>current.Any(p=>p.Name.Equals(name,StringComparison.OrdinalIgnoreCase)&&p.Version!=version);
+ internal sealed record LatestState(bool Installed,bool UpdateAvailable,string InstalledVersion,string AvailableVersion);
+ internal static Package? LatestAnyInstalled(IEnumerable<Package> packages)=>packages.Where(p=>!p.Preview).OrderByDescending(p=>System.Version.TryParse(p.Version,out var v)?v:new System.Version()).FirstOrDefault();
+ internal static LatestState LatestStatus(IEnumerable<Package> installed,IEnumerable<Release> available){var current=LatestAnyInstalled(installed);var newest=available.Where(r=>!r.Preview).OrderByDescending(r=>System.Version.Parse(r.PackageVersion)).FirstOrDefault();bool update=current!=null&&newest!=null&&System.Version.TryParse(current.Version,out var v)&&v>new System.Version(0,0,0,0)&&v<System.Version.Parse(newest.PackageVersion);return new(current!=null,update,current?.Version??"",newest?.Version??"");}
  internal static Package? LatestInstalled(IEnumerable<Package> packages)=>packages.Where(p=>!p.Preview&&!p.Legacy).OrderByDescending(p=>p.Name.Equals("Microsoft.MinecraftWindows",StringComparison.OrdinalIgnoreCase)).ThenByDescending(p=>System.Version.TryParse(p.Version,out var v)?v:new System.Version()).FirstOrDefault();
  async Task<Package?> InstallRelease(string id,List<Package> current)
  {

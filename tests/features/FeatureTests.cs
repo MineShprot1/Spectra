@@ -41,6 +41,13 @@ static class FeatureTests
   Check(BedrockService.StoreProgress("Signing in")==null,"unknown Store progress stays indeterminate");
   Check(BedrockService.LatestInstallArguments().Contains("msstore")&&BedrockService.LatestInstallArguments().Contains("--disable-interactivity"),"background Store installation arguments");
   var installed=new[]{new BedrockService.Package("stable","Microsoft.MinecraftUWP","1.21.10000.0","family","app",false,false,true),new BedrockService.Package("preview","Microsoft.MinecraftWindowsBeta","1.99.0.0","family","app",true,false,true),new BedrockService.Package("legacy","Microsoft.MinecraftUWP","1.1.0.0","family","app",false,true,true)};
+  var latestRelease=new BedrockService.Release("latest-test","1.26.50","1.26.5000.0","Microsoft.MinecraftUWP",false,false,"UWP","",[]);
+  Check(BedrockService.LatestStatus(installed,new[]{latestRelease}).UpdateAvailable,"older installed stable offers update");
+  Check(!BedrockService.LatestStatus(installed.Select(p=>p with{Version="1.26.5000.0"}),new[]{latestRelease}).UpdateAvailable,"current stable needs no update");
+  Check(!BedrockService.LatestStatus([],new[]{latestRelease}).UpdateAvailable,"missing game offers install rather than update");
+  Check(!BedrockService.LatestStatus(installed.Select(p=>p with{Version="0.0.0.0"}),new[]{latestRelease}).UpdateAvailable,"unknown version is not guessed as outdated");
+  Check(BedrockService.LatestStatus(installed.Where(p=>p.Legacy),new[]{latestRelease}).UpdateAvailable,"legacy-only install offers current upgrade");
+  Check(BedrockService.LatestInstallArguments(true)[0]=="upgrade","latest update uses upgrade command");
   Check(BedrockService.LatestInstalled(installed)?.Id=="stable","latest launch ignores Preview and legacy");
   Check(BedrockService.LatestInstalled(installed.Where(p=>p.Preview||p.Legacy))==null,"missing regular edition invokes Store path");
   Check(BedrockService.WouldReplace("Microsoft.MinecraftUWP","1.20.0.0",installed),"version replacement blocked");

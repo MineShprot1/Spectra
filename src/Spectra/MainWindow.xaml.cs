@@ -276,6 +276,7 @@ public partial class MainWindow : Window
    {
     return await Player(d.Str("name"));
    }
+   case "installedJava":return await Task.Run(()=>game.InstalledJava());
    case "versions":
    {
     return await game.Versions();

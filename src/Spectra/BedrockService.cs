@@ -31,7 +31,7 @@ public sealed partial class BedrockService(Store store)
   var installed=await Bridge("list");var available=await Catalogue(refresh);var imported=new List<Package>();var folder=Path.Combine(store.Root,"bedrock","packages");
   if(Directory.Exists(folder))foreach(var path in Directory.EnumerateFiles(folder,"*.json")){var p=JsonSerializer.Deserialize<Package>(await File.ReadAllTextAsync(path),Store.Json);if(p!=null&&MinecraftIdentity(p.Name))imported.Add(p);}
   string warning="";try{updates??=await Net.Get("https://launchercontent.mojang.com/v2/bedrockPatchNotes.json");}catch{warning="Каталог Mojang недоступен; установленные и импортированные версии доступны.";}
-  warning=string.Join(" ",new[]{warning,catalogueWarning}.Where(x=>x!=""));return new{installed,imported,available,updates=updates?["entries"]?.DeepClone()??new JsonArray(),warning};
+  warning=string.Join(" ",new[]{warning,catalogueWarning}.Where(x=>x!=""));return new{installed,imported,available,latestStatus=LatestStatus(installed,available),updates=updates?["entries"]?.DeepClone()??new JsonArray(),warning};
  }
  public async Task<Package> Import(string source,bool cache=true)
  {
@@ -52,7 +52,8 @@ public sealed partial class BedrockService(Store store)
   await gate.WaitAsync();try{
    Package? selected;
    if(id=="latest"){
-    selected=LatestInstalled(await Bridge("list"));
+    var current=await Bridge("list");selected=LatestAnyInstalled(current);var status=LatestStatus(current,await Catalogue());
+    if(status.UpdateAvailable){if(!install)return new{status="needsUpdate",message="Установлена версия "+status.InstalledVersion+"; в каталоге доступна "+status.AvailableVersion+". Обновить обычный Minecraft через Microsoft Store?"};await InstallLatest(true);selected=LatestAnyInstalled(await Bridge("list"));}
     if(selected==null){
      if(!install)return new{status="needsInstall",message="Minecraft не найден. Установить через Microsoft Store в фоне? Нужны WinGet и аккаунт Store с лицензией игры."};
      await InstallLatest();selected=LatestInstalled(await Bridge("list"));
@@ -69,11 +70,11 @@ public sealed partial class BedrockService(Store store)
    var info=new ProcessStartInfo("explorer.exe"){UseShellExecute=true};info.ArgumentList.Add("shell:AppsFolder\\"+selected.Family+"!"+selected.AppId);Process.Start(info);return new{status="launched",version=selected.Version,message="Запуск передан Windows; права на игру проверяются Minecraft / Microsoft Store."};
   }finally{gate.Release();}
  }
- internal static string[] LatestInstallArguments()=>["install","--id","9NBLGGH2JHXJ","--exact","--source","msstore","--silent","--accept-package-agreements","--accept-source-agreements","--disable-interactivity"];
- async Task InstallLatest()
+ internal static string[] LatestInstallArguments(bool upgrade=false)=>[upgrade?"upgrade":"install","--id","9NBLGGH2JHXJ","--exact","--source","msstore","--silent","--accept-package-agreements","--accept-source-agreements","--disable-interactivity"];
+ async Task InstallLatest(bool upgrade=false)
  {
   var folder=Path.Combine(store.Root,"bedrock");Directory.CreateDirectory(folder);var log=Path.Combine(folder,"last-store-install.log");
-  var info=new ProcessStartInfo("winget.exe"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8};foreach(var arg in LatestInstallArguments())info.ArgumentList.Add(arg);
+  var info=new ProcessStartInfo("winget.exe"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8};foreach(var arg in LatestInstallArguments(upgrade))info.ArgumentList.Add(arg);
   using var process=new Process{StartInfo=info};try{process.Start();}catch(System.ComponentModel.Win32Exception e){throw new IOException("WinGet недоступен. Установите или обновите «Установщик приложений» Microsoft. Можно открыть Store кнопкой в списке Bedrock.",e);}
   Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Minecraft через Microsoft Store…",percent=0,indeterminate=true,scope="store"});
   using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(45));

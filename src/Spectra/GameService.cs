@@ -29,6 +29,12 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
  }
  readonly ConcurrentDictionary<string,JsonNode> metadata=new();
  JsonNode? manifest;
+ public string[] InstalledJava()
+ {
+  var root=Path.Combine(store.Root,"instances");var ids=new HashSet<string>(StringComparer.Ordinal);if(!Directory.Exists(root))return [];
+  foreach(var instance in Directory.EnumerateDirectories(root).Take(1000)){var versionsFolder=Path.Combine(instance,".minecraft","versions");if(!Directory.Exists(versionsFolder))continue;foreach(var folder in Directory.EnumerateDirectories(versionsFolder).Take(2000)){var id=Path.GetFileName(folder);var json=Path.Combine(folder,id+".json");var jar=Path.Combine(folder,id+".jar");try{if(!File.Exists(jar)||new FileInfo(jar).Length==0||!File.Exists(json)||new FileInfo(json).Length>8*1024*1024)continue;var node=JsonNode.Parse(File.ReadAllText(json));if(node.Str("id")==id&&node?["inheritsFrom"]==null)ids.Add(id);}catch{}}}
+  return ids.OrderByDescending(id=>id,StringComparer.Ordinal).ToArray();
+ }
  public async Task<JsonNode> Versions() => (await Manifest())["versions"]!.DeepClone();
  async Task<JsonNode> Manifest() => manifest??=await Net.Get("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json");
  public async Task<JsonNode> Metadata(string version)
@@ -135,7 +141,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader!="vanilla") await launcher.InstallAsync(version);
-   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.14.4"});
+   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.14.5"});
    if(targetKind!=""){
     if(target.Contains('"')||target.Contains('\\')&&targetKind=="servers"||target.Any(char.IsControl))throw new IOException("Некорректная цель запуска");
     var modern=Version.TryParse(i.Version,out var mc)&&mc>=new Version(1,20);
