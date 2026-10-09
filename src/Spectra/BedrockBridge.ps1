@@ -22,6 +22,18 @@ function Installed {
 try {
  switch ($Action) {
   'list' { $rows = @(Installed); ConvertTo-Json -InputObject $rows -Depth 5 -Compress }
+  'officialLauncher' {
+   $launcher = Get-StartApps | Where-Object { $_.AppID -match '^(Microsoft\.4297127D64EC6|Microsoft\.MinecraftLauncher)_8wekyb3d8bbwe![A-Za-z0-9_.-]+$' } | Select-Object -First 1
+   if ($launcher) { Start-Process -FilePath 'explorer.exe' -ArgumentList ("shell:AppsFolder\" + $launcher.AppID) | Out-Null }
+   else {
+    $candidates = @((Join-Path ${env:ProgramFiles} 'Minecraft Launcher\MinecraftLauncher.exe'))
+    if (${env:ProgramFiles(x86)}) { $candidates += Join-Path ${env:ProgramFiles(x86)} 'Minecraft Launcher\MinecraftLauncher.exe' }
+    $exe = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if (-not $exe) { throw 'Official Minecraft Launcher not found. Open it manually to update Minecraft for Windows.' }
+    Start-Process -FilePath $exe | Out-Null
+   }
+   ConvertTo-Json -InputObject @() -Compress
+  }
   'install' {
    if (Get-Process -Name 'Minecraft.Windows' -ErrorAction SilentlyContinue) { throw 'Close Minecraft before installation.' }
    $name = $env:SPECTRA_BEDROCK_NAME

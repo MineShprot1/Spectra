@@ -381,6 +381,8 @@ public partial class MainWindow : Window
    }
    case "bedrockLaunch":return await bedrock.Launch(d.Str("id"),d["install"]?.GetValue<bool>()??false);
    case "bedrockDownload":return await bedrock.Download(d.Str("id"));
+   case "bedrockOfficialLauncher":await bedrock.OpenOfficialLauncher();return null;
+   case "bedrockLaunchCurrent":return await bedrock.Launch("latest",false,true);
    case "bedrockStore":BedrockService.OpenStore();return null;
    case "packContents":return await catalog.PackContents(d.Str("source"),d.Str("projectId"),d.Str("versionId"));
    case "projectDetails":return await catalog.Details(d.Str("source"),d.Str("projectId"),d.Str("kind"),d.Str("instanceId"));

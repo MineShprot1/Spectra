@@ -37,6 +37,9 @@ static class FeatureTests
   Check(BedrockService.MatchesUwpVersion("0.14.2.1","0.142.1.0"),"reported old package accepted");
   Check(!BedrockService.MatchesUwpVersion("0.14.2.1","0.142.2.0"),"old package revision mismatch rejected");
   Check(BedrockService.PackageVersion("0.15.10.0")=="0.1510.0.0","old build concatenation handles two-digit builds");
+  Check(BedrockService.StoreResult(unchecked((int)0x8A150014)).Message.Contains("не нашёл Minecraft"),"not-found WinGet code correctly identified");
+  Check(BedrockService.StoreResult(unchecked((int)0x8A15002B)).Message.Contains("применимого обновления"),"no-update WinGet code correctly identified");
+  Check(!BedrockService.StoreResult(unchecked((int)0x8A150014)).Success&&BedrockService.StoreResult(0).Success,"Store status reflects actual exit code");
   var progress=BedrockService.StoreProgress(" 12.5 MB / 100 MB ");Check(progress?.Done==12500000&&progress?.Total==100000000,"WinGet byte progress");
   Check(BedrockService.StoreProgress("Signing in")==null,"unknown Store progress stays indeterminate");
   Check(BedrockService.LatestInstallArguments().Contains("msstore")&&BedrockService.LatestInstallArguments().Contains("--disable-interactivity"),"background Store installation arguments");

@@ -30,7 +30,7 @@ public sealed partial class BedrockService
    var current=MicrosoftUrl(url);
    for(var redirect=0;redirect<=5;redirect++){
     using var request=new HttpRequestMessage(HttpMethod.Get,current);
-    request.Headers.UserAgent.ParseAdd("Spectra/0.14.5");
+    request.Headers.UserAgent.ParseAdd("Spectra/0.14.6");
     var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);
     var status=(int)response.StatusCode;
     if(status is not (301 or 302 or 303 or 307 or 308))return response;

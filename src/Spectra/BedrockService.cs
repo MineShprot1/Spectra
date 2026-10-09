@@ -47,16 +47,16 @@ public sealed partial class BedrockService(Store store)
   if(File.Exists(destination+".part"))File.Move(destination+".part",destination,true);
   var item=new Package("import:"+hash+ext,name,version,"",app,name.Contains("Beta")||name.Contains("Preview"),parsed.Major==0||parsed.Major==1&&parsed.Minor<2,false);await File.WriteAllTextAsync(Path.Combine(folder,hash+ext+".json"),JsonSerializer.Serialize(item,Store.Json));return item;
  }
- public async Task<object> Launch(string id,bool install=false)
+ public async Task<object> Launch(string id,bool install=false,bool skipUpdate=false)
  {
   await gate.WaitAsync();try{
    Package? selected;
    if(id=="latest"){
     var current=await Bridge("list");selected=LatestAnyInstalled(current);var status=LatestStatus(current,await Catalogue());
-    if(status.UpdateAvailable){if(!install)return new{status="needsUpdate",message="Установлена версия "+status.InstalledVersion+"; в каталоге доступна "+status.AvailableVersion+". Обновить обычный Minecraft через Microsoft Store?"};await InstallLatest(true);selected=LatestAnyInstalled(await Bridge("list"));}
+    if(status.UpdateAvailable&&!skipUpdate){if(!install)return new{status="needsUpdate",message="Установлена версия "+status.InstalledVersion+"; в каталоге доступна "+status.AvailableVersion+". Обновить обычный Minecraft через Microsoft Store?"};var updateResult=await InstallLatest(true);if(!updateResult.Success)return new{status="installerUnavailable",message=updateResult.Message,code=updateResult.Code};selected=LatestAnyInstalled(await Bridge("list"));}
     if(selected==null){
      if(!install)return new{status="needsInstall",message="Minecraft не найден. Установить через Microsoft Store в фоне? Нужны WinGet и аккаунт Store с лицензией игры."};
-     await InstallLatest();selected=LatestInstalled(await Bridge("list"));
+     var installResult=await InstallLatest();if(!installResult.Success)return new{status="installerUnavailable",message=installResult.Message,code=installResult.Code};selected=LatestInstalled(await Bridge("list"));
      if(selected==null)throw new IOException("Store сообщил об установке, но Minecraft не найден. Подробности: bedrock/last-store-install.log");
     }
    }else if(id.StartsWith("online:",StringComparison.Ordinal)){
@@ -71,18 +71,28 @@ public sealed partial class BedrockService(Store store)
   }finally{gate.Release();}
  }
  internal static string[] LatestInstallArguments(bool upgrade=false)=>[upgrade?"upgrade":"install","--id","9NBLGGH2JHXJ","--exact","--source","msstore","--silent","--accept-package-agreements","--accept-source-agreements","--disable-interactivity"];
- async Task InstallLatest(bool upgrade=false)
+ internal sealed record StoreOperation(bool Success,string Code,string Message);
+ internal static StoreOperation StoreResult(int exitCode)
+ {
+  var code="0x"+exitCode.ToString("X8");return unchecked((uint)exitCode) switch {
+   0=>new(true,code,""),
+   0x8A150014=>new(false,code,"WinGet не нашёл Minecraft в выбранном источнике или среди сопоставленных установленных приложений ("+code+"). Этот код не означает отсутствие лицензии. Обновите игру через официальный Minecraft Launcher. Подробности: bedrock/last-store-install.log"),
+   0x8A15002B=>new(false,code,"WinGet не нашёл применимого обновления ("+code+"). Каталог Spectra не гарантирует доступность обновления для вашего аккаунта. Можно запустить установленную игру или проверить обновление в официальном лаунчере. Подробности: bedrock/last-store-install.log"),
+   _=>new(false,code,"Установка через Microsoft Store / WinGet не завершена ("+code+"). Причина записана в bedrock/last-store-install.log; по одному этому коду Spectra не делает вывод об отсутствии лицензии.")};
+ }
+ public async Task OpenOfficialLauncher(){await Bridge("officialLauncher");}
+ async Task<StoreOperation> InstallLatest(bool upgrade=false)
  {
   var folder=Path.Combine(store.Root,"bedrock");Directory.CreateDirectory(folder);var log=Path.Combine(folder,"last-store-install.log");
   var info=new ProcessStartInfo("winget.exe"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8};foreach(var arg in LatestInstallArguments(upgrade))info.ArgumentList.Add(arg);
-  using var process=new Process{StartInfo=info};try{process.Start();}catch(System.ComponentModel.Win32Exception e){throw new IOException("WinGet недоступен. Установите или обновите «Установщик приложений» Microsoft. Можно открыть Store кнопкой в списке Bedrock.",e);}
+  using var process=new Process{StartInfo=info};try{process.Start();}catch(System.ComponentModel.Win32Exception){return new(false,"unavailable","WinGet недоступен. Можно обновить Minecraft через официальный Minecraft Launcher или установить «Установщик приложений» Microsoft.");}
   Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Minecraft через Microsoft Store…",percent=0,indeterminate=true,scope="store"});
   using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(45));
   var output=new StringBuilder();var errorsTask=process.StandardError.ReadToEndAsync();
   async Task ReadProgress(){var buffer=new char[512];var line=new StringBuilder();int read;long last=0;while((read=await process.StandardOutput.ReadAsync(buffer.AsMemory(),timeout.Token))>0){output.Append(buffer,0,read);if(output.Length>256*1024)output.Remove(0,output.Length-256*1024);for(int i=0;i<read;i++){var ch=buffer[i];if(ch is '\r' or '\n'){var message=line.ToString();line.Clear();if(message.Length>0&&Environment.TickCount64-last>300){last=Environment.TickCount64;var progress=StoreProgress(message);Net.ProgressSink.Value?.Invoke(new{type="progress",message=progress==null?"Установка Minecraft через Microsoft Store…":"Скачивание Minecraft через Microsoft Store",downloadedBytes=progress?.Done,totalBytes=progress?.Total,percent=progress==null?0:progress.Value.Done*100d/progress.Value.Total,indeterminate=progress==null,scope="store"});}}else if(line.Length<2048)line.Append(ch);}}}
   var reader=ReadProgress();try{await process.WaitForExitAsync(timeout.Token);await reader;}catch(OperationCanceledException){try{process.Kill(true);}catch{}try{await reader;}catch{}throw new IOException("Установка Store превысила время ожидания. Проверьте очередь загрузок Store.");}
   var errors=await errorsTask;await File.WriteAllTextAsync(log,"Exit code: "+process.ExitCode+Environment.NewLine+output+Environment.NewLine+errors);
-  if(process.ExitCode!=0)throw new IOException("Microsoft Store / WinGet не установил Minecraft (код 0x"+process.ExitCode.ToString("X8")+"). Проверьте вход Store и лицензию игры. Подробности: bedrock/last-store-install.log");
+  return StoreResult(process.ExitCode);
  }
  internal static (long Done,long Total)? StoreProgress(string text)
  {
