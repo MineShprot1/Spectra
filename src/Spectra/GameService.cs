@@ -7,6 +7,8 @@ using System.Text.Json;
 using System.Xml.Linq;
 using CmlLib.Core;
 using CmlLib.Core.ProcessBuilder;
+using CmlLib.Core.Installers;
+using CmlLib.Core.FileExtractors;
 using CmlLib.Core.Installer.Forge;
 using CmlLib.Core.Installer.NeoForge;
 using CmlLib.Core.Installer.NeoForge.Installers;
@@ -16,6 +18,15 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
 {
  public ConcurrentDictionary<string,Process> Running { get; } = new();
  readonly ConcurrentDictionary<string,byte> busy=new();
+ readonly SemaphoreSlim installationGate=new(1,1);
+ MinecraftLauncher CreateLauncher(string root)
+ {
+  var path=new MinecraftPath(root){Assets=Path.Combine(store.Root,"cache","assets")};
+  var parameters=MinecraftLauncherParameters.CreateDefault(path,Net.Http);
+  var extractors=DefaultFileExtractors.CreateDefault(Net.Http,parameters.RulesEvaluator!,parameters.JavaPathResolver!);extractors.Java=null;parameters.FileExtractors=extractors.ToExtractorCollection();
+  parameters.GameInstaller=new ParallelGameInstaller(Math.Clamp(Environment.ProcessorCount,2,4),16,256,Net.Http);
+  return new MinecraftLauncher(parameters);
+ }
  readonly ConcurrentDictionary<string,JsonNode> metadata=new();
  JsonNode? manifest;
  public async Task<JsonNode> Versions() => (await Manifest())["versions"]!.DeepClone();
@@ -64,7 +75,8 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   var existing=Directory.Exists(dir)?Directory.EnumerateFiles(dir,"javaw.exe",SearchOption.AllDirectories).FirstOrDefault():null;
   if(existing!=null)return existing;
   emit(new{type="progress",instanceId=i.Id,message=$"Установка Eclipse Temurin Java {major}",percent=0});
-  var assets=await Net.Get($"https://api.adoptium.net/v3/assets/latest/{major}/hotspot?architecture=x64&image_type=jdk&os=windows&vendor=eclipse");
+  var assets=await Net.Get($"https://api.adoptium.net/v3/assets/latest/{major}/hotspot?architecture=x64&image_type=jre&os=windows&vendor=eclipse");
+  if(assets.AsArray().Count==0)assets=await Net.Get($"https://api.adoptium.net/v3/assets/latest/{major}/hotspot?architecture=x64&image_type=jdk&os=windows&vendor=eclipse");
   var package=assets[0]?["binary"]?["package"]??throw new IOException("Adoptium не вернул Java");
   var zip=Path.Combine(store.Root,"runtimes",major+".zip"); await Net.Download(package.Str("link"),zip,package.Str("checksum"),"SHA256");
   Directory.CreateDirectory(dir);await Task.Run(()=>ZipFile.ExtractToDirectory(zip,dir,true));File.Delete(zip);
@@ -99,14 +111,16 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   var i=store.Get(id);Store.Validate(i.Settings);var activityTarget=target;
   if(targetKind=="worlds")activityTarget=Nbt.World(Path.Combine(new LibraryActions(store,this).PathFor(id,"worlds",target),"level.dat")).Name;
   if(Running.ContainsKey(id)||!busy.TryAdd(id,0))throw new IOException("Сборка уже запускается или запущена");
+  await installationGate.WaitAsync();
   try
   {
    await auth.Login(false);
    var java=await Java(i);Gpu(java,i.Settings.Gpu);
-   var root=store.Folder(i);var launcher=new MinecraftLauncher(new MinecraftPath(root));
+   var root=store.Folder(i);var launcher=CreateLauncher(root);
    long lastProgress=0;
    launcher.FileProgressChanged+=(s,e)=>{var now=Environment.TickCount64;if(now-lastProgress<150)return;lastProgress=now;emit(new{type="progress",instanceId=id,message=e.Name,percent=e.TotalTasks>0?(double)e.ProgressedTasks/e.TotalTasks*100:0});};
-   void AttachBytes(MinecraftLauncher target){target.ByteProgressChanged+=(_,e)=>emit(new{type="progress",instanceId=id,message="Файлы Minecraft",downloadedBytes=e.ProgressedBytes,totalBytes=e.TotalBytes,percent=e.TotalBytes>0?e.ProgressedBytes*100d/e.TotalBytes:0,scope="stage"});}
+   long lastBytes=0;
+   void AttachBytes(MinecraftLauncher target){target.ByteProgressChanged+=(_,e)=>{var now=Environment.TickCount64;var prior=Interlocked.Read(ref lastBytes);if(now-prior<150&&e.ProgressedBytes<e.TotalBytes)return;if(Interlocked.CompareExchange(ref lastBytes,now,prior)!=prior)return;emit(new{type="progress",instanceId=id,message="Файлы Minecraft",downloadedBytes=e.ProgressedBytes,totalBytes=e.TotalBytes,percent=e.TotalBytes>0?e.ProgressedBytes*100d/e.TotalBytes:0,scope="stage"});};}
    AttachBytes(launcher);
    var version=i.Version;
    await launcher.InstallAsync(version);
@@ -116,11 +130,12 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
     var host=i.Loader=="fabric"?"https://meta.fabricmc.net/v2":"https://meta.quiltmc.org/v3";
     var profile=await Net.Get(host+"/versions/loader/"+Uri.EscapeDataString(i.Version)+"/"+Uri.EscapeDataString(i.LoaderVersion)+"/profile/json");version=profile.Str("id");
     var file=Store.SafePath(root,"versions/"+version+"/"+version+".json");Directory.CreateDirectory(Path.GetDirectoryName(file)!);await File.WriteAllTextAsync(file,profile.ToJsonString());
-    launcher=new MinecraftLauncher(new MinecraftPath(root));AttachBytes(launcher);
+    launcher=CreateLauncher(root);AttachBytes(launcher);
    }
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
-   var process=await launcher.InstallAndBuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.11.1"});
+   if(i.Loader!="vanilla") await launcher.InstallAsync(version);
+   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.12.0"});
    if(targetKind!=""){
     if(target.Contains('"')||target.Contains('\\')&&targetKind=="servers"||target.Any(char.IsControl))throw new IOException("Некорректная цель запуска");
     var modern=Version.TryParse(i.Version,out var mc)&&mc>=new Version(1,20);
@@ -142,7 +157,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    Running[id]=process;try{if(!process.Start())throw new IOException("Java не запустилась");}catch{Running.TryRemove(id,out _);Activities.TryRemove(id,out _);process.Dispose();throw;}var cancellation=new CancellationTokenSource();activityWatchers[id]=cancellation;WatchActivity(id,watcher,cancellation);if(!Running.ContainsKey(id))StopActivity(id);process.BeginOutputReadLine();process.BeginErrorReadLine();i.LastPlayed=DateTime.UtcNow;store.Save();
    emit(new{type="started",instanceId=id,hide=i.Settings.HideOnLaunch});
   }
-  finally{busy.TryRemove(id,out _);}
+  finally{installationGate.Release();busy.TryRemove(id,out _);}
  }
  public async Task<object> Components(string id)
  {

@@ -73,6 +73,8 @@ public sealed class Store
   if(imported.TryGetValue("crafty",out var crafty))Config.CraftyKey=crafty;
   Save();File.Delete(localKeys); // Consume the explicitly supplied local setup file after DPAPI persistence.
  }
+ Config.CurseForgeKey=BuiltInConnections.CurseForge;
+ Config.CraftyKey=BuiltInConnections.Crafty;
  var preferences=Path.Combine(AppContext.BaseDirectory,"install-preferences.json");
  if(File.Exists(preferences)){
   var settings=JsonNode.Parse(File.ReadAllText(preferences));var id=settings?["id"]?.ToString()??"";var language=settings?["language"]?.ToString()??"ru";

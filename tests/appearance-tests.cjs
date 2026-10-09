@@ -12,3 +12,9 @@ const nav={textContent:''},profile={textContent:'',hasAttribute:()=>true};const 
 vm.runInContext("SpectraAppearance.apply({language:'en',theme:'dark'})",context);assert.equal(nav.textContent,'DISCOVER');assert.equal(profile.textContent,'PROFILE');vm.runInContext("SpectraAppearance.apply({language:'ru',theme:'dark'})",context);assert.equal(nav.textContent,'ОБЗОР');assert.equal(profile.textContent,'ПРОФИЛЬ');
 assert.equal(vm.runInContext("SpectraLocales.dictionary('en')['Обзор']",context),'Discover');assert.equal(vm.runInContext("SpectraLocales.dictionary('en')['Профиль']",context),'Profile');
 console.log('PASS: theme validation, CSS override, gradient and reversible translation');
+
+vm.runInContext("SpectraAppearance.apply({theme:'dark',headingFont:'arial',bodyFont:'consolas'})",context);assert(styles.get('#themeStyle').textContent.includes("--heading-font:'Arial'"));assert(styles.get('#themeStyle').textContent.includes("--ui-font:'Consolas'"));
+const invalid=vm.runInContext("SpectraAppearance.validate({headingFont:'Arial;bad',bodyFont:'custom:../file.ttf'})",context);assert.equal(invalid.headingFont,'pixel');assert.equal(invalid.bodyFont,'reading');
+vm.runInContext("SpectraAppearance.apply({theme:'gradient',headingFont:'custom:'+ 'a'.repeat(64)+'.ttf',bodyFont:'reading'})",context);assert(styles.get('#themeStyle').textContent.includes('https://fonts.spectra.local/'+ 'a'.repeat(64)+'.ttf'));
+vm.runInContext("SpectraAppearance.apply({theme:'windows',headingFont:'arial',bodyFont:'consolas'})",context);assert(!styles.get('#themeStyle').textContent.includes("--ui-font:'Consolas'"));
+console.log('PASS: separate font roles, custom-font URLs, rejected font injection, themed font isolation');

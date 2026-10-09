@@ -55,7 +55,7 @@ public partial class MainWindow : Window
  readonly SemaphoreSlim libraryMutation=new(1,1);
  public MainWindow()
  {
-  InitializeComponent();logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>ApplyWindowsCorners();StateChanged+=(_,_)=>ApplyWindowsCorners();auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);Loaded+=async(_,_)=>await Initialize();
+  InitializeComponent();logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>ApplyWindowsCorners();StateChanged+=(_,_)=>{ApplyWindowsCorners();if(Browser.CoreWebView2!=null)Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});};auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);Loaded+=async(_,_)=>await Initialize();
  }
  async void RefreshPresence(){if(sendingPresence)return;sendingPresence=true;try{await friends.Heartbeat();}catch{}finally{sendingPresence=false;}}
  async Task Initialize()
@@ -69,6 +69,8 @@ public partial class MainWindow : Window
    core.SetVirtualHostNameToFolderMapping("data.spectra.local",store.Root,CoreWebView2HostResourceAccessKind.DenyCors);
    var skinFolder=Path.Combine(store.Root,"skins");Directory.CreateDirectory(skinFolder);
    core.SetVirtualHostNameToFolderMapping("skins.spectra.local",skinFolder,CoreWebView2HostResourceAccessKind.Allow);
+   var fontFolder=Path.Combine(store.Root,"fonts");Directory.CreateDirectory(fontFolder);
+   core.SetVirtualHostNameToFolderMapping("fonts.spectra.local",fontFolder,CoreWebView2HostResourceAccessKind.Allow);
    core.NavigationStarting+=(_,e)=>{if(!e.Uri.StartsWith("https://app.spectra.local/",StringComparison.OrdinalIgnoreCase))e.Cancel=true;};
    core.NewWindowRequested+=(_,e)=>e.Handled=true;
    core.PermissionRequested+=(_,e)=>e.State=CoreWebView2PermissionState.Deny;
@@ -181,6 +183,20 @@ public partial class MainWindow : Window
     store.Config.SelectedInstance=matching.Id=="vanilla"?"":matching.Id;store.Config.SelectedVersion=matching.Version;store.Save();
     await game.Launch(matching.Id,"servers",presence.Str("target"));return State();
    }
+   case "fonts":
+   {
+    var fontDir=Path.Combine(store.Root,"fonts");Directory.CreateDirectory(fontDir);
+    return Directory.EnumerateFiles(fontDir,"*.json").Select(path=>JsonNode.Parse(File.ReadAllText(path))).ToArray();
+   }
+   case "importFont":
+   {
+    var fontPicker=new Microsoft.Win32.OpenFileDialog{Filter="Шрифты|*.ttf;*.otf;*.woff;*.woff2",Title="Выберите шрифт"};if(fontPicker.ShowDialog(this)!=true)return null;
+    if(new FileInfo(fontPicker.FileName).Length>10*1024*1024)throw new IOException("Шрифт должен быть не больше 10 МиБ");
+    var fontBytes=await File.ReadAllBytesAsync(fontPicker.FileName);if(fontBytes.Length<12||fontBytes.Length>10*1024*1024)throw new IOException("Шрифт должен быть не больше 10 МиБ");
+    var signature=Convert.ToHexString(fontBytes.AsSpan(0,4));if(signature is not ("00010000" or "4F54544F" or "774F4646" or "774F4632"))throw new IOException("Неподдерживаемый формат шрифта");
+    var fontId=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(fontBytes)).ToLowerInvariant()+Path.GetExtension(fontPicker.FileName).ToLowerInvariant();var fontDir=Path.Combine(store.Root,"fonts");Directory.CreateDirectory(fontDir);
+    await File.WriteAllBytesAsync(Path.Combine(fontDir,fontId),fontBytes);var fontEntry=new{id=fontId,name=Path.GetFileNameWithoutExtension(fontPicker.FileName)};await File.WriteAllTextAsync(Path.Combine(fontDir,fontId+".json"),JsonSerializer.Serialize(fontEntry,Store.Json));return fontEntry;
+   }
    case "appearance":
    {
     var appearance=d.ToJsonString();if(appearance.Length>131072)throw new IOException("Тема слишком большая");
@@ -212,7 +228,7 @@ public partial class MainWindow : Window
    }
    case "window":
    {
-    switch(d.Str("command")){case "close":Close();break;case "minimize":WindowState=WindowState.Minimized;break;case "maximize":WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;break;case "drag":if((GetAsyncKeyState(0x01)&0x8000)!=0){ReleaseCapture();SendMessage(new WindowInteropHelper(this).Handle,0x00A1,2,0);}break;}return null;
+    switch(d.Str("command")){case "close":Close();break;case "minimize":WindowState=WindowState.Minimized;break;case "maximize":WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});break;case "drag":if((GetAsyncKeyState(0x01)&0x8000)!=0){ReleaseCapture();SendMessage(new WindowInteropHelper(this).Handle,0x00A1,2,0);}break;}return null;
    }
    case "select":
    {
