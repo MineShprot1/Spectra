@@ -78,12 +78,21 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   else key.SetValue(path,"GpuPreference="+(preference=="high"?"2":"1")+";",RegistryValueKind.String);
  }
  public readonly ConcurrentDictionary<string,GameActivity> Activities=new();
- public record GameActivity(string Version,string Loader,string LoaderVersion,string Pack,string TargetKind,string Target,string PackSource,string PackId,string PackVersion);
+ public record GameActivity(string Version,string Loader,string LoaderVersion,string Pack,string TargetKind,string Target,string PackSource,string PackId,string PackVersion,string GameState="menu",string WorldName="",int LanPort=0,DateTime StartedAt=default);
+ readonly ConcurrentDictionary<string,CancellationTokenSource> activityWatchers=new();
+ public string? PresenceInstanceId=>Activities.Where(x=>Running.ContainsKey(x.Key)).OrderByDescending(x=>x.Value.StartedAt).ThenBy(x=>x.Key,StringComparer.Ordinal).Select(x=>x.Key).FirstOrDefault();
+ static string LocalLanIp(){try{return System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces().Where(n=>n.OperationalStatus==System.Net.NetworkInformation.OperationalStatus.Up&&n.NetworkInterfaceType!=System.Net.NetworkInformation.NetworkInterfaceType.Loopback).OrderByDescending(n=>n.GetIPProperties().GatewayAddresses.Any(g=>g.Address.AddressFamily==System.Net.Sockets.AddressFamily.InterNetwork)).SelectMany(n=>n.GetIPProperties().UnicastAddresses).Select(a=>a.Address).Where(ip=>ip.AddressFamily==System.Net.Sockets.AddressFamily.InterNetwork).FirstOrDefault(ip=>{var b=ip.GetAddressBytes();return b[0]==10||b[0]==192&&b[1]==168||b[0]==172&&b[1]>=16&&b[1]<=31;})?.ToString()??"";}catch{return "";}}
+ void ObserveActivity(string id,ActivityLog parser,string line,Process process){lock(parser){if(!Running.TryGetValue(id,out var live)||!ReferenceEquals(live,process))return;var observed=parser.Observe(line);if(observed==null)return;if(Activities.TryGetValue(id,out var current)){var kind=observed.Mode is "connecting" or "server"?"servers":observed.Mode=="world"?"worlds":observed.Mode=="lan"?"lan":"";Activities[id]=current with{GameState=observed.Mode,TargetKind=kind,Target=observed.Mode is "connecting" or "server"?observed.Target:observed.World,WorldName=observed.World,LanPort=observed.LanPort};emit(new{type="activity",instanceId=id,clearLan=(observed.Mode is "menu" or "connecting" or "server")||observed.Mode=="world"&&current.LanPort>0});}}}
+ void WatchActivity(string id,ActivityLogWatcher watcher,CancellationTokenSource cancellation){_=Task.Run(async()=>{try{await watcher.Run(cancellation.Token);}catch(OperationCanceledException){}catch(Exception e) when(e is IOException or UnauthorizedAccessException){}finally{((ICollection<KeyValuePair<string,CancellationTokenSource>>)activityWatchers).Remove(new(id,cancellation));cancellation.Dispose();}});}
+ void StopActivity(string id){if(activityWatchers.TryRemove(id,out var cancellation)){try{cancellation.Cancel();}catch(ObjectDisposedException){}}}
+
  public object FriendPresence(bool share,string lanAddress="")
  {
-  var item=Activities.FirstOrDefault(x=>Running.ContainsKey(x.Key)).Value;
+  var id=PresenceInstanceId;var item=id!=null&&Activities.TryGetValue(id,out var found)?found:null;
   if(!share||item==null)return new{playing=false};
-  return new{playing=true,version=item.Version,loader=item.Loader,loaderVersion=item.LoaderVersion,pack=item.Pack,targetKind=string.IsNullOrEmpty(lanAddress)?item.TargetKind:"lan",target=string.IsNullOrEmpty(lanAddress)?item.Target:lanAddress,packSource=item.PackSource,packId=item.PackId,packVersion=item.PackVersion};
+  var world=item.GameState is "world" or "lan";var address="";if(world){if(lanAddress!="")address=item.LanPort>0?lanAddress.Split(':')[0]+":"+item.LanPort:lanAddress;else if(item.LanPort>0){var local=LocalLanIp();if(local!="")address=local+":"+item.LanPort;}}
+  var mode=world&&address!=""?"lan":item.GameState;var kind=mode=="lan"?"lan":item.TargetKind;var target=mode=="lan"?address:item.Target;
+  return new{playing=true,gameState=mode,worldName=item.WorldName,version=item.Version,loader=item.Loader,loaderVersion=item.LoaderVersion,pack=item.Pack,targetKind=kind,target,packSource=item.PackSource,packId=item.PackId,packVersion=item.PackVersion};
  }
  public async Task Launch(string id,string targetKind="",string target="")
  {
@@ -111,7 +120,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    }
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
-   var process=await launcher.InstallAndBuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.5.0"});
+   var process=await launcher.InstallAndBuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.11.1"});
    if(targetKind!=""){
     if(target.Contains('"')||target.Contains('\\')&&targetKind=="servers"||target.Any(char.IsControl))throw new IOException("Некорректная цель запуска");
     var modern=Version.TryParse(i.Version,out var mc)&&mc>=new Version(1,20);
@@ -125,11 +134,12 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
     foreach(var arg in args){if(process.StartInfo.ArgumentList.Count>0)process.StartInfo.ArgumentList.Add(arg);else process.StartInfo.Arguments+=" \""+arg+"\"";}
    }
    process.StartInfo.UseShellExecute=false;process.StartInfo.RedirectStandardOutput=true;process.StartInfo.RedirectStandardError=true;process.StartInfo.CreateNoWindow=true;process.EnableRaisingEvents=true;
-   void Log(string? line) { if(line!=null)emit(new{type="log",instanceId=id,line=Redact(line)}); }
+   var activityParser=new ActivityLog(targetKind=="worlds"?activityTarget:"");var logPath=Path.Combine(root,"logs","latest.log");var watcher=new ActivityLogWatcher(logPath,line=>{if(Running.TryGetValue(id,out var live)&&ReferenceEquals(live,process))ObserveActivity(id,activityParser,line,process);});try{watcher.Baseline();}catch(Exception e) when(e is IOException or UnauthorizedAccessException){}
+   void Log(string? line) { if(line!=null){emit(new{type="log",instanceId=id,line=Redact(line)});if(!watcher.HasCurrentLog)ObserveActivity(id,activityParser,line,process);} }
    process.OutputDataReceived+=(s,e)=>Log(e.Data);process.ErrorDataReceived+=(s,e)=>Log(e.Data);
-   process.Exited+=(s,e)=>{Running.TryRemove(id,out _);Activities.TryRemove(id,out _);emit(new{type="exited",instanceId=id,code=process.ExitCode});process.Dispose();};
-   Activities[id]=new(i.Version,i.Loader,i.LoaderVersion,i.Name,targetKind,activityTarget,i.PackSource,i.PackId,i.PackVersion);
-   Running[id]=process;try{if(!process.Start())throw new IOException("Java не запустилась");}catch{Running.TryRemove(id,out _);Activities.TryRemove(id,out _);process.Dispose();throw;}process.BeginOutputReadLine();process.BeginErrorReadLine();i.LastPlayed=DateTime.UtcNow;store.Save();
+   process.Exited+=(s,e)=>{Running.TryRemove(id,out _);StopActivity(id);Activities.TryRemove(id,out _);emit(new{type="exited",instanceId=id,code=process.ExitCode});process.Dispose();};
+   Activities[id]=new(i.Version,i.Loader,i.LoaderVersion,i.Name,"","",i.PackSource,i.PackId,i.PackVersion,StartedAt:DateTime.UtcNow);
+   Running[id]=process;try{if(!process.Start())throw new IOException("Java не запустилась");}catch{Running.TryRemove(id,out _);Activities.TryRemove(id,out _);process.Dispose();throw;}var cancellation=new CancellationTokenSource();activityWatchers[id]=cancellation;WatchActivity(id,watcher,cancellation);if(!Running.ContainsKey(id))StopActivity(id);process.BeginOutputReadLine();process.BeginErrorReadLine();i.LastPlayed=DateTime.UtcNow;store.Save();
    emit(new{type="started",instanceId=id,hide=i.Settings.HideOnLaunch});
   }
   finally{busy.TryRemove(id,out _);}

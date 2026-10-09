@@ -32,19 +32,19 @@ public sealed class FriendPacks(Store store,GameService game,FriendsService frie
  public async Task<string> Publish()
  {
   await gate.WaitAsync();try{
-   var id=game.Running.Keys.FirstOrDefault();if(id==null)return "";
+   var id=game.PresenceInstanceId;if(id==null)return "";
    var instance=store.Get(id);if(game.Activities.TryGetValue(id,out var activity))instance=instance with{Version=activity.Version,Loader=activity.Loader,LoaderVersion=activity.LoaderVersion};var manifest=await Snapshot(instance);var digest=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest,Store.Json))));var scope=store.Config.FriendsEndpoint+":"+friends.Account.Str("id");
    if(scope+digest==publishedScope&&DateTime.UtcNow-publishedAt<TimeSpan.FromMinutes(10))return published;
    var response=await friends.Call("/packs/publish",manifest);var packId=response.Str("id");if(!ValidHash(packId))throw new IOException("Неверный идентификатор сборки");var root=store.Folder(instance);
    var missing=response["missing"]?.AsArray().Select(x=>x?.ToString()??"").ToHashSet()??[];
-   foreach(var file in manifest.Files.DistinctBy(f=>f.Hash).Where(f=>missing.Contains(f.Hash))){if(store.Config.HideOnlineStatus||!store.Config.ShareGameActivity||!game.Running.ContainsKey(id))return "";var path=Store.SafePath(root,GameService.KindFolder(file.Kind)+"/"+file.Name);await friends.Upload("/packs/file/"+packId+"/"+file.Hash,path,file.Hash,file.Size);}
-   published=packId;publishedScope=scope+digest;publishedAt=DateTime.UtcNow;return published;
+   foreach(var file in manifest.Files.DistinctBy(f=>f.Hash).Where(f=>missing.Contains(f.Hash))){if(store.Config.HideOnlineStatus||!store.Config.ShareGameActivity||game.PresenceInstanceId!=id)return "";var path=Store.SafePath(root,GameService.KindFolder(file.Kind)+"/"+file.Name);await friends.Upload("/packs/file/"+packId+"/"+file.Hash,path,file.Hash,file.Size);}
+   if(game.PresenceInstanceId!=id)return "";published=packId;publishedScope=scope+digest;publishedAt=DateTime.UtcNow;return published;
   }finally{gate.Release();}
  }
  static bool ValidHash(string value)=>value.Length==64&&value.All(c=>c is >= 'a' and <= 'f' or >= '0' and <= '9');
  public async Task<(JsonNode Presence,FriendPackManifest Manifest,string PackId)> Remote(string owner)
  {
-  var presence=await friends.JoinInfo(owner);var node=await friends.Call("/packs/"+owner);var manifest=node.Deserialize<FriendPackManifest>(Store.Json)??throw new IOException("Неверная сборка");var packId=node.Str("id");
+  var presence=await friends.JoinInfo(owner,false);var node=await friends.Call("/packs/"+owner);var manifest=node.Deserialize<FriendPackManifest>(Store.Json)??throw new IOException("Неверная сборка");var packId=node.Str("id");
   if(manifest.Files==null||!ValidHash(packId)||packId!=presence.Str("sharedPack")||manifest.Version!=presence.Str("version")||manifest.Loader!=presence.Str("loader")||manifest.LoaderVersion!=presence.Str("loaderVersion")||manifest.Files.Count>2000)throw new IOException("Сборка друга изменилась. Откройте подключение заново.");
   long total=0;var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);foreach(var f in manifest.Files){if(!Kinds.Contains(f.Kind)||!ValidHash(f.Hash)||f.Size<1||f.Size>64L*1024*1024||f.Name.Length>180||f.Name!=Path.GetFileName(f.Name)||f.Name.IndexOfAny(Path.GetInvalidFileNameChars())>=0||!Path.GetExtension(f.Name).Equals(f.Kind=="mods"?".jar":".zip",StringComparison.OrdinalIgnoreCase)||!paths.Add(f.Kind+"/"+f.Name))throw new IOException("Неверный файл сборки");total+=f.Size;}if(total>512L*1024*1024)throw new IOException("Слишком большая сборка");return(presence,manifest,packId);
  }
@@ -78,6 +78,6 @@ public sealed class FriendPacks(Store store,GameService game,FriendsService frie
  }
  public async Task<(Instance Instance,JsonNode Presence)> Match(string owner,string id,bool allowCustomized=false)
  {
-  await gate.WaitAsync();try{var remote=await Remote(owner);var instance=store.Get(id);var mods=await ModHashes(instance);var selected=allowCustomized&&customized.TryGetValue(instance.Id,out var receipt)&&receipt.Owner==owner&&receipt.Pack==remote.PackId&&receipt.Mods==mods&&receipt.Expires>DateTime.UtcNow;if(instance.Version!=remote.Manifest.Version||instance.Loader!=remote.Manifest.Loader||instance.LoaderVersion!=remote.Manifest.LoaderVersion||!selected&&mods!=Mods(remote.Manifest))throw new IOException("Состав включённых модов не совпадает со сборкой друга");return(instance,remote.Presence);}finally{gate.Release();}
+  await gate.WaitAsync();try{var remote=await Remote(owner);if(remote.Presence.Str("targetKind") is not ("servers" or "lan")||remote.Presence.Str("target")=="")throw new IOException("Друг сейчас в меню или в закрытом одиночном мире");var instance=store.Get(id);var mods=await ModHashes(instance);var selected=allowCustomized&&customized.TryGetValue(instance.Id,out var receipt)&&receipt.Owner==owner&&receipt.Pack==remote.PackId&&receipt.Mods==mods&&receipt.Expires>DateTime.UtcNow;if(instance.Version!=remote.Manifest.Version||instance.Loader!=remote.Manifest.Loader||instance.LoaderVersion!=remote.Manifest.LoaderVersion||!selected&&mods!=Mods(remote.Manifest))throw new IOException("Состав включённых модов не совпадает со сборкой друга");return(instance,remote.Presence);}finally{gate.Release();}
  }
 }

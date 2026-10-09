@@ -48,7 +48,7 @@ public partial class MainWindow : Window
  readonly CatalogService catalog;
  readonly FriendsService friends;
  readonly FriendPacks friendPacks;
- readonly DispatcherTimer friendsTimer=new(){Interval=TimeSpan.FromSeconds(30)};
+ readonly DispatcherTimer friendsTimer=new(){Interval=TimeSpan.FromSeconds(10)};
  bool sendingPresence;
  readonly InstanceArchive archives;
  readonly HashSet<string> activeRequests=[];
@@ -88,7 +88,8 @@ public partial class MainWindow : Window
   {
    if(Browser.CoreWebView2==null)return;
    Browser.CoreWebView2.PostWebMessageAsJson(json);
-   var n=kind is "started" or "exited"?JsonNode.Parse(json):null;if(n.Str("type")=="started"&&n?["hide"]?.GetValue<bool>()==true)WindowState=WindowState.Minimized;
+   var n=kind is "started" or "exited" or "activity"?JsonNode.Parse(json):null;if(n.Str("type")=="started"&&n?["hide"]?.GetValue<bool>()==true)WindowState=WindowState.Minimized;
+   if(n.Str("type")=="activity"){if(n?["clearLan"]?.GetValue<bool>()==true)friends.ShareLan("");RefreshPresence();}
    if(n.Str("type")=="started")RefreshPresence();
    if(n.Str("type")=="exited"){RefreshPresence();WindowState=WindowState.Normal;Activate();}
   });

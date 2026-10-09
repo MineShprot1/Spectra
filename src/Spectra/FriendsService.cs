@@ -91,7 +91,7 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
   if(response.StatusCode==HttpStatusCode.Unauthorized&&bearer!="")throw new FriendsSessionExpired();
   if(!response.IsSuccessStatusCode)throw new IOException(result.Str("error") is {Length:>0} error?error:"Сеть Spectra недоступна");return result??new JsonObject();
  }
- public async Task Heartbeat(){LoadSession();if(token==""||store.Config.FriendsEndpoint=="")return;if(game.Running.IsEmpty)LanAddress="";var shared="";LastSharingError="";
+ public async Task Heartbeat(){LoadSession();if(token==""||store.Config.FriendsEndpoint=="")return;if(game.Running.IsEmpty||!game.Activities.Values.Any(a=>a.GameState is "world" or "lan"))LanAddress="";var shared="";LastSharingError="";
   if(!store.Config.HideOnlineStatus&&store.Config.ShareGameActivity&&!game.Running.IsEmpty&&PackPublisher!=null){try{shared=await PackPublisher();}catch(Exception e) when(e is IOException or HttpRequestException or TaskCanceledException){LastSharingError=e.Message;}}
   // Re-read privacy after asynchronous uploads so a late heartbeat cannot undo a privacy change.
   var visible=store.Config.ShareGameActivity&&!store.Config.HideOnlineStatus;var data=JsonSerializer.SerializeToNode(game.FriendPresence(visible,LanAddress),Store.Json)!.AsObject();data["online"]=!store.Config.HideOnlineStatus;data["sharedPack"]=visible&&!game.Running.IsEmpty?shared:"";await Call("/presence",data);
@@ -112,9 +112,9 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
   await gate.WaitAsync();try{LoadSession();try{if(token!="")await Send(store.Config.FriendsEndpoint,"/logout",token,new{});}catch{}finally{ClearSession();flowId="";flowVerifier="";}}finally{gate.Release();}
  }
  sealed class FriendsSessionExpired:IOException {}
- public async Task<JsonNode> JoinInfo(string id)
+ public async Task<JsonNode> JoinInfo(string id,bool requireJoinTarget=true)
  {
   var friends=await Call("/friends");var friend=friends["items"]?.AsArray().FirstOrDefault(x=>x.Str("id")==id&&x.Str("relation")=="friend"&&x?["online"]?.GetValue<bool>()==true)??throw new IOException("Друг не в сети");
-  var presence=friend["presence"]??throw new IOException("Нет данных об игре");if(presence.Str("targetKind") is not ("servers" or "lan")||presence.Str("target")=="")throw new IOException("Друг не поделился адресом подключения");return presence;
+  var presence=friend["presence"]??throw new IOException("Нет данных об игре");if(presence["playing"]?.GetValue<bool>()!=true)throw new IOException("Друг не запустил Minecraft");if(requireJoinTarget&&(presence.Str("targetKind") is not ("servers" or "lan")||presence.Str("target")==""))throw new IOException("Друг не поделился адресом подключения");return presence;
  }
 }
