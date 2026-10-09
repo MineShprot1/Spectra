@@ -15,7 +15,7 @@ public sealed partial class BedrockService
  List<Release>? releases;
  DateTime catalogueTime;
  string catalogueWarning="";
- static string PackageVersion(string display){var v=Version.Parse(display);return $"{v.Major}.{v.Minor}.{v.Build*100+Math.Max(0,v.Revision)}.0";}
+ internal static string PackageVersion(string display){var v=Version.Parse(display);return $"{v.Major}.{v.Minor}.{v.Build*100+Math.Max(0,v.Revision)}.0";}
  internal static string MicrosoftUrl(string value)
  {
   if(!Uri.TryCreate(value,UriKind.Absolute,out var uri)||uri.UserInfo!=""||uri.Scheme is not ("http" or "https")||!uri.IsDefaultPort||uri.Fragment!="")throw new IOException("Неверный адрес пакета Microsoft");
@@ -30,7 +30,7 @@ public sealed partial class BedrockService
    var current=MicrosoftUrl(url);
    for(var redirect=0;redirect<=5;redirect++){
     using var request=new HttpRequestMessage(HttpMethod.Get,current);
-    request.Headers.UserAgent.ParseAdd("Spectra/0.14.2");
+    request.Headers.UserAgent.ParseAdd("Spectra/0.14.3");
     var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);
     var status=(int)response.StatusCode;
     if(status is not (301 or 302 or 303 or 307 or 308))return response;
@@ -94,24 +94,26 @@ public sealed partial class BedrockService
    foreach(var url in urls){try{await DownloadMicrosoftPackage(url,path);ready=true;break;}catch(Exception e){last=e;}}
    if(!ready){var diagnostic=last==null?"Нет адресов загрузки":DownloadError(last);var log=Path.Combine(store.Root,"bedrock","last-download.log");try{await File.WriteAllTextAsync(log,DateTime.UtcNow.ToString("O")+Environment.NewLine+release.Id+Environment.NewLine+diagnostic);}catch{}throw new IOException("Не удалось скачать выбранный пакет Bedrock с Microsoft. "+diagnostic+" Подробности: bedrock/last-download.log",last);}
    if(release.Format=="UWP"){
-    try{var package=await Import(path,false);if(package.Name!=release.Name||package.Version!=release.PackageVersion)throw new IOException("Microsoft вернул другую версию; установка отменена");}catch{File.Delete(path);throw;}
+    try{var package=await Import(path,false);if(!package.Name.Equals(release.Name,StringComparison.OrdinalIgnoreCase)||!MatchesUwpVersion(release.Version,package.Version))throw new IOException("Пакет не соответствует выбранному выпуску. Выбрано: "+release.Version+" / "+release.Name+"; скачано: "+package.Version+" / "+package.Name+". Установка отменена.");release=release with{PackageVersion=package.Version};}catch{File.Delete(path);throw;}
    }
    await File.WriteAllTextAsync(receipt,JsonSerializer.Serialize(new{sha256=await Net.Hash(path,"SHA256"),release.Id,release.Version,release.PackageVersion},Store.Json));
   }
+  if(cached&&release.Format=="UWP"){var package=await Import(path,false);if(!package.Name.Equals(release.Name,StringComparison.OrdinalIgnoreCase)||!MatchesUwpVersion(release.Version,package.Version))throw new IOException("Сохранённый пакет не соответствует выбранному выпуску: "+package.Version);release=release with{PackageVersion=package.Version};}
   return (release,path);
  }
  public async Task<object> Download(string id)
  {
   await gate.WaitAsync();try{var downloaded=await DownloadRelease(id);return new{status="downloaded",path=downloaded.Path,version=downloaded.Release.Version,message="Пакет сохранён. Установленная игра не изменена."};}finally{gate.Release();}
  }
- internal static bool WouldReplace(string name,string version,IEnumerable<Package> current)=>current.Any(p=>p.Name==name&&p.Version!=version);
- internal static Package? LatestInstalled(IEnumerable<Package> packages)=>packages.Where(p=>!p.Preview&&!p.Legacy).OrderByDescending(p=>p.Name=="Microsoft.MinecraftWindows").ThenByDescending(p=>System.Version.TryParse(p.Version,out var v)?v:new System.Version()).FirstOrDefault();
+ internal static bool MatchesUwpVersion(string display,string actual)=>System.Version.TryParse(display,out var expected)&&System.Version.TryParse(actual,out var installed)&&(installed==expected||actual==PackageVersion(display));
+ internal static bool WouldReplace(string name,string version,IEnumerable<Package> current)=>current.Any(p=>p.Name.Equals(name,StringComparison.OrdinalIgnoreCase)&&p.Version!=version);
+ internal static Package? LatestInstalled(IEnumerable<Package> packages)=>packages.Where(p=>!p.Preview&&!p.Legacy).OrderByDescending(p=>p.Name.Equals("Microsoft.MinecraftWindows",StringComparison.OrdinalIgnoreCase)).ThenByDescending(p=>System.Version.TryParse(p.Version,out var v)?v:new System.Version()).FirstOrDefault();
  async Task<Package?> InstallRelease(string id,List<Package> current)
  {
   var release=(await Catalogue()).FirstOrDefault(r=>r.Id==id)??throw new IOException("Версия отсутствует в каталоге Bedrock");
-  var selected=current.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);if(selected!=null)return selected;
+  var selected=current.FirstOrDefault(p=>p.Name.Equals(release.Name,StringComparison.OrdinalIgnoreCase)&&(release.Format=="UWP"?MatchesUwpVersion(release.Version,p.Version):p.Version==release.PackageVersion));if(selected!=null)return selected;
   if(WouldReplace(release.Name,release.PackageVersion,current))throw new IOException("Эта версия заменит установленный выпуск Minecraft. Spectra отменил установку. Используйте «Скачать пакет», чтобы сохранить его отдельно.");
-  var downloaded=await DownloadRelease(id);
+  var downloaded=await DownloadRelease(id);release=downloaded.Release;
   if(release.Format=="GDK")throw new IOException("Пакет MSIXVC сохранён, но Add-AppxPackage не является установщиком Xbox Gaming Services. Используйте «Последняя версия» для установки через Microsoft Store. Текущая игра не изменена.");
   Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Bedrock "+release.Version,percent=100});var registered=await Bridge("install",downloaded.Path,release.Name,release.PackageVersion);selected=registered.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);
   if(selected==null)throw new IOException("Установка завершилась, но выбранный пакет не найден: "+release.Name+" "+release.PackageVersion+". Найдены: "+string.Join(", ",registered.Select(p=>p.Name+" "+p.Version))+". Пакет сохранён: "+downloaded.Path);return selected;

@@ -4,11 +4,18 @@ $ErrorActionPreference = 'Stop'
 function Installed {
  $rows = @()
  foreach ($p in @(Get-AppxPackage | Where-Object { $_.Name -match '^Microsoft\.Minecraft(UWP|WindowsBeta|Windows|WindowsPreview)$' })) {
-  $manifest = Get-AppxPackageManifest -Package $p.PackageFullName
+  try { $manifest = Get-AppxPackageManifest -Package $p.PackageFullName } catch { continue }
   foreach ($app in @($manifest.Package.Applications.Application)) {
    if (-not $app.Id) { continue }
    $rows += [pscustomobject]@{ id = "$($p.PackageFullName)!$($app.Id)"; name = $p.Name; version = $p.Version.ToString(); family = $p.PackageFamilyName; appId = [string]$app.Id; preview = ($p.Name -match 'Beta|Preview'); legacy = ($p.Version.Major -eq 0 -or ($p.Version.Major -eq 1 -and $p.Version.Minor -lt 2)); installed = $true }
   }
+ }
+ # GetStartApps also exposes registered launch entries when package enumeration misses a GDK entry.
+ foreach ($app in @(Get-StartApps -ErrorAction SilentlyContinue)) {
+  if ($app.AppID -notmatch '^(Microsoft\.Minecraft(?:UWP|WindowsBeta|Windows|WindowsPreview)_8wekyb3d8bbwe)!([A-Za-z0-9_.-]+)$') { continue }
+  $family = $Matches[1]; $appId = $Matches[2]; $name = $family -replace '_8wekyb3d8bbwe$',''
+  if (@($rows | Where-Object { $_.family -eq $family -and $_.appId -eq $appId }).Count -gt 0) { continue }
+  $rows += [pscustomobject]@{ id = "$family!$appId"; name = $name; version = '0.0.0.0'; family = $family; appId = $appId; preview = ($name -match 'Beta|Preview'); legacy = $false; installed = $true }
  }
  return $rows
 }

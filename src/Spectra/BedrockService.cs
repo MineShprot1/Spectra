@@ -12,7 +12,8 @@ public sealed partial class BedrockService(Store store)
  readonly SemaphoreSlim gate=new(1,1);
  JsonNode? updates;
  public sealed record Package(string Id,string Name,string Version,string Family,string AppId,bool Preview,bool Legacy,bool Installed);
- static bool MinecraftIdentity(string name)=>name is "Microsoft.MinecraftUWP" or "Microsoft.MinecraftWindowsBeta" or "Microsoft.MinecraftWindows" or "Microsoft.MinecraftWindowsPreview";
+ internal static string? CanonicalIdentity(string name)=>new[]{"Microsoft.MinecraftUWP","Microsoft.MinecraftWindowsBeta","Microsoft.MinecraftWindows","Microsoft.MinecraftWindowsPreview"}.FirstOrDefault(n=>n.Equals(name,StringComparison.OrdinalIgnoreCase));
+ static bool MinecraftIdentity(string name)=>CanonicalIdentity(name)!=null;
  async Task<List<Package>> Bridge(string action,string? package=null,string? expectedName=null,string? expectedVersion=null)
  {
   var info=new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),@"WindowsPowerShell\v1.0\powershell.exe")){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8};
@@ -23,7 +24,7 @@ public sealed partial class BedrockService(Store store)
   using var process=Process.Start(info)??throw new IOException("Не удалось проверить Bedrock в Windows");var output=process.StandardOutput.ReadToEndAsync();var errors=process.StandardError.ReadToEndAsync();using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(action=="install"?10:1));
   try{await process.WaitForExitAsync(timeout.Token);}catch(OperationCanceledException){try{process.Kill(true);}catch{}throw new IOException("Проверка или установка Bedrock превысила время ожидания");}
   var raw=await output;var message=await errors;if(process.ExitCode!=0)throw new IOException("Windows: "+message.Trim());
-  return (JsonSerializer.Deserialize<List<Package>>(raw,Store.Json)??[]).Where(p=>MinecraftIdentity(p.Name)).ToList();
+  return (JsonSerializer.Deserialize<List<Package>>(raw,Store.Json)??[]).Where(p=>MinecraftIdentity(p.Name)).Select(p=>p with{Name=CanonicalIdentity(p.Name)!}).ToList();
  }
  public async Task<object> Versions(bool refresh=false)
  {
@@ -52,7 +53,11 @@ public sealed partial class BedrockService(Store store)
    Package? selected;
    if(id=="latest"){
     selected=LatestInstalled(await Bridge("list"));
-    if(selected==null){OpenStore();return new{status="store",message="Установите Minecraft через Microsoft Store с аккаунтом, которому принадлежит игра. После установки нажмите «Проверить и запустить»."};}
+    if(selected==null){
+     if(!install)return new{status="needsInstall",message="Minecraft не найден. Установить через Microsoft Store в фоне? Нужны WinGet и аккаунт Store с лицензией игры."};
+     await InstallLatest();selected=LatestInstalled(await Bridge("list"));
+     if(selected==null)throw new IOException("Store сообщил об установке, но Minecraft не найден. Подробности: bedrock/last-store-install.log");
+    }
    }else if(id.StartsWith("online:",StringComparison.Ordinal)){
     if(!install)throw new IOException("Подтвердите установку версии Bedrock");selected=await InstallRelease(id,await Bridge("list"));
    }else if(id.StartsWith("import:",StringComparison.Ordinal)){
@@ -63,6 +68,26 @@ public sealed partial class BedrockService(Store store)
    if(!System.Text.RegularExpressions.Regex.IsMatch(selected.Family,@"\A[A-Za-z0-9_.-]+\z")||!System.Text.RegularExpressions.Regex.IsMatch(selected.AppId,@"\A[A-Za-z0-9_.-]+\z"))throw new IOException("Неверный идентификатор приложения Windows");
    var info=new ProcessStartInfo("explorer.exe"){UseShellExecute=true};info.ArgumentList.Add("shell:AppsFolder\\"+selected.Family+"!"+selected.AppId);Process.Start(info);return new{status="launched",version=selected.Version,message="Запуск передан Windows; права на игру проверяются Minecraft / Microsoft Store."};
   }finally{gate.Release();}
+ }
+ internal static string[] LatestInstallArguments()=>["install","--id","9NBLGGH2JHXJ","--exact","--source","msstore","--silent","--accept-package-agreements","--accept-source-agreements","--disable-interactivity"];
+ async Task InstallLatest()
+ {
+  var folder=Path.Combine(store.Root,"bedrock");Directory.CreateDirectory(folder);var log=Path.Combine(folder,"last-store-install.log");
+  var info=new ProcessStartInfo("winget.exe"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8};foreach(var arg in LatestInstallArguments())info.ArgumentList.Add(arg);
+  using var process=new Process{StartInfo=info};try{process.Start();}catch(System.ComponentModel.Win32Exception e){throw new IOException("WinGet недоступен. Установите или обновите «Установщик приложений» Microsoft. Можно открыть Store кнопкой в списке Bedrock.",e);}
+  Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Minecraft через Microsoft Store…",percent=0,indeterminate=true,scope="store"});
+  using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(45));
+  var output=new StringBuilder();var errorsTask=process.StandardError.ReadToEndAsync();
+  async Task ReadProgress(){var buffer=new char[512];var line=new StringBuilder();int read;long last=0;while((read=await process.StandardOutput.ReadAsync(buffer.AsMemory(),timeout.Token))>0){output.Append(buffer,0,read);if(output.Length>256*1024)output.Remove(0,output.Length-256*1024);for(int i=0;i<read;i++){var ch=buffer[i];if(ch is '\r' or '\n'){var message=line.ToString();line.Clear();if(message.Length>0&&Environment.TickCount64-last>300){last=Environment.TickCount64;var progress=StoreProgress(message);Net.ProgressSink.Value?.Invoke(new{type="progress",message=progress==null?"Установка Minecraft через Microsoft Store…":"Скачивание Minecraft через Microsoft Store",downloadedBytes=progress?.Done,totalBytes=progress?.Total,percent=progress==null?0:progress.Value.Done*100d/progress.Value.Total,indeterminate=progress==null,scope="store"});}}else if(line.Length<2048)line.Append(ch);}}}
+  var reader=ReadProgress();try{await process.WaitForExitAsync(timeout.Token);await reader;}catch(OperationCanceledException){try{process.Kill(true);}catch{}try{await reader;}catch{}throw new IOException("Установка Store превысила время ожидания. Проверьте очередь загрузок Store.");}
+  var errors=await errorsTask;await File.WriteAllTextAsync(log,"Exit code: "+process.ExitCode+Environment.NewLine+output+Environment.NewLine+errors);
+  if(process.ExitCode!=0)throw new IOException("Microsoft Store / WinGet не установил Minecraft (код 0x"+process.ExitCode.ToString("X8")+"). Проверьте вход Store и лицензию игры. Подробности: bedrock/last-store-install.log");
+ }
+ internal static (long Done,long Total)? StoreProgress(string text)
+ {
+  var match=System.Text.RegularExpressions.Regex.Match(text,@"([\d.,]+)\s*(B|KB|MB|GB|KiB|MiB|GiB)\s*/\s*([\d.,]+)\s*(B|KB|MB|GB|KiB|MiB|GiB)",System.Text.RegularExpressions.RegexOptions.IgnoreCase);if(!match.Success)return null;
+  static long Bytes(string value,string unit){var n=double.Parse(value.Replace(',','.'),System.Globalization.CultureInfo.InvariantCulture);var power=unit.ToUpperInvariant() switch{"KB" or "KIB"=>1,"MB" or "MIB"=>2,"GB" or "GIB"=>3,_=>0};return checked((long)(n*Math.Pow(unit.Contains("i",StringComparison.OrdinalIgnoreCase)?1024:1000,power)));}
+  try{var done=Bytes(match.Groups[1].Value,match.Groups[2].Value);var total=Bytes(match.Groups[3].Value,match.Groups[4].Value);return total>0&&done<=total?(done,total):null;}catch{return null;}
  }
  public static void OpenStore()=>Process.Start(new ProcessStartInfo("ms-windows-store://pdp/?ProductId=9NBLGGH2JHXJ"){UseShellExecute=true});
 }

@@ -27,6 +27,15 @@ static class FeatureTests
    Console.WriteLine("PASS: Bedrock CDN schemes, redirects, host restrictions, cleanup and HTTPS-only general downloads");
   }finally{Directory.Delete(downloadFolder,true);}
 
+  Check(BedrockService.CanonicalIdentity("MICROSOFT.MINECRAFTUWP")=="Microsoft.MinecraftUWP","Windows package names ignore case");
+  Check(BedrockService.CanonicalIdentity("Microsoft.MinecraftUWP.fake")==null,"unknown identities rejected");
+  Check(BedrockService.MatchesUwpVersion("0.15.8.0","0.15.8.0"),"old direct package version accepted");
+  Check(BedrockService.MatchesUwpVersion("0.15.8.0","0.15.800.0"),"packed package version accepted");
+  Check(!BedrockService.MatchesUwpVersion("0.15.8.0","0.15.900.0"),"other game version rejected");
+  Check(BedrockService.MatchesUwpVersion("1.21.114.1","1.21.11401.0"),"modern Windows package encoding accepted");
+  var progress=BedrockService.StoreProgress(" 12.5 MB / 100 MB ");Check(progress?.Done==12500000&&progress?.Total==100000000,"WinGet byte progress");
+  Check(BedrockService.StoreProgress("Signing in")==null,"unknown Store progress stays indeterminate");
+  Check(BedrockService.LatestInstallArguments().Contains("msstore")&&BedrockService.LatestInstallArguments().Contains("--disable-interactivity"),"background Store installation arguments");
   var installed=new[]{new BedrockService.Package("stable","Microsoft.MinecraftUWP","1.21.10000.0","family","app",false,false,true),new BedrockService.Package("preview","Microsoft.MinecraftWindowsBeta","1.99.0.0","family","app",true,false,true),new BedrockService.Package("legacy","Microsoft.MinecraftUWP","1.1.0.0","family","app",false,true,true)};
   Check(BedrockService.LatestInstalled(installed)?.Id=="stable","latest launch ignores Preview and legacy");
   Check(BedrockService.LatestInstalled(installed.Where(p=>p.Preview||p.Legacy))==null,"missing regular edition invokes Store path");
