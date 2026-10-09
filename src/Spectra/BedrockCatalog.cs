@@ -16,11 +16,38 @@ public sealed partial class BedrockService
  DateTime catalogueTime;
  string catalogueWarning="";
  static string PackageVersion(string display){var v=Version.Parse(display);return $"{v.Major}.{v.Minor}.{v.Build*100+Math.Max(0,v.Revision)}.0";}
- static string MicrosoftUrl(string value)
+ internal static string MicrosoftUrl(string value)
  {
-  if(!Uri.TryCreate(value,UriKind.Absolute,out var uri)||uri.UserInfo!=""||uri.Scheme is not ("http" or "https")||uri.Port is not (80 or 443))throw new IOException("Неверный адрес пакета Microsoft");
+  if(!Uri.TryCreate(value,UriKind.Absolute,out var uri)||uri.UserInfo!=""||uri.Scheme is not ("http" or "https")||!uri.IsDefaultPort||uri.Fragment!="")throw new IOException("Неверный адрес пакета Microsoft");
   if(uri.Host is not ("tlu.dl.delivery.mp.microsoft.com" or "assets1.xboxlive.com" or "assets2.xboxlive.com"))throw new IOException("Пакеты Bedrock скачиваются только с серверов Microsoft");
-  return new UriBuilder(uri){Scheme="https",Port=-1}.Uri.AbsoluteUri;
+  return uri.AbsoluteUri;
+ }
+ static readonly HttpClient packageHttp=new(new SocketsHttpHandler { AllowAutoRedirect=false,UseCookies=false,ConnectTimeout=TimeSpan.FromSeconds(20),MaxConnectionsPerServer=4 }) { Timeout=TimeSpan.FromMinutes(30) };
+ internal static async Task DownloadMicrosoftPackage(string url,string path,HttpClient? client=null)
+ {
+  client??=packageHttp;
+  await Net.DownloadResponse(async()=>{
+   var current=MicrosoftUrl(url);
+   for(var redirect=0;redirect<=5;redirect++){
+    using var request=new HttpRequestMessage(HttpMethod.Get,current);
+    request.Headers.UserAgent.ParseAdd("Spectra/0.14.1");
+    var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);
+    var status=(int)response.StatusCode;
+    if(status is not (301 or 302 or 303 or 307 or 308))return response;
+    var location=response.Headers.Location;response.Dispose();
+    if(location==null)throw new IOException("Microsoft вернул перенаправление без адреса");
+    var next=MicrosoftUrl(new Uri(new Uri(current),location).AbsoluteUri);
+    if(new Uri(current).Scheme=="https"&&new Uri(next).Scheme!="https")throw new IOException("Небезопасное перенаправление пакета Microsoft");
+    current=next;
+   }
+   throw new IOException("Слишком много перенаправлений Microsoft");
+  },path,maxBytes:8L*1024*1024*1024);
+ }
+ static string DownloadError(Exception error)
+ {
+  var reasons=new List<string>();
+  for(Exception? e=error;e!=null;e=e.InnerException){var message=e.Message;message=Regex.Replace(message,@"https?://[^\s""']+","[адрес сервера]");reasons.Add(e.GetType().Name+": "+message);}
+  return string.Join(" → ",reasons.Distinct());
  }
  public async Task<List<Release>> Catalogue(bool refresh=false)
  {
@@ -64,8 +91,8 @@ public sealed partial class BedrockService
   var folder=Path.Combine(store.Root,"bedrock","downloads");Directory.CreateDirectory(folder);var filename=id.Replace(':','-')+(release.Format=="GDK"?".msixvc":".appx");var path=Path.Combine(folder,filename);var receipt=path+".json";
   bool cached=false;try{var saved=JsonNode.Parse(await File.ReadAllTextAsync(receipt));cached=File.Exists(path)&&new FileInfo(path).Length>0&&saved.Str("sha256")==await Net.Hash(path,"SHA256");}catch{}
   if(!cached){var urls=release.Format=="GDK"?release.Urls:new[]{await ResolveUwp(release)};Exception? last=null;bool ready=false;
-   foreach(var url in urls){try{await Net.Download(MicrosoftUrl(url),path,maxBytes:8L*1024*1024*1024);ready=true;break;}catch(Exception e){last=e;}}
-   if(!ready)throw new IOException("Не удалось скачать выбранный пакет Bedrock с Microsoft. "+last?.Message,last);
+   foreach(var url in urls){try{await DownloadMicrosoftPackage(url,path);ready=true;break;}catch(Exception e){last=e;}}
+   if(!ready){var diagnostic=last==null?"Нет адресов загрузки":DownloadError(last);var log=Path.Combine(store.Root,"bedrock","last-download.log");try{await File.WriteAllTextAsync(log,DateTime.UtcNow.ToString("O")+Environment.NewLine+release.Id+Environment.NewLine+diagnostic);}catch{}throw new IOException("Не удалось скачать выбранный пакет Bedrock с Microsoft. "+diagnostic+" Подробности: bedrock/last-download.log",last);}
    if(release.Format=="UWP"){
     try{var package=await Import(path,false);if(package.Name!=release.Name||package.Version!=release.PackageVersion)throw new IOException("Microsoft вернул другую версию; установка отменена");}catch{File.Delete(path);throw;}
    }

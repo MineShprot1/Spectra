@@ -8,16 +8,20 @@ public static class Net
 {
  public static readonly AsyncLocal<Action<object>?> ProgressSink=new();
  public static readonly HttpClient Http = new(new SocketsHttpHandler { MaxConnectionsPerServer=24, PooledConnectionLifetime=TimeSpan.FromMinutes(10), ConnectTimeout=TimeSpan.FromSeconds(20) }) { Timeout=TimeSpan.FromMinutes(10) };
- static Net() { Http.DefaultRequestHeaders.UserAgent.ParseAdd("Spectra/0.14.0 (+https://github.com/MineShprot1/Spectra)"); }
+ static Net() { Http.DefaultRequestHeaders.UserAgent.ParseAdd("Spectra/0.14.1 (+https://github.com/MineShprot1/Spectra)"); }
  public static async Task<JsonNode> Get(string url) => JsonNode.Parse(await Http.GetStringAsync(url)) ?? throw new IOException("Пустой ответ сервера");
  public static async Task<JsonNode> Send(HttpRequestMessage req) { using var r=await Http.SendAsync(req); var body=await r.Content.ReadAsStringAsync(); if(!r.IsSuccessStatusCode) throw new IOException($"Сервис вернул {(int)r.StatusCode}. Проверьте права аккаунта и настройки API."); return JsonNode.Parse(string.IsNullOrEmpty(body)?"{}":body)!; }
  public static async Task Download(string url,string dest,string? hash=null,string algorithm="SHA1",long? maxBytes=null)
  {
   if(!Uri.TryCreate(url,UriKind.Absolute,out var uri)||uri.Scheme!="https") throw new IOException("Разрешены только HTTPS загрузки");
+  await DownloadResponse(()=>Http.GetAsync(uri,HttpCompletionOption.ResponseHeadersRead),dest,hash,algorithm,maxBytes);
+ }
+ internal static async Task DownloadResponse(Func<Task<HttpResponseMessage>> request,string dest,string? hash=null,string algorithm="SHA1",long? maxBytes=null)
+ {
   Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
   if(File.Exists(dest)&&hash!=null&&await Hash(dest,algorithm)==hash.ToLowerInvariant()) return;
   var tmp=dest+"."+Guid.NewGuid().ToString("N")+".part";
-  try { using var response=await Http.GetAsync(uri,HttpCompletionOption.ResponseHeadersRead); response.EnsureSuccessStatusCode(); await using(var f=File.Create(tmp))
+  try { using var response=await request(); response.EnsureSuccessStatusCode(); await using(var f=File.Create(tmp))
   {
    await using var input=await response.Content.ReadAsStreamAsync();var buffer=new byte[81920];long done=0,last=0;var total=response.Content.Headers.ContentLength;
    if(maxBytes!=null&&total>maxBytes)throw new IOException("Файл превышает допустимый размер");
