@@ -1,0 +1,10 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function element(tag,attributes={},children=[]){return{nodeType:1,tagName:tag.toUpperCase(),childNodes:children,getAttribute:key=>attributes[key]||null};}
+const text=value=>({nodeType:3,textContent:value});
+const fixture=[element('p',{},[text('Hello <player>')]),element('script',{},[text('attack()')]),element('a',{href:'javascript:attack()'},[text('unsafe')]),element('img',{src:'https://cdn.example.test/shot.png',onerror:'attack()'}),element('a',{href:'https://modrinth.com/project/test',onclick:'attack()'},[text('Author')])];
+const context={URL,esc,image:(src,cls)=>`<img src="${esc(src)}" class="${esc(cls)}">`,DOMParser:class{parseFromString(){return {body:{childNodes:fixture}};}}};vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/Spectra/Web/project-pages.js'),'utf8'),context);
+assert.equal(vm.runInContext("SpectraProjects.https('javascript:alert(1)')",context),'');assert.equal(vm.runInContext("SpectraProjects.https('https://secret@example.com/')",context),'');assert.equal(vm.runInContext("SpectraProjects.https('https://modrinth.com/')",context),'https://modrinth.com/');
+const html=vm.runInContext("SpectraProjects.description('fixture','html')",context);assert(!html.includes('attack'));assert(!html.includes('onerror'));assert(!html.includes('onclick'));assert(html.includes('Hello &lt;player&gt;'));assert(html.includes('https://cdn.example.test/shot.png'));assert(html.includes('data-project-link="https://modrinth.com/project/test"'));
+const markdown=vm.runInContext("SpectraProjects.description('# Title\\n\\n<script>bad()</script>','markdown')",context);assert(markdown.includes('<h3>Title</h3>'));assert(!markdown.includes('<script>'));
+console.log('PASS: project descriptions retain safe content, strip active HTML, reject unsafe URLs and credentials');

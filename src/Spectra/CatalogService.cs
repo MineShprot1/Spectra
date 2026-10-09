@@ -31,6 +31,24 @@ public sealed class CatalogService(Store store,GameService game,Action<object> e
  }
  static int LoaderNumber(string loader)=>loader switch{"forge"=>1,"fabric"=>4,"quilt"=>5,"neoforge"=>6,_=>0};
  async Task<JsonNode> Curse(string url){using var req=new HttpRequestMessage(HttpMethod.Get,url);req.Headers.Add("x-api-key",store.Config.CurseForgeKey);return await Net.Send(req);}
+ public async Task<object> Details(string source,string id,string kind,string instanceId)
+ {
+  if(!System.Text.RegularExpressions.Regex.IsMatch(id,@"\A[A-Za-z0-9_-]{1,100}\z"))throw new IOException("Неверный проект");if(kind is not ("mods" or "shaders" or "resources" or "modpacks"))throw new IOException("Неизвестная категория");
+  var instance=string.IsNullOrEmpty(instanceId)?null:store.Get(instanceId);
+  if(source=="modrinth"){
+   var projectTask=Net.Get("https://api.modrinth.com/v2/project/"+Q(id));var versionsUrl="https://api.modrinth.com/v2/project/"+Q(id)+"/version";
+   if(instance!=null){versionsUrl+="?game_versions="+Q(JsonSerializer.Serialize(new[]{instance.Version}));if(kind=="mods")versionsUrl+="&loaders="+Q(JsonSerializer.Serialize(new[]{instance.Loader}));}
+   var versionsTask=Net.Get(versionsUrl);await Task.WhenAll(projectTask,versionsTask);var project=await projectTask;var members=await Net.Get("https://api.modrinth.com/v2/team/"+Q(project.Str("team"))+"/members");
+   var expected=kind switch{"mods"=>"mod","shaders"=>"shader","resources"=>"resourcepack",_=>"modpack"};if(project.Str("project_type")!=expected)throw new IOException("Категория проекта не совпадает");
+   return new{source,id,title=project.Str("title"),summary=project.Str("description"),description=project.Str("body"),format="markdown",icon=project.Str("icon_url"),downloads=project["downloads"]?.GetValue<long>()??0,followers=project["followers"]?.GetValue<long>()??0,created=project.Str("published"),updated=project.Str("updated"),license=project["license"].Str("name"),url="https://modrinth.com/"+expected+"/"+Q(project.Str("slug")),authors=members.AsArray().Select(m=>new{name=m?["user"].Str("username"),role=m.Str("role"),url="https://modrinth.com/user/"+Q(m?["user"].Str("username")??"")}),screenshots=project["gallery"]?.AsArray().OrderBy(g=>g?["ordering"]?.GetValue<int>()??0).Take(50).Select(g=>new{url=g.Str("url"),caption=g.Str("title")})??[],categories=project["categories"]?.DeepClone()??new JsonArray(),versions=(await versionsTask).AsArray().Take(30).Select(v=>new{name=v.Str("name"),version=v.Str("version_number"),date=v.Str("date_published"),game=v["game_versions"]?.DeepClone(),loaders=v["loaders"]?.DeepClone()})};
+  }
+  if(source=="curseforge"){
+   if(!long.TryParse(id,out _))throw new IOException("Неверный проект CurseForge");var projectTask=Curse("https://api.curseforge.com/v1/mods/"+id);var descriptionTask=Curse("https://api.curseforge.com/v1/mods/"+id+"/description");var filesUrl="https://api.curseforge.com/v1/mods/"+id+"/files?pageSize=30";if(instance!=null){filesUrl+="&gameVersion="+Q(instance.Version);if(kind=="mods")filesUrl+="&modLoaderType="+LoaderNumber(instance.Loader);}var filesTask=Curse(filesUrl);await Task.WhenAll(projectTask,descriptionTask,filesTask);var project=(await projectTask)["data"]??throw new IOException("Проект не найден");
+   var expected=kind switch{"mods"=>6,"shaders"=>6552,"resources"=>12,_=>4471};if(project["classId"]?.GetValue<int>()!=expected)throw new IOException("Категория проекта не совпадает");
+   return new{source,id,title=project.Str("name"),summary=project.Str("summary"),description=(await descriptionTask).Str("data"),format="html",icon=project["logo"].Str("thumbnailUrl"),downloads=(long)(project["downloadCount"]?.GetValue<double>()??0),followers=0,created=project.Str("dateCreated"),updated=project.Str("dateModified"),license="Указана автором на CurseForge",url=project["links"].Str("websiteUrl"),authors=project["authors"]?.AsArray().Select(a=>new{name=a.Str("name"),role="Автор",url=a.Str("url")})??[],screenshots=project["screenshots"]?.AsArray().Take(50).Select(g=>new{url=g.Str("url"),caption=g.Str("title")})??[],categories=project["categories"]?.AsArray().Select(c=>c.Str("name")).ToArray()??[],versions=(await filesTask)["data"]?.AsArray().Take(30).Select(f=>new{name=f.Str("displayName"),version=f.Str("fileName"),date=f.Str("fileDate"),game=f["gameVersions"]?.DeepClone(),loaders=(JsonNode?)null})??[]};
+  }
+  throw new IOException("Неизвестный источник");
+ }
  sealed record InstallFile(string Name,string Url,string Hash,string Algorithm);
  public async Task Install(string source,string projectId,string kind,string instanceId)
  {

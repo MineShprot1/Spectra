@@ -49,6 +49,9 @@ public record Configuration
  public string AppliedInstallerLanguage {get;set;}="";
  public string AppearanceJson {get;set;}="{}";
  public GameSettings Defaults { get; set; } = new();
+ public string SelectedEdition {get;set;}="java";
+ public string SelectedBedrock {get;set;}="";
+ public string SelectedBedrockLabel {get;set;}="";
  public string SelectedVersion {get;set;}="";
  public string SelectedInstance {get;set;}="";
  public string VersionsView {get;set;}="cards";

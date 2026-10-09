@@ -8,7 +8,7 @@ public static class Net
 {
  public static readonly AsyncLocal<Action<object>?> ProgressSink=new();
  public static readonly HttpClient Http = new(new SocketsHttpHandler { MaxConnectionsPerServer=24, PooledConnectionLifetime=TimeSpan.FromMinutes(10), ConnectTimeout=TimeSpan.FromSeconds(20) }) { Timeout=TimeSpan.FromMinutes(10) };
- static Net() { Http.DefaultRequestHeaders.UserAgent.ParseAdd("Spectra/0.12.0 (+https://github.com/MineShprot1/Spectra)"); }
+ static Net() { Http.DefaultRequestHeaders.UserAgent.ParseAdd("Spectra/0.13.0 (+https://github.com/MineShprot1/Spectra)"); }
  public static async Task<JsonNode> Get(string url) => JsonNode.Parse(await Http.GetStringAsync(url)) ?? throw new IOException("Пустой ответ сервера");
  public static async Task<JsonNode> Send(HttpRequestMessage req) { using var r=await Http.SendAsync(req); var body=await r.Content.ReadAsStringAsync(); if(!r.IsSuccessStatusCode) throw new IOException($"Сервис вернул {(int)r.StatusCode}. Проверьте права аккаунта и настройки API."); return JsonNode.Parse(string.IsNullOrEmpty(body)?"{}":body)!; }
  public static async Task Download(string url,string dest,string? hash=null,string algorithm="SHA1")
