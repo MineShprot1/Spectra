@@ -46,6 +46,8 @@ dotnet build src/Spectra/Spectra.csproj -c Release --no-restore
 if ($LASTEXITCODE) { throw 'Build failed' }
 dotnet run --project tests/Spectra.Tests.csproj -c Release
 if ($LASTEXITCODE) { throw 'Tests failed' }
+dotnet run --project tests/features/Features.Tests.csproj -c Release
+if ($LASTEXITCODE) { throw 'Feature tests failed' }
 dotnet publish src/Spectra/Spectra.csproj -c Release -r win-x64 --self-contained true -o dist/Spectra
 if ($LASTEXITCODE) { throw 'Publish failed' }
 if (Test-Path "$PSScriptRoot/api-keys.local.json") { Copy-Item "$PSScriptRoot/api-keys.local.json" "$PSScriptRoot/dist/Spectra/api-keys.local.json" }

@@ -15,7 +15,7 @@ function Installed {
 try {
  switch ($Action) {
   'list' { $rows = @(Installed); ConvertTo-Json -InputObject $rows -Depth 5 -Compress }
-  'install' { Add-AppxPackage -Path $env:SPECTRA_BEDROCK_PACKAGE -ForceUpdateFromAnyVersion -ErrorAction Stop | Out-Null; ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress }
+  'install' { if (Get-Process -Name 'Minecraft.Windows' -ErrorAction SilentlyContinue) { throw 'Close Minecraft before switching its version.' }; Add-AppxPackage -Path $env:SPECTRA_BEDROCK_PACKAGE -ForceUpdateFromAnyVersion -ErrorAction Stop | Out-Null; ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress }
   default { throw 'Unknown Bedrock operation' }
  }
 } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }

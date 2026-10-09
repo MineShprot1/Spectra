@@ -104,7 +104,7 @@ public partial class MainWindow : Window
   try
   {
    var message=JsonNode.Parse(e.WebMessageAsJson)!;requestId=message.Str("id");if(!activeRequests.Add(requestId))return;
-   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
+   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "packContents" or "bedrockLaunch" or "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
    if(action is "launch" or "launchTarget" or "joinFriend" or "install" or "installPack" or "installFriendPack" or "importPack" or "importInstance" or "dropPack" or "exportInstance" or "saveInstance" or "deleteInstance" or "enableFiles" or "toggle" or "serverAction" or "worldAction"){await libraryMutation.WaitAsync();mutating=true;}
    if(action=="dropPack")
    {
@@ -112,7 +112,7 @@ public partial class MainWindow : Window
     await Task.Run(()=>archives.Import(files[0].Path));result=State();Emit(new{type="transferComplete"});
    }
    else result=await Handle(action,d);
-   if(action is "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
+   if(action is "packContents" or "bedrockLaunch" or "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
    Emit(new{type="reply",id=requestId,ok=true,result});
   }
   catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=ex.Message});}
@@ -369,7 +369,7 @@ public partial class MainWindow : Window
     var img=new Microsoft.Win32.OpenFileDialog{Filter="Изображения|*.png;*.jpg;*.jpeg;*.webp"};if(img.ShowDialog()!=true)return null;
     if(new FileInfo(img.FileName).Length>20*1024*1024)throw new IOException("Изображение больше 20 МБ");var asset=Path.Combine(store.Root,"artwork",Guid.NewGuid()+Path.GetExtension(img.FileName));Directory.CreateDirectory(Path.GetDirectoryName(asset)!);File.Copy(img.FileName,asset);return game.Asset(asset);
    }
-   case "bedrockVersions":return await bedrock.Versions();
+   case "bedrockVersions":return await bedrock.Versions(d["refresh"]?.GetValue<bool>()??false);
    case "bedrockImport":
    {
     var bedrockPicker=new Microsoft.Win32.OpenFileDialog{Filter="Minecraft Windows package|*.appx;*.msix"};if(bedrockPicker.ShowDialog(this)!=true)return null;return await bedrock.Import(bedrockPicker.FileName);
@@ -380,6 +380,7 @@ public partial class MainWindow : Window
    }
    case "bedrockLaunch":await bedrock.Launch(d.Str("id"),d["install"]?.GetValue<bool>()??false);return null;
    case "bedrockStore":BedrockService.OpenStore();return null;
+   case "packContents":return await catalog.PackContents(d.Str("source"),d.Str("projectId"),d.Str("versionId"));
    case "projectDetails":return await catalog.Details(d.Str("source"),d.Str("projectId"),d.Str("kind"),d.Str("instanceId"));
    case "openLink":
    {
@@ -395,7 +396,7 @@ public partial class MainWindow : Window
    }
    case "installPack":
    {
-    await catalog.InstallPack(d.Str("source"),d.Str("projectId"));return State();
+    await catalog.InstallPack(d.Str("source"),d.Str("projectId"),d.Str("versionId"));return State();
    }
    case "importInstance":
    {
