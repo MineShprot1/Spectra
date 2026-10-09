@@ -8,6 +8,8 @@ public record CatalogItem(string Source,string Id,string Title,string Descriptio
 public sealed class CatalogService(Store store,GameService game,Action<object> emit)
 {
  readonly SemaphoreSlim installation=new(1);
+ readonly Dictionary<string,(long Size,long Ticks,string Hash)> installedHashes=new();
+ readonly Dictionary<string,List<InstallFile>> knownVersions=new();
  static string Q(string x)=>Uri.EscapeDataString(x);
  public async Task<object> Search(string query,string kind,string? instanceId,int offset)
  {
@@ -29,47 +31,55 @@ public sealed class CatalogService(Store store,GameService game,Action<object> e
  }
  static int LoaderNumber(string loader)=>loader switch{"forge"=>1,"fabric"=>4,"quilt"=>5,"neoforge"=>6,_=>0};
  async Task<JsonNode> Curse(string url){using var req=new HttpRequestMessage(HttpMethod.Get,url);req.Headers.Add("x-api-key",store.Config.CurseForgeKey);return await Net.Send(req);}
+ sealed record InstallFile(string Name,string Url,string Hash,string Algorithm);
  public async Task Install(string source,string projectId,string kind,string instanceId)
  {
-  await installation.WaitAsync();try
-  {
-   var i=store.Get(instanceId);if(game.Running.ContainsKey(i.Id))throw new IOException("Закройте игру перед установкой дополнений");
-   var root=store.Folder(i);if(kind=="modpacks")throw new IOException("Для модпака используйте импорт .mrpack");
-   var visited=new HashSet<string>();await InstallProject(source,projectId,kind,i,root,visited);
-  }finally{installation.Release();}
+  await installation.WaitAsync();string stage="";var committed=new List<string>();var restored=new List<(string Original,string Backup)>();
+  try{
+   if(kind is not ("mods" or "shaders" or "resources"))throw new IOException("Неизвестный тип дополнения");var i=store.Get(instanceId);if(game.Running.ContainsKey(i.Id))throw new IOException("Закройте игру перед установкой дополнений");
+   knownVersions.Clear();var root=store.Folder(i);var folder=Path.Combine(root,GameService.KindFolder(kind));var plan=new List<InstallFile>();var visited=new HashSet<string>();var projects=new Dictionary<string,string>();await ResolveProject(source,projectId,kind,i,folder,visited,projects,plan);
+   stage=Path.Combine(store.Root,"downloads","dependencies-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(stage);var ready=new List<(InstallFile File,string? Existing)>();
+   foreach(var file in plan.DistinctBy(f=>f.Name,StringComparer.OrdinalIgnoreCase)){var existing=await Existing(folder,file);ready.Add((file,existing));if(existing==null){if(!Uri.TryCreate(file.Url,UriKind.Absolute,out var download)||download.Scheme!="https")throw new IOException("Автор файла запретил загрузку через сторонние лаунчеры: "+file.Name);emit(new{type="progress",instanceId=i.Id,message="Загрузка мода или библиотеки: "+file.Name,percent=0});await Net.Download(file.Url,Store.SafePath(stage,file.Name),file.Hash,file.Algorithm);}}
+   var outdated=new HashSet<string>(StringComparer.OrdinalIgnoreCase);foreach(var old in knownVersions.Values.SelectMany(x=>x).Where(f=>f.Hash!=""&&!plan.Any(p=>p.Algorithm==f.Algorithm&&p.Hash==f.Hash))){var path=await Existing(folder,old);if(path!=null&&!ready.Any(x=>x.Existing==path))outdated.Add(path);}
+   if(game.Running.ContainsKey(i.Id))throw new IOException("Закройте игру перед установкой дополнений");Directory.CreateDirectory(folder);
+   foreach(var old in outdated){var backup=Path.Combine(stage,"old-"+Guid.NewGuid().ToString("N"));File.Move(old,backup);restored.Add((old,backup));}
+   foreach(var item in ready){var dest=Store.SafePath(folder,item.File.Name);if(item.Existing==dest)continue;if(File.Exists(dest)){var backup=Store.SafePath(stage,"backup/"+item.File.Name);Directory.CreateDirectory(Path.GetDirectoryName(backup)!);File.Move(dest,backup);restored.Add((dest,backup));}
+    if(item.Existing!=null){File.Move(item.Existing,dest);restored.Add((item.Existing,dest));}else{File.Move(Store.SafePath(stage,item.File.Name),dest);committed.Add(dest);}}
+   emit(new{type="progress",instanceId=i.Id,message="Мод и обязательные зависимости установлены",percent=100});
+  }catch{foreach(var path in committed)if(File.Exists(path))File.Delete(path);foreach(var item in restored.AsEnumerable().Reverse())if(File.Exists(item.Backup))File.Move(item.Backup,item.Original,true);throw;}
+  finally{if(stage!=""&&Directory.Exists(stage))Directory.Delete(stage,true);installation.Release();}
  }
- async Task InstallProject(string source,string id,string kind,Instance i,string root,HashSet<string> visited)
+ async Task<string?> Existing(string folder,InstallFile file)
  {
-  if(!visited.Add(source+id))return;if(visited.Count>100)throw new IOException("Слишком много зависимостей");
-  emit(new{type="progress",instanceId=i.Id,message="Загрузка дополнения "+id,percent=0});
-  if(source=="modrinth")
-  {
-   var url="https://api.modrinth.com/v2/project/"+Q(id)+"/version?game_versions="+Q(JsonSerializer.Serialize(new[]{i.Version}));
-   if(kind=="mods")url+="&loaders="+Q(JsonSerializer.Serialize(new[]{i.Loader}));
-   var versions=await Net.Get(url);var v=versions.AsArray().FirstOrDefault()??throw new IOException("Совместимого файла нет");
-   await InstallModrinthVersion(v,kind,i,root,visited);
-  }
-  else if(source=="curseforge")
-  {
-   var url=$"https://api.curseforge.com/v1/mods/{Q(id)}/files?gameVersion={Q(i.Version)}";
-   if(kind=="mods")url+="&modLoaderType="+LoaderNumber(i.Loader);
-   var files=await Curse(url);var f=files["data"]!.AsArray().OrderByDescending(x=>x.Str("fileDate")).FirstOrDefault()??throw new IOException("Совместимых файлов нет");
-   foreach(var dep in f["dependencies"]?.AsArray()??[])if(dep?["relationType"]?.GetValue<int>()==3)await InstallProject(source,dep.Str("modId"),kind,i,root,visited);
-   var download=f.Str("downloadUrl");if(string.IsNullOrEmpty(download))throw new IOException("Автор запретил загрузку через сторонние лаунчеры. Откройте страницу CurseForge.");
-   var sha=f["hashes"]?.AsArray().FirstOrDefault(x=>x?["algo"]?.GetValue<int>()==1)?.Str("value");await Net.Download(download,Store.SafePath(root,GameService.KindFolder(kind)+"/"+f.Str("fileName")),sha);
-  }
-  else throw new IOException("Неизвестный источник");
+  if(!Directory.Exists(folder))return null;var candidates=Directory.EnumerateFiles(folder).Where(p=>p.EndsWith(".jar",StringComparison.OrdinalIgnoreCase)||p.EndsWith(".zip",StringComparison.OrdinalIgnoreCase)||p.EndsWith(".disabled",StringComparison.OrdinalIgnoreCase)).OrderBy(p=>p.EndsWith(".disabled",StringComparison.OrdinalIgnoreCase));
+  foreach(var p in candidates){var info=new FileInfo(p);var key=file.Algorithm+":"+p;string value;if(installedHashes.TryGetValue(key,out var cached)&&cached.Size==info.Length&&cached.Ticks==info.LastWriteTimeUtc.Ticks)value=cached.Hash;else{value=await Net.Hash(p,file.Algorithm);installedHashes[key]=(info.Length,info.LastWriteTimeUtc.Ticks,value);}if(value==file.Hash.ToLowerInvariant())return p;}return null;
  }
- async Task InstallModrinthVersion(JsonNode v,string kind,Instance i,string root,HashSet<string> visited)
+ static InstallFile ModrinthFile(JsonNode v){var f=v["files"]?.AsArray().FirstOrDefault(x=>x?["primary"]?.GetValue<bool>()==true)??v["files"]?[0]??throw new IOException("У версии нет файла");return new(f.Str("filename"),f.Str("url"),f["hashes"].Str("sha512"),"SHA512");}
+ static InstallFile CurseFile(JsonNode f)=>new(f.Str("fileName"),f.Str("downloadUrl"),f["hashes"]?.AsArray().FirstOrDefault(x=>x?["algo"]?.GetValue<int>()==1).Str("value")??"","SHA1");
+ static void AddFile(List<InstallFile> plan,InstallFile file){if(file.Name!=Path.GetFileName(file.Name)||file.Name.IndexOfAny(Path.GetInvalidFileNameChars())>=0||file.Hash=="")throw new IOException("Неверный файл или автор запретил загрузку через сторонний лаунчер");if(plan.Any(f=>f.Name.Equals(file.Name,StringComparison.OrdinalIgnoreCase)&&f.Hash!=file.Hash))throw new IOException("Конфликт файлов зависимостей: "+file.Name);plan.Add(file);}
+ async Task ResolveProject(string source,string id,string kind,Instance i,string folder,HashSet<string> visited,Dictionary<string,string> projects,List<InstallFile> plan)
  {
-  foreach(var d in v["dependencies"]?.AsArray()??[])
-  {
-   if(d.Str("dependency_type")!="required")continue;
-   if(d.Str("version_id") is {Length:>0} versionId){if(!visited.Add("version:"+versionId))continue;await InstallModrinthVersion(await Net.Get("https://api.modrinth.com/v2/version/"+Q(versionId)),kind,i,root,visited);}
-   else if(d.Str("project_id") is {Length:>0} projectId)await InstallProject("modrinth",projectId,kind,i,root,visited);
-  }
-  var file=v["files"]!.AsArray().FirstOrDefault(x=>x?["primary"]?.GetValue<bool>()==true)??v["files"]![0]!;
-  await Net.Download(file.Str("url"),Store.SafePath(root,GameService.KindFolder(kind)+"/"+file.Str("filename")),file["hashes"].Str("sha512"),"SHA512");
+  if(!visited.Add(source+":"+id))return;if(visited.Count>100)throw new IOException("Слишком много зависимостей");
+  if(source=="modrinth"){
+   var url="https://api.modrinth.com/v2/project/"+Q(id)+"/version?game_versions="+Q(JsonSerializer.Serialize(new[]{i.Version}));if(kind=="mods")url+="&loaders="+Q(JsonSerializer.Serialize(new[]{i.Loader}));
+   var versions=(await Net.Get(url)).AsArray();var v=versions.FirstOrDefault()??throw new IOException("Нет совместимого файла: "+id);
+   foreach(var candidate in versions){if(candidate!=null&&await Existing(folder,ModrinthFile(candidate))!=null){v=candidate;break;}}
+   knownVersions[v.Str("project_id")]=versions.Where(x=>x!=null).Select(x=>ModrinthFile(x!)).ToList();await ResolveModrinth(v,kind,i,folder,visited,projects,plan);
+  }else if(source=="curseforge"){
+   var url=$"https://api.curseforge.com/v1/mods/{Q(id)}/files?gameVersion={Q(i.Version)}";if(kind=="mods")url+="&modLoaderType="+LoaderNumber(i.Loader);
+   var files=(await Curse(url))["data"]!.AsArray().OrderByDescending(x=>x.Str("fileDate")).ToList();var f=files.FirstOrDefault()??throw new IOException("Нет совместимого файла: "+id);
+   foreach(var candidate in files){if(candidate!=null&&await Existing(folder,CurseFile(candidate))!=null){f=candidate;break;}}
+   knownVersions["curseforge:"+id]=files.Where(x=>x!=null).Select(x=>CurseFile(x!)).ToList();
+   foreach(var dep in f["dependencies"]?.AsArray()??[])if(dep?["relationType"]?.GetValue<int>()==3)await ResolveProject(source,dep.Str("modId"),kind,i,folder,visited,projects,plan);AddFile(plan,CurseFile(f));
+  }else throw new IOException("Неизвестный источник");
+ }
+ async Task ResolveModrinth(JsonNode v,string kind,Instance i,string folder,HashSet<string> visited,Dictionary<string,string> projects,List<InstallFile> plan)
+ {
+  var id=v.Str("id");var project=v.Str("project_id");
+  if(!knownVersions.ContainsKey(project)){var url="https://api.modrinth.com/v2/project/"+Q(project)+"/version?game_versions="+Q(JsonSerializer.Serialize(new[]{i.Version}));if(kind=="mods")url+="&loaders="+Q(JsonSerializer.Serialize(new[]{i.Loader}));knownVersions[project]=(await Net.Get(url)).AsArray().Where(x=>x!=null).Select(x=>ModrinthFile(x!)).ToList();}if(projects.TryGetValue(project,out var version)&&version!=id)throw new IOException("Зависимости требуют разные версии одной библиотеки: "+project);projects[project]=id;
+  if(!visited.Add("version:"+id))return;if(visited.Count>100)throw new IOException("Слишком много зависимостей");
+  if(v["game_versions"]?.AsArray().Any(x=>x?.ToString()==i.Version)!=true||kind=="mods"&&v["loaders"]?.AsArray().Any(x=>x?.ToString()==i.Loader)!=true)throw new IOException("Библиотека несовместима с версией игры или загрузчиком: "+project);
+  foreach(var d in v["dependencies"]?.AsArray()??[]){if(d.Str("dependency_type")!="required")continue;if(d.Str("version_id") is {Length:>0} pinned)await ResolveModrinth(await Net.Get("https://api.modrinth.com/v2/version/"+Q(pinned)),kind,i,folder,visited,projects,plan);else if(d.Str("project_id") is {Length:>0} dependency)await ResolveProject("modrinth",dependency,kind,i,folder,visited,projects,plan);else throw new IOException("Обязательная библиотека доступна только для ручной установки: "+d.Str("file_name"));}AddFile(plan,ModrinthFile(v));
  }
  public async Task<Instance> ImportMrpack(string path)
  {

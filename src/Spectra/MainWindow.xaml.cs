@@ -47,14 +47,17 @@ public partial class MainWindow : Window
  readonly GameService game;
  readonly CatalogService catalog;
  readonly FriendsService friends;
+ readonly FriendPacks friendPacks;
  readonly DispatcherTimer friendsTimer=new(){Interval=TimeSpan.FromSeconds(30)};
  bool sendingPresence;
  readonly InstanceArchive archives;
  readonly HashSet<string> activeRequests=[];
+ readonly SemaphoreSlim libraryMutation=new(1,1);
  public MainWindow()
  {
-  InitializeComponent();logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>ApplyWindowsCorners();StateChanged+=(_,_)=>ApplyWindowsCorners();auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);friends=new(store,auth,game);friendsTimer.Tick+=async(_,_)=>{if(sendingPresence)return;sendingPresence=true;try{await friends.Heartbeat();}catch{}finally{sendingPresence=false;}};friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);Loaded+=async(_,_)=>await Initialize();
+  InitializeComponent();logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>ApplyWindowsCorners();StateChanged+=(_,_)=>ApplyWindowsCorners();auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);Loaded+=async(_,_)=>await Initialize();
  }
+ async void RefreshPresence(){if(sendingPresence)return;sendingPresence=true;try{await friends.Heartbeat();}catch{}finally{sendingPresence=false;}}
  async Task Initialize()
  {
   try
@@ -86,30 +89,32 @@ public partial class MainWindow : Window
    if(Browser.CoreWebView2==null)return;
    Browser.CoreWebView2.PostWebMessageAsJson(json);
    var n=kind is "started" or "exited"?JsonNode.Parse(json):null;if(n.Str("type")=="started"&&n?["hide"]?.GetValue<bool>()==true)WindowState=WindowState.Minimized;
-   if(n.Str("type")=="exited"){WindowState=WindowState.Normal;Activate();}
+   if(n.Str("type")=="started")RefreshPresence();
+   if(n.Str("type")=="exited"){RefreshPresence();WindowState=WindowState.Normal;Activate();}
   });
  }
  async void Receive(object? sender,CoreWebView2WebMessageReceivedEventArgs e)
  {
   if(!e.Source.StartsWith("https://app.spectra.local/",StringComparison.OrdinalIgnoreCase))return;
-  string requestId="";bool transfer=false;
+  string requestId="";bool transfer=false,mutating=false;
   try
   {
    var message=JsonNode.Parse(e.WebMessageAsJson)!;requestId=message.Str("id");if(!activeRequests.Add(requestId))return;
-   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance";Net.ProgressSink.Value=Emit;object? result;
+   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
+   if(action is "launch" or "launchTarget" or "joinFriend" or "install" or "installPack" or "installFriendPack" or "importPack" or "importInstance" or "dropPack" or "exportInstance" or "saveInstance" or "deleteInstance" or "enableFiles" or "toggle" or "serverAction" or "worldAction"){await libraryMutation.WaitAsync();mutating=true;}
    if(action=="dropPack")
    {
     transfer=true;var files=e.AdditionalObjects.OfType<CoreWebView2File>().ToArray();if(files.Length!=1||!files[0].Path.EndsWith(".zip",StringComparison.OrdinalIgnoreCase))throw new IOException("Перенесите один ZIP-архив сборки");
     await Task.Run(()=>archives.Import(files[0].Path));result=State();Emit(new{type="transferComplete"});
    }
    else result=await Handle(action,d);
-   if(action is "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance")Emit(new{type="transferComplete"});
+   if(action is "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
    Emit(new{type="reply",id=requestId,ok=true,result});
   }
   catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=ex.Message});}
-  finally{Net.ProgressSink.Value=null;activeRequests.Remove(requestId);}
+  finally{Net.ProgressSink.Value=null;if(mutating)libraryMutation.Release();activeRequests.Remove(requestId);}
  }
- object State()=>new{networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit.txt")).Trim():"",updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,selection=new{version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
+ object State()=>new{networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,hideOnlineStatus=store.Config.HideOnlineStatus,friendsSharingError=friends.LastSharingError,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit.txt")).Trim():"",updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,selection=new{version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
  async Task<object?> Handle(string action,JsonNode d)
  {
   switch(action)
@@ -140,11 +145,11 @@ public partial class MainWindow : Window
    }
    case "friendsSettings":
    {
-    var endpoint=FriendsService.ValidateEndpoint(d.Str("endpoint"));if(endpoint!=store.Config.FriendsEndpoint)await friends.Disconnect();store.Config.FriendsEndpoint=endpoint;store.Config.ShareGameActivity=d["shareActivity"]?.GetValue<bool>()??true;store.Save();return State();
+    var endpoint=FriendsService.ValidateEndpoint(d.Str("endpoint"));if(endpoint!=store.Config.FriendsEndpoint)await friends.Disconnect();store.Config.FriendsEndpoint=endpoint;store.Config.ShareGameActivity=d["shareActivity"]?.GetValue<bool>()??store.Config.ShareGameActivity;store.Config.HideOnlineStatus=d["hideOnline"]?.GetValue<bool>()??store.Config.HideOnlineStatus;store.Save();await friends.Heartbeat();return State();
    }
    case "friends":
    {
-    await friends.Heartbeat();return await friends.Call("/friends");
+    var result=await friends.Call("/friends");return new{items=result["items"],sharingError=friends.LastSharingError};
    }
    case "friendAction":
    {
@@ -154,26 +159,23 @@ public partial class MainWindow : Window
    {
     friends.ShareLan(d.Str("address"));await friends.Heartbeat();return new{ok=true};
    }
+   case "friendPackPlan":
+   {
+    return await friendPacks.Plan(d.Str("id"));
+   }
+   case "installFriendPack":
+   {
+    var instance=await friendPacks.Install(d.Str("id"),d.Str("packId"),d.Str("overwrite"),d["selected"]?.AsArray()??throw new IOException("Выберите файлы"),d["categories"]?.AsArray()??throw new IOException("Выберите категории"));return new{instanceId=instance.Instance.Id,presence=instance.Presence,state=State()};
+   }
    case "joinFriend":
    {
     if(!game.Running.IsEmpty)throw new IOException("Закройте Minecraft перед подключением к другу");
-    var presence=await friends.JoinInfo(d.Str("id"));var version=presence.Str("version");await game.Metadata(version);
+    var match=await friendPacks.Match(d.Str("id"),d.Str("instanceId"),d["allowCustomized"]?.GetValue<bool>()==true);var matching=match.Instance;var presence=match.Presence;var version=presence.Str("version");await game.Metadata(version);
     if(presence.Str("targetKind")=="lan"){
      var host=presence.Str("target").Split(':')[0];if(!System.Net.IPAddress.TryParse(host,out var remoteIp))throw new IOException("Неверный LAN-адрес");
      var bytes=remoteIp.GetAddressBytes();var sameNetwork=System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces().Where(n=>n.OperationalStatus==System.Net.NetworkInformation.OperationalStatus.Up).SelectMany(n=>n.GetIPProperties().UnicastAddresses).Any(a=>a.Address.AddressFamily==System.Net.Sockets.AddressFamily.InterNetwork&&bytes.Length==4&&a.IPv4Mask!=null&&a.Address.GetAddressBytes().Zip(bytes,(local,remote)=>local^remote).Zip(a.IPv4Mask.GetAddressBytes(),(difference,mask)=>(difference&mask)==0).All(x=>x));
      if(!sameNetwork)throw new IOException("LAN-подключение доступно только в одной локальной сети с другом");
     }
-    Instance? matching=null;
-    var source=presence.Str("packSource");var packId=presence.Str("packId");var packVersion=presence.Str("packVersion");
-    if(source!=""&&packId!=""&&packVersion!=""){
-     matching=store.Config.Instances.FirstOrDefault(i=>i.PackSource==source&&i.PackId==packId&&i.PackVersion==packVersion&&i.Version==version&&i.Loader==presence.Str("loader")&&i.LoaderVersion==presence.Str("loaderVersion"));
-     if(matching==null){if(d["download"]?.GetValue<bool>()!=true)throw new IOException("Нужна сборка друга. Подтвердите скачивание.");matching=await catalog.InstallPack(source,packId,packVersion);}
-    }else{
-     var selected=d.Str("instanceId");if(selected=="vanilla"&&presence.Str("loader")=="vanilla")store.Config.SelectedVersion=version;if(selected!="")matching=store.Get(selected);
-     if(matching==null&&presence.Str("loader")=="vanilla"){store.Config.SelectedVersion=version;matching=store.Get("vanilla");}
-     if(matching==null||matching.Version!=version||matching.Loader!=presence.Str("loader")||matching.LoaderVersion!=presence.Str("loaderVersion"))throw new IOException("Выберите свою совместимую сборку: версия и загрузчик должны совпадать с другом");
-    }
-    if(matching==null||matching.Version!=version||matching.Loader!=presence.Str("loader")||matching.LoaderVersion!=presence.Str("loaderVersion"))throw new IOException("Скачанная сборка не совпадает с версией игры друга");
     if(!game.Running.IsEmpty)throw new IOException("Закройте Minecraft перед подключением к другу");
     store.Config.SelectedInstance=matching.Id=="vanilla"?"":matching.Id;store.Config.SelectedVersion=matching.Version;store.Save();
     await game.Launch(matching.Id,"servers",presence.Str("target"));return State();

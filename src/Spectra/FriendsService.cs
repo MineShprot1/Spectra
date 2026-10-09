@@ -11,12 +11,15 @@ namespace Spectra;
 /// <summary>Spectra Google session, independent of Minecraft access tokens.</summary>
 public sealed class FriendsService(Store store,Authentication auth,GameService game)
 {
- readonly HttpClient http=new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(20)};
+ readonly HttpClient http=new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromMinutes(5)};
  readonly SemaphoreSlim gate=new(1,1);
+ static readonly JsonSerializerOptions WireJson=new(Store.Json){WriteIndented=false};
  string token="",scope="",sessionFile="";
  JsonNode? networkAccount;
  string flowId="",flowVerifier="",flowEndpoint="",flowOwner="";
  DateTime flowExpires;
+ public Func<Task<string>>? PackPublisher {get;set;}
+ public string LastSharingError {get;private set;}="";
  public string LanAddress {get;private set;}="";
  public JsonNode? Account {get{LoadSession();return networkAccount?.DeepClone();}}
  void LoadSession()
@@ -82,13 +85,28 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
  async Task<JsonNode> Send(string endpoint,string path,string bearer,object? data)
  {
   using var request=new HttpRequestMessage(data==null?HttpMethod.Get:HttpMethod.Post,endpoint+path);if(bearer!="")request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",bearer);
-  if(data!=null)request.Content=new StringContent(JsonSerializer.Serialize(data,Store.Json),Encoding.UTF8,"application/json");
+  if(data!=null)request.Content=new StringContent(JsonSerializer.Serialize(data,WireJson),Encoding.UTF8,"application/json");
   using var response=await http.SendAsync(request);var raw=await response.Content.ReadAsStringAsync();if(raw.Length>524288)throw new IOException("Слишком большой ответ сети Spectra");
   JsonNode? result;try{result=JsonNode.Parse(raw);}catch{throw new IOException("Сервер сети Spectra вернул неверный ответ");}
   if(response.StatusCode==HttpStatusCode.Unauthorized&&bearer!="")throw new FriendsSessionExpired();
   if(!response.IsSuccessStatusCode)throw new IOException(result.Str("error") is {Length:>0} error?error:"Сеть Spectra недоступна");return result??new JsonObject();
  }
- public async Task Heartbeat(){LoadSession();if(token==""||store.Config.FriendsEndpoint=="")return;if(game.Running.IsEmpty)LanAddress="";await Call("/presence",game.FriendPresence(store.Config.ShareGameActivity,LanAddress));}
+ public async Task Heartbeat(){LoadSession();if(token==""||store.Config.FriendsEndpoint=="")return;if(game.Running.IsEmpty)LanAddress="";var shared="";LastSharingError="";
+  if(!store.Config.HideOnlineStatus&&store.Config.ShareGameActivity&&!game.Running.IsEmpty&&PackPublisher!=null){try{shared=await PackPublisher();}catch(Exception e) when(e is IOException or HttpRequestException or TaskCanceledException){LastSharingError=e.Message;}}
+  // Re-read privacy after asynchronous uploads so a late heartbeat cannot undo a privacy change.
+  var visible=store.Config.ShareGameActivity&&!store.Config.HideOnlineStatus;var data=JsonSerializer.SerializeToNode(game.FriendPresence(visible,LanAddress),Store.Json)!.AsObject();data["online"]=!store.Config.HideOnlineStatus;data["sharedPack"]=visible&&!game.Running.IsEmpty?shared:"";await Call("/presence",data);
+ }
+ public async Task Upload(string path,string file,string expected,long size)
+ {
+  await gate.WaitAsync();try{LoadSession();if(token=="")throw new IOException("Подключитесь к сети Spectra");if(await Net.Hash(file,"SHA256")!=expected)throw new IOException("Файл изменился во время передачи");using var request=new HttpRequestMessage(HttpMethod.Put,ValidateEndpoint(store.Config.FriendsEndpoint)+path);request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",token);await using var stream=File.OpenRead(file);request.Content=new StreamContent(stream);request.Content.Headers.ContentLength=size;using var response=await http.SendAsync(request);if(!response.IsSuccessStatusCode){var error=JsonNode.Parse(await response.Content.ReadAsStringAsync());throw new IOException(error.Str("error"));}}finally{gate.Release();}
+ }
+ public async Task Download(string path,string dest,string expected,long size)
+ {
+  await gate.WaitAsync();var tmp=dest+".part";try{LoadSession();if(token=="")throw new IOException("Подключитесь к сети Spectra");Directory.CreateDirectory(Path.GetDirectoryName(dest)!);using var request=new HttpRequestMessage(HttpMethod.Get,ValidateEndpoint(store.Config.FriendsEndpoint)+path);request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",token);using var response=await http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);if(!response.IsSuccessStatusCode){var error=JsonNode.Parse(await response.Content.ReadAsStringAsync());throw new IOException(error.Str("error"));}
+   if(response.Content.Headers.ContentLength!=size)throw new IOException("Неверный размер файла сборки");await using(var input=await response.Content.ReadAsStreamAsync()){await using var output=File.Create(tmp);var buffer=new byte[81920];long done=0,last=0;int count;while((count=await input.ReadAsync(buffer))>0){done+=count;if(done>size)throw new IOException("Слишком большой файл");await output.WriteAsync(buffer.AsMemory(0,count));if(Environment.TickCount64-last>150){last=Environment.TickCount64;Net.ProgressSink.Value?.Invoke(new{type="progress",message=Path.GetFileName(dest),downloadedBytes=done,totalBytes=size,percent=done*100d/size});}}if(done!=size)throw new IOException("Файл загружен не полностью");}
+   if(await Net.Hash(tmp,"SHA256")!=expected)throw new IOException("Контрольная сумма сборки не совпадает");File.Move(tmp,dest,true);
+  }finally{if(File.Exists(tmp))File.Delete(tmp);gate.Release();}
+ }
  public async Task Disconnect()
  {
   await gate.WaitAsync();try{LoadSession();try{if(token!="")await Send(store.Config.FriendsEndpoint,"/logout",token,new{});}catch{}finally{ClearSession();flowId="";flowVerifier="";}}finally{gate.Release();}

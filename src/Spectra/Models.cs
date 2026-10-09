@@ -45,6 +45,7 @@ public record Configuration
  public string FriendsEndpoint {get;set;}="https://spectra-friends.spectrafriends.workers.dev";
  public bool FriendsEndpointInitialized {get;set;}
  public bool ShareGameActivity {get;set;}=true;
+ public bool HideOnlineStatus {get;set;}
  public string AppliedInstallerLanguage {get;set;}="";
  public string AppearanceJson {get;set;}="{}";
  public GameSettings Defaults { get; set; } = new();
