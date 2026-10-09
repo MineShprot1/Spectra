@@ -33,6 +33,10 @@ static class FeatureTests
   Check(BedrockService.MatchesUwpVersion("0.15.8.0","0.15.800.0"),"packed package version accepted");
   Check(!BedrockService.MatchesUwpVersion("0.15.8.0","0.15.900.0"),"other game version rejected");
   Check(BedrockService.MatchesUwpVersion("1.21.114.1","1.21.11401.0"),"modern Windows package encoding accepted");
+  Check(BedrockService.PackageVersion("0.14.2.1")=="0.142.1.0","reported historical package encoding");
+  Check(BedrockService.MatchesUwpVersion("0.14.2.1","0.142.1.0"),"reported old package accepted");
+  Check(!BedrockService.MatchesUwpVersion("0.14.2.1","0.142.2.0"),"old package revision mismatch rejected");
+  Check(BedrockService.PackageVersion("0.15.10.0")=="0.1510.0.0","old build concatenation handles two-digit builds");
   var progress=BedrockService.StoreProgress(" 12.5 MB / 100 MB ");Check(progress?.Done==12500000&&progress?.Total==100000000,"WinGet byte progress");
   Check(BedrockService.StoreProgress("Signing in")==null,"unknown Store progress stays indeterminate");
   Check(BedrockService.LatestInstallArguments().Contains("msstore")&&BedrockService.LatestInstallArguments().Contains("--disable-interactivity"),"background Store installation arguments");

@@ -15,7 +15,7 @@ public sealed partial class BedrockService
  List<Release>? releases;
  DateTime catalogueTime;
  string catalogueWarning="";
- internal static string PackageVersion(string display){var v=Version.Parse(display);return $"{v.Major}.{v.Minor}.{v.Build*100+Math.Max(0,v.Revision)}.0";}
+ internal static string PackageVersion(string display){var v=Version.Parse(display);return v.Major==0?$"0.{v.Minor}{v.Build}.{Math.Max(0,v.Revision)}.0":$"{v.Major}.{v.Minor}.{v.Build*100+Math.Max(0,v.Revision)}.0";}
  internal static string MicrosoftUrl(string value)
  {
   if(!Uri.TryCreate(value,UriKind.Absolute,out var uri)||uri.UserInfo!=""||uri.Scheme is not ("http" or "https")||!uri.IsDefaultPort||uri.Fragment!="")throw new IOException("Неверный адрес пакета Microsoft");
@@ -30,7 +30,7 @@ public sealed partial class BedrockService
    var current=MicrosoftUrl(url);
    for(var redirect=0;redirect<=5;redirect++){
     using var request=new HttpRequestMessage(HttpMethod.Get,current);
-    request.Headers.UserAgent.ParseAdd("Spectra/0.14.3");
+    request.Headers.UserAgent.ParseAdd("Spectra/0.14.4");
     var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);
     var status=(int)response.StatusCode;
     if(status is not (301 or 302 or 303 or 307 or 308))return response;
@@ -105,7 +105,7 @@ public sealed partial class BedrockService
  {
   await gate.WaitAsync();try{var downloaded=await DownloadRelease(id);return new{status="downloaded",path=downloaded.Path,version=downloaded.Release.Version,message="Пакет сохранён. Установленная игра не изменена."};}finally{gate.Release();}
  }
- internal static bool MatchesUwpVersion(string display,string actual)=>System.Version.TryParse(display,out var expected)&&System.Version.TryParse(actual,out var installed)&&(installed==expected||actual==PackageVersion(display));
+ internal static bool MatchesUwpVersion(string display,string actual)=>System.Version.TryParse(display,out var expected)&&System.Version.TryParse(actual,out var installed)&&(installed==expected||actual==PackageVersion(display)||actual==$"{expected.Major}.{expected.Minor}.{expected.Build*100+Math.Max(0,expected.Revision)}.0");
  internal static bool WouldReplace(string name,string version,IEnumerable<Package> current)=>current.Any(p=>p.Name.Equals(name,StringComparison.OrdinalIgnoreCase)&&p.Version!=version);
  internal static Package? LatestInstalled(IEnumerable<Package> packages)=>packages.Where(p=>!p.Preview&&!p.Legacy).OrderByDescending(p=>p.Name.Equals("Microsoft.MinecraftWindows",StringComparison.OrdinalIgnoreCase)).ThenByDescending(p=>System.Version.TryParse(p.Version,out var v)?v:new System.Version()).FirstOrDefault();
  async Task<Package?> InstallRelease(string id,List<Package> current)
