@@ -106,6 +106,20 @@ public sealed partial class BedrockService
   await gate.WaitAsync();try{var downloaded=await DownloadRelease(id);return new{status="downloaded",path=downloaded.Path,version=downloaded.Release.Version,message="Пакет сохранён. Установленная игра не изменена."};}finally{gate.Release();}
  }
  internal static bool MatchesUwpVersion(string display,string actual)=>System.Version.TryParse(display,out var expected)&&System.Version.TryParse(actual,out var installed)&&(installed==expected||actual==PackageVersion(display)||(expected.Major==0&&actual==$"0.{expected.Minor*100+expected.Build}.{Math.Max(0,expected.Revision)}.0")||actual==$"0.{expected.Minor}{expected.Build}.{Math.Max(0,expected.Revision)}.0"&&expected.Major==0||actual==$"{expected.Major}.{expected.Minor}.{expected.Build*100+Math.Max(0,expected.Revision)}.0");
+async Task<string> ExtractPackage(string appx,string name,string version)
+ {
+  if(!System.Text.RegularExpressions.Regex.IsMatch(name,@"\AMicrosoft\.Minecraft[A-Za-z]+\z")||!System.Text.RegularExpressions.Regex.IsMatch(version,@"\A\d+\.\d+\.\d+\.\d+\z"))throw new IOException("Неверная идентичность пакета");
+  var root=Path.Combine(store.Root,"bedrock","versions",name+"_"+version);var manifest=Path.Combine(root,"AppxManifest.xml");var marker=Path.Combine(root,".spectra-ready");
+  if(File.Exists(manifest)&&File.Exists(marker))return manifest;
+  Net.ProgressSink.Value?.Invoke(new{type="progress",message="Распаковка пакета Bedrock…",percent=0,indeterminate=true});
+  await Task.Run(()=>{
+   if(Directory.Exists(root))Directory.Delete(root,true);Directory.CreateDirectory(root);ZipFile.ExtractToDirectory(appx,root);
+   foreach(var f in new[]{"AppxSignature.p7x","AppxBlockMap.xml","[Content_Types].xml"}){var p=Path.Combine(root,f);if(File.Exists(p))File.Delete(p);}
+   var meta=Path.Combine(root,"AppxMetadata");if(Directory.Exists(meta))Directory.Delete(meta,true);
+   if(!File.Exists(manifest))throw new IOException("В пакете нет AppxManifest.xml");File.WriteAllText(marker,"1");
+  });
+  return manifest;
+ }
  static void CopyDirectory(string source,string target)
  {
   Directory.CreateDirectory(target);
@@ -138,7 +152,7 @@ public sealed partial class BedrockService
   if(WouldReplace(release.Name,release.PackageVersion,current)&&!replace)throw new IOException("Эта версия заменит установленный выпуск Minecraft. Spectra отменил установку. Используйте «Скачать пакет», чтобы сохранить его отдельно.");
   var downloaded=await DownloadRelease(id);release=downloaded.Release;
   if(release.Format=="GDK")throw new IOException("Пакет MSIXVC сохранён, но Add-AppxPackage не является установщиком Xbox Gaming Services. Используйте «Последняя версия» для установки через Microsoft Store. Текущая игра не изменена.");
-  Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Bedrock "+release.Version,percent=100});var registered=replace?await ReplaceWithBackup(current,release.Name,()=>Bridge("replace",downloaded.Path,release.Name,release.PackageVersion)):await Bridge("install",downloaded.Path,release.Name,release.PackageVersion);selected=registered.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);
+  Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Bedrock "+release.Version,percent=100});var manifest=replace?await ExtractPackage(downloaded.Path,release.Name,release.PackageVersion):"";var registered=replace?await ReplaceWithBackup(current,release.Name,()=>Bridge("register",manifest,release.Name,release.PackageVersion)):await Bridge("install",downloaded.Path,release.Name,release.PackageVersion);selected=registered.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);
   if(selected==null)throw new IOException("Установка завершилась, но выбранный пакет не найден: "+release.Name+" "+release.PackageVersion+". Найдены: "+string.Join(", ",registered.Select(p=>p.Name+" "+p.Version))+". Пакет сохранён: "+downloaded.Path);return selected;
  }
 }

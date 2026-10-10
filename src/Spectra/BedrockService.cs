@@ -21,7 +21,7 @@ public sealed partial class BedrockService(Store store)
   if(package!=null)info.Environment["SPECTRA_BEDROCK_PACKAGE"]=package;
   if(expectedName!=null)info.Environment["SPECTRA_BEDROCK_NAME"]=expectedName;
   if(expectedVersion!=null)info.Environment["SPECTRA_BEDROCK_VERSION"]=expectedVersion;
-  using var process=Process.Start(info)??throw new IOException("Не удалось проверить Bedrock в Windows");var output=process.StandardOutput.ReadToEndAsync();var errors=process.StandardError.ReadToEndAsync();using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(action=="storeUpdate"?30:action is "install" or "replace"?10:1));
+  using var process=Process.Start(info)??throw new IOException("Не удалось проверить Bedrock в Windows");var output=process.StandardOutput.ReadToEndAsync();var errors=process.StandardError.ReadToEndAsync();using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(action=="storeUpdate"?30:action is "install" or "replace" or "register"?10:1));
   try{await process.WaitForExitAsync(timeout.Token);}catch(OperationCanceledException){try{process.Kill(true);}catch{}throw new IOException("Проверка или установка Bedrock превысила время ожидания");}
   var raw=await output;var message=await errors;if(process.ExitCode!=0)throw new IOException("Windows: "+message.Trim());
   return (JsonSerializer.Deserialize<List<Package>>(raw,Store.Json)??[]).Where(p=>MinecraftIdentity(p.Name)).Select(p=>p with{Name=CanonicalIdentity(p.Name)!}).ToList();
@@ -63,12 +63,16 @@ public sealed partial class BedrockService(Store store)
     if(!install)throw new IOException("Подтвердите установку версии Bedrock");selected=await InstallRelease(id,await Bridge("list"),replace);
    }else if(id.StartsWith("import:",StringComparison.Ordinal)){
     var file=id[7..];if(!System.Text.RegularExpressions.Regex.IsMatch(file,@"\A[a-f0-9]{64}\.(appx|msix)\z"))throw new IOException("Неверный пакет Bedrock");var folder=Path.Combine(store.Root,"bedrock","packages");var item=JsonSerializer.Deserialize<Package>(await File.ReadAllTextAsync(Path.Combine(folder,file+".json")),Store.Json)??throw new IOException("Пакет не найден");var current=await Bridge("list");selected=current.FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);
-    if(selected==null){if(WouldReplace(item.Name,item.Version,current)&&!replace)throw new IOException("Этот пакет заменит установленную игру. Установка отменена; пакет сохранён отдельно.");if(!install)throw new IOException("Сначала установите выбранный пакет Bedrock");var path=Path.Combine(folder,file);if(await Net.Hash(path,"SHA256")!=file[..64])throw new IOException("Пакет Bedrock изменился");selected=(replace?await ReplaceWithBackup(current,item.Name,()=>Bridge("replace",path,item.Name,item.Version)):await Bridge("install",path,item.Name,item.Version)).FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);}
+    if(selected==null){if(WouldReplace(item.Name,item.Version,current)&&!replace)throw new IOException("Этот пакет заменит установленную игру. Установка отменена; пакет сохранён отдельно.");if(!install)throw new IOException("Сначала установите выбранный пакет Bedrock");var path=Path.Combine(folder,file);if(await Net.Hash(path,"SHA256")!=file[..64])throw new IOException("Пакет Bedrock изменился");var manifest=replace?await ExtractPackage(path,item.Name,item.Version):"";selected=(replace?await ReplaceWithBackup(current,item.Name,()=>Bridge("register",manifest,item.Name,item.Version)):await Bridge("install",path,item.Name,item.Version)).FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);}
    }else selected=(await Bridge("list")).FirstOrDefault(p=>p.Id==id);
    if(selected==null)throw new IOException("Выбранная версия не установлена. Обновите список Bedrock.");
    if(!System.Text.RegularExpressions.Regex.IsMatch(selected.Family,@"\A[A-Za-z0-9_.-]+\z")||!System.Text.RegularExpressions.Regex.IsMatch(selected.AppId,@"\A[A-Za-z0-9_.-]+\z"))throw new IOException("Неверный идентификатор приложения Windows");
    var info=new ProcessStartInfo("explorer.exe"){UseShellExecute=true};info.ArgumentList.Add("shell:AppsFolder\\"+selected.Family+"!"+selected.AppId);Process.Start(info);return new{status="launched",version=selected.Version,message="Запуск передан Windows; права на игру проверяются Minecraft / Microsoft Store."};
   }finally{gate.Release();}
+ }
+ public async Task<object> Unregister()
+ {
+  await gate.WaitAsync();try{await Bridge("unregister");return new{status="unregistered",message="Версии, зарегистрированные Spectra, сняты с регистрации. Файлы остались в bedrock/versions. Чтобы вернуть основную копию игры, установите Minecraft из Microsoft Store или официального лаунчера."};}finally{gate.Release();}
  }
  internal static string[] LatestInstallArguments(bool upgrade=false)=>[upgrade?"upgrade":"install","--id","9NBLGGH2JHXJ","--exact","--source","msstore","--silent","--accept-package-agreements","--accept-source-agreements","--disable-interactivity"];
  internal sealed record StoreOperation(bool Success,string Code,string Message);

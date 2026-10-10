@@ -74,6 +74,32 @@ try {
    }
    ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress
   }
+  'register' {
+   if (Get-Process -Name 'Minecraft.Windows' -ErrorAction SilentlyContinue) { throw 'Close Minecraft before registration.' }
+   $name = $env:SPECTRA_BEDROCK_NAME
+   $version = $env:SPECTRA_BEDROCK_VERSION
+   $manifest = $env:SPECTRA_BEDROCK_PACKAGE
+   if ($name -notmatch '^Microsoft\.Minecraft(UWP|WindowsBeta|Windows|WindowsPreview)$' -or $version -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw 'Missing expected package identity.' }
+   if ((Split-Path -Leaf $manifest) -ne 'AppxManifest.xml' -or -not (Test-Path -LiteralPath $manifest -PathType Leaf)) { throw 'Bad package manifest.' }
+   # Check developer mode BEFORE touching the installed game, so a failed registration cannot leave the PC without Minecraft.
+   $dev = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -Name AllowDevelopmentWithoutDevLicense -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
+   if ($dev -ne 1) { throw 'Включите режим разработчика Windows (Параметры - Конфиденциальность и защита - Для разработчиков), затем повторите.' }
+   foreach ($old in @(Get-AppxPackage -Name $name)) {
+    try { Remove-AppxPackage -Package $old.PackageFullName -PreserveApplicationData -ErrorAction Stop }
+    catch {
+     if ($_.Exception.Message -match '0x80073CFA|PreserveApplicationData') { Remove-AppxPackage -Package $old.PackageFullName -ErrorAction Stop } else { throw }
+    }
+   }
+   Add-AppxPackage -Register $manifest -ErrorAction Stop | Out-Null
+   ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress
+  }
+  'unregister' {
+   if (Get-Process -Name 'Minecraft.Windows' -ErrorAction SilentlyContinue) { throw 'Close Minecraft before unregistering.' }
+   foreach ($old in @(Get-AppxPackage | Where-Object { $_.Name -match '^Microsoft\.Minecraft(UWP|WindowsBeta|Windows|WindowsPreview)$' -and $_.IsDevelopmentMode })) {
+    Remove-AppxPackage -Package $old.PackageFullName -PreserveApplicationData -ErrorAction Stop
+   }
+   ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress
+  }
   'replace' {
    if (Get-Process -Name 'Minecraft.Windows' -ErrorAction SilentlyContinue) { throw 'Close Minecraft before installation.' }
    $name = $env:SPECTRA_BEDROCK_NAME
