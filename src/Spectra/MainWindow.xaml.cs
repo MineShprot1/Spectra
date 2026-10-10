@@ -151,11 +151,11 @@ public partial class MainWindow : Window
    }
    case "networkBegin":
    {
-    await friends.ConnectMinecraft();return new{status="connected",state=State()};
+    return await friends.BeginGoogle();
    }
    case "networkPoll":
    {
-    return new{status="connected",state=State()};
+    var result=await friends.PollGoogle(d.Str("flowId"));return new{status=result.Str("status"),state=State()};
    }
    case "networkLogout":
    {
@@ -242,7 +242,7 @@ public partial class MainWindow : Window
    }
    case "login":
    {
-    await auth.Login(d["interactive"]?.GetValue<bool>()??true);try{await friends.ConnectMinecraft();}catch(Exception ex){Emit(new{type="networkError",message=ex.Message});}ExpandLibrary();return State();
+    await auth.Login(d["interactive"]?.GetValue<bool>()??true);ExpandLibrary();return State();
    }
    case "expand":
    {
