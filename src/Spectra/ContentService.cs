@@ -14,17 +14,8 @@ public sealed class ContentService(Store store,GameService game,Authentication a
  {
   if(edition is not ("java" or "bedrock")||kind is not ("skins" or "worlds" or "addons" or "resources" or "modpacks"))throw new IOException("Неизвестная категория");
   var q=Uri.EscapeDataString(query);var sources=new List<ContentSource>();
-  if(edition=="bedrock"){
-   sources.Add(new("curseforge","CurseForge","https://www.curseforge.com/minecraft-bedrock/search?search="+q));
-   if(kind=="addons")sources.Add(new("mcpedl","MCPEDL","https://mcpedl.com/?s="+q));
-  }
-  if(kind=="skins"){
-   sources.Add(new("namemc","NameMC",query==""?"https://namemc.com/minecraft-skins/trending":"https://namemc.com/minecraft-skins/tag/"+q));
-   sources.Add(new("skindex","Skindex",query==""?"https://www.minecraftskins.com/":"https://www.minecraftskins.com/search/skin/"+q+"/1/"));
-  }else if(edition=="java"&&kind=="worlds"){
-   sources.Add(new("curseforge","CurseForge","https://www.curseforge.com/minecraft/search?class=worlds&search="+q));
-   sources.Add(new("minecraftmaps","Minecraft Maps","https://www.minecraftmaps.com/"));
-  }
+  if(edition=="java"&&kind=="worlds")sources.Add(new("curseforge","CurseForge","https://www.curseforge.com/minecraft/search?class=worlds&search="+q));
+  if(edition=="bedrock"&&(kind is "skins" or "worlds" or "addons" or "resources"))sources.Add(new("curseforge","CurseForge","https://www.curseforge.com/minecraft-bedrock/search?search="+q));
   return sources.ToArray();
  }
  string ContentRoot=>Path.Combine(store.Root,"bedrock","content");

@@ -2,7 +2,7 @@
   "name": "spectra-ui-checks",
   "private": true,
   "scripts": {
-    "test": "node tests/frontend-tests.cjs && node tests/skin-tests.cjs && node tests/appearance-tests.cjs && node tests/friends-tests.cjs && node tests/project-tests.cjs && node tests/bedrock-tests.cjs && node tests/version-actions.cjs && node tests/content-actions.cjs",
+    "test": "node tests/frontend-tests.cjs && node tests/skin-tests.cjs && node tests/appearance-tests.cjs && node tests/friends-tests.cjs && node tests/project-tests.cjs && node tests/bedrock-tests.cjs && node tests/version-actions.cjs && node tests/content-actions.cjs && node tests/settings-actions.cjs",
     "test:ui": "node tests/ui-smoke.cjs",
     "test:dom": "node tests/dom-features.cjs"
   },
