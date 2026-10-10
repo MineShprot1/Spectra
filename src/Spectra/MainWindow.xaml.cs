@@ -397,6 +397,7 @@ public partial class MainWindow : Window
     var img=new Microsoft.Win32.OpenFileDialog{Filter="Изображения|*.png;*.jpg;*.jpeg;*.webp"};if(img.ShowDialog()!=true)return null;
     if(new FileInfo(img.FileName).Length>20*1024*1024)throw new IOException("Изображение больше 20 МБ");var asset=Path.Combine(store.Root,"artwork",Guid.NewGuid()+Path.GetExtension(img.FileName));Directory.CreateDirectory(Path.GetDirectoryName(asset)!);File.Copy(img.FileName,asset);return game.Asset(asset);
    }
+   case "contentBrowserSearch":return await new ContentCatalog(store,uri=>CatalogBrowser.Read(this,store,uri)).Search(d,true);
    case "contentSearch":return await new ContentCatalog(store).Search(d);
    case "contentDownload":return await new ContentCatalog(store).Download(d,new ContentService(store,game,auth));
    case "contentSources":return ContentService.Sources(d.Str("edition"),d.Str("kind"),d.Str("query"));

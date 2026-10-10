@@ -11,11 +11,12 @@ const SpectraContent=(()=>{
   $('#main').innerHTML=`<section>${heading('КОНТЕНТ СООБЩЕСТВА','Обзор')}${controls()}<div class="toolbar"><input id="contentQuery" placeholder="Поиск…"><select id="contentProvider"></select><button id="contentSearch">Найти</button><button id="contentImport">Импорт скачанного файла</button></div><p class="muted">Выберите источник. Если сайт требует вход или подтверждение загрузки, скачайте файл на сайте и импортируйте его здесь.</p><div id="contentResults"></div><button id="contentMore" hidden>Показать ещё</button></section>`;bindControls();
   const sources=await api('contentSources',{edition,kind,query:''});if(t!==ticket||page!=='discover')return;
   $('#contentProvider').innerHTML=sources.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');let offset=0;
-  async function search(append=false){const request=++ticket;if(!append){offset=0;$('#contentResults').innerHTML=empty('Получаем каталог','Загружаем список с выбранного сайта…');}
+  async function search(append=false,inBrowser=false){const request=++ticket;if(!append){offset=0;$('#contentResults').innerHTML=empty('Получаем каталог','Загружаем список с выбранного сайта…');}
    const e=edition,k=kind,source=$('#contentProvider').value,query=$('#contentQuery').value;
-   try{const result=await api('contentSearch',{edition:e,kind:k,source,query,offset});if(request!==ticket||!$('#contentResults'))return;
+   try{const result=await api(inBrowser?'contentBrowserSearch':'contentSearch',{edition:e,kind:k,source,query,offset});if(request!==ticket||!$('#contentResults'))return;
     const cards=result.items.map(x=>`<article class="catalog-card"><div class="catalog-top"><div class="catalog-icon">${image(x.icon)||pixelIcon('cube')}</div><h3>${esc(x.title)}</h3></div><p>${esc(x.description||'')}</p><div class="catalog-bottom"><button data-content-link="${esc(x.url)}">Открыть сайт ↗</button><button data-content-download="${esc(x.id)}" data-url="${esc(x.url)}" class="primary">Скачать</button></div></article>`).join('');
-    if(append)$('#contentResults .catalog-grid')?.insertAdjacentHTML('beforeend',cards);else $('#contentResults').innerHTML=(result.warning?`<div class="warning">${esc(result.warning)} <button id="contentOpenSource">Открыть каталог ↗</button></div>`:'')+`<div class="catalog-grid">${cards}</div>`;
+    if(append)$('#contentResults .catalog-grid')?.insertAdjacentHTML('beforeend',cards);else $('#contentResults').innerHTML=(result.warning?`<div class="warning">${esc(result.warning)} <button id="contentOpenInSpectra">Открыть в Spectra</button><button id="contentOpenSource">Открыть в браузере ↗</button></div>`:'')+`<div class="catalog-grid">${cards}</div>`;
+    $('#contentOpenInSpectra')?.addEventListener('click',()=>run(()=>search(false,true)));
     $('#contentOpenSource')?.addEventListener('click',()=>api('openLink',{url:result.url}));
     $$('[data-content-link]').forEach(b=>b.onclick=()=>run(()=>api('openLink',{url:b.dataset.contentLink})));
     $$('[data-content-download]').forEach(b=>b.onclick=()=>download({edition:e,kind:k,source,projectId:b.dataset.contentDownload,url:b.dataset.url}));

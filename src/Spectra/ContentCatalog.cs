@@ -5,9 +5,10 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 namespace Spectra;
 /// <summary>API adapter for CurseForge and bounded public-page adapters for community sources.</summary>
-public sealed class ContentCatalog(Store store)
+public sealed class ContentCatalog(Store store,Func<Uri,Task<ContentCatalog.CatalogPage?>>? readBrowser=null)
 {
  static readonly System.Collections.Concurrent.ConcurrentDictionary<string,(int Game,int Class)> CategoryCache=new();
+ public sealed record CatalogPage(Uri Url,string Html);
  public record Item(string Id,string Title,string Description,string Icon,string Url);
  static readonly Regex Links=new("<a\\b[^>]*\\bhref\\s*=\\s*[\"'](?<url>[^\"']+)[\"'][^>]*>(?<body>.*?)</a>",RegexOptions.IgnoreCase|RegexOptions.Singleline,TimeSpan.FromSeconds(2));
  static readonly Regex Attributes=new("(?:href|src|data-src)\\s*=\\s*[\"'](?<url>[^\"']+)[\"']",RegexOptions.IgnoreCase,TimeSpan.FromSeconds(2));
@@ -48,7 +49,7 @@ public sealed class ContentCatalog(Store store)
   while((count=await stream.ReadAsync(buffer))>0){if(output.Length+count>4*1024*1024)throw new IOException("Страница каталога слишком большая");output.Write(buffer,0,count);}
   return System.Text.Encoding.UTF8.GetString(output.ToArray());
  }
- public async Task<object> Search(JsonNode data)
+ public async Task<object> Search(JsonNode data,bool browser=false)
  {
   var source=Source(data);var offset=Math.Max(0,data["offset"]?.GetValue<int>()??0);if(offset>2400)throw new IOException("Слишком большая страница");
   try{
@@ -60,7 +61,10 @@ public sealed class ContentCatalog(Store store)
    }
    var uri=new Uri(source.Url);var page=offset/24+1;
    if(page>1){var builder=new UriBuilder(uri);builder.Query=builder.Query.TrimStart('?')+"&page="+page;uri=builder.Uri;}
-   var html=await Page(uri);var seen=new HashSet<string>();var entries=new List<Item>();
+   string html;
+   if(browser&&readBrowser!=null){var captured=await readBrowser(uri);if(captured==null)return new{items=Array.Empty<Item>(),hasMore=false,url=source.Url,warning="Каталог закрыт. Повторите открытие при необходимости.",browserRequired=true};uri=captured.Url;html=captured.Html;}
+   else html=await Page(uri);
+   var seen=new HashSet<string>();var entries=new List<Item>();
    foreach(Match match in Links.Matches(html)){
     if(!Uri.TryCreate(uri,WebUtility.HtmlDecode(match.Groups["url"].Value),out var link)||link.Scheme!="https"||link.Host!=uri.Host||!ProjectPath(source.Id,data.Str("kind"),link.AbsolutePath))continue;
     if(!seen.Add(link.GetLeftPart(UriPartial.Path)))continue;var title=Text(match.Groups["body"].Value);if(title.Length<2)title=Uri.UnescapeDataString(link.Segments.LastOrDefault(x=>x!="/")??"Minecraft").Trim('/').Replace('-',' ');
@@ -68,8 +72,9 @@ public sealed class ContentCatalog(Store store)
     var icon=image!=null&&Uri.TryCreate(uri,image,out var imageUri)&&imageUri.Scheme=="https"?imageUri.AbsoluteUri:"";
     entries.Add(new Item(link.AbsoluteUri,title,"",icon,link.AbsoluteUri));if(entries.Count>=24)break;
    }
-   return new{items=entries,hasMore=entries.Count==24,url=source.Url,warning=entries.Count==0?"Сайт не отдал доступный список. Откройте каталог в браузере и импортируйте скачанный файл.":""};
-  }catch(Exception e) when(e is IOException or HttpRequestException or TaskCanceledException){return new{items=Array.Empty<Item>(),hasMore=false,url=source.Url,warning="Каталог недоступен: "+e.Message};}
+   return new{items=entries,hasMore=entries.Count==24,url=source.Url,warning=entries.Count==0?"На этой странице не найден список проектов. Откройте список в браузере Spectra и нажмите «Показать список».":"",browserRequired=entries.Count==0};
+  }catch(HttpRequestException e) when(e.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.TooManyRequests){return new{items=Array.Empty<Item>(),hasMore=false,url=source.Url,warning="Сайт требует открытие в браузере. Нажмите «Открыть в Spectra», завершите проверку сайта и нажмите «Показать список».",browserRequired=true};}
+  catch(Exception e) when(e is IOException or HttpRequestException or TaskCanceledException){return new{items=Array.Empty<Item>(),hasMore=false,url=source.Url,warning="Каталог не ответил. Можно открыть его в Spectra или в обычном браузере.",browserRequired=true};}
  }
  static bool AllowedDownload(string source,Uri uri)
  {
