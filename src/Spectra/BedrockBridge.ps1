@@ -52,7 +52,11 @@ try {
    if ([IO.Path]::GetExtension($env:SPECTRA_BEDROCK_PACKAGE) -notin @('.appx','.msix')) { throw 'MSIXVC requires Xbox Gaming Services installation, not Add-AppxPackage.' }
    # Same-identity switch: user data (worlds, settings) is preserved; Spectra already made a worlds backup.
    foreach ($old in @(Get-AppxPackage -Name $name | Where-Object { $_.Version.ToString() -ne $version })) {
-    Remove-AppxPackage -Package $old.PackageFullName -PreserveApplicationData -ErrorAction Stop
+    try { Remove-AppxPackage -Package $old.PackageFullName -PreserveApplicationData -ErrorAction Stop }
+    catch {
+     # Store-installed packages reject PreserveApplicationData (0x80073CFA); Spectra has already copied com.mojang and restores it afterwards.
+     if ($_.Exception.Message -match '0x80073CFA|PreserveApplicationData') { Remove-AppxPackage -Package $old.PackageFullName -ErrorAction Stop } else { throw }
+    }
    }
    Add-AppxPackage -Path $env:SPECTRA_BEDROCK_PACKAGE -ErrorAction Stop | Out-Null
    ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress
