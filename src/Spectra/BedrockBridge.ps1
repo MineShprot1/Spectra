@@ -44,6 +44,30 @@ try {
    Add-AppxPackage -Path $env:SPECTRA_BEDROCK_PACKAGE -ErrorAction Stop | Out-Null
    ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress
   }
+  'storeUpdate' {
+   if (Get-Process -Name 'Minecraft.Windows' -ErrorAction SilentlyContinue) { throw 'Close Minecraft before update.' }
+   $target = @(Installed) | Where-Object { -not $_.preview } | Select-Object -First 1
+   if (-not $target) { throw 'Minecraft is not installed.' }
+   Add-Type -AssemblyName System.Runtime.WindowsRuntime
+   [void][Windows.ApplicationModel.Store.Preview.InstallControl.AppInstallManager, Windows.ApplicationModel.Store.Preview, ContentType = WindowsRuntime]
+   $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
+   $manager = New-Object Windows.ApplicationModel.Store.Preview.InstallControl.AppInstallManager
+   $itemType = [Windows.ApplicationModel.Store.Preview.InstallControl.AppInstallItem]
+   $task = $asTask.MakeGenericMethod($itemType).Invoke($null, @($manager.UpdateAppByPackageFamilyNameAsync($target.family)))
+   $task.Wait(120000) | Out-Null
+   $item = $task.Result
+   if ($item) {
+    $deadline = (Get-Date).AddMinutes(25)
+    while ((Get-Date) -lt $deadline) {
+     $state = [string]$item.GetCurrentStatus().InstallState
+     if ($state -eq 'Completed') { break }
+     if ($state -in @('Error', 'Canceled', 'Paused', 'PausedLowBattery', 'PausedWiFiRecommended', 'PausedWiFiRequired')) { throw "Store update stopped: $state" }
+     Start-Sleep -Seconds 2
+    }
+    if ((Get-Date) -ge $deadline) { throw 'Store update timed out.' }
+   }
+   ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress
+  }
   'replace' {
    if (Get-Process -Name 'Minecraft.Windows' -ErrorAction SilentlyContinue) { throw 'Close Minecraft before installation.' }
    $name = $env:SPECTRA_BEDROCK_NAME

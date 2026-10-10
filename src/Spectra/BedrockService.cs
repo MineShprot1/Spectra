@@ -21,7 +21,7 @@ public sealed partial class BedrockService(Store store)
   if(package!=null)info.Environment["SPECTRA_BEDROCK_PACKAGE"]=package;
   if(expectedName!=null)info.Environment["SPECTRA_BEDROCK_NAME"]=expectedName;
   if(expectedVersion!=null)info.Environment["SPECTRA_BEDROCK_VERSION"]=expectedVersion;
-  using var process=Process.Start(info)??throw new IOException("Не удалось проверить Bedrock в Windows");var output=process.StandardOutput.ReadToEndAsync();var errors=process.StandardError.ReadToEndAsync();using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(action is "install" or "replace"?10:1));
+  using var process=Process.Start(info)??throw new IOException("Не удалось проверить Bedrock в Windows");var output=process.StandardOutput.ReadToEndAsync();var errors=process.StandardError.ReadToEndAsync();using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(action=="storeUpdate"?30:action is "install" or "replace"?10:1));
   try{await process.WaitForExitAsync(timeout.Token);}catch(OperationCanceledException){try{process.Kill(true);}catch{}throw new IOException("Проверка или установка Bedrock превысила время ожидания");}
   var raw=await output;var message=await errors;if(process.ExitCode!=0)throw new IOException("Windows: "+message.Trim());
   return (JsonSerializer.Deserialize<List<Package>>(raw,Store.Json)??[]).Where(p=>MinecraftIdentity(p.Name)).Select(p=>p with{Name=CanonicalIdentity(p.Name)!}).ToList();
@@ -81,7 +81,16 @@ public sealed partial class BedrockService(Store store)
    _=>new(false,code,"Установка через Microsoft Store / WinGet не завершена ("+code+"). Причина записана в bedrock/last-store-install.log; по одному этому коду Spectra не делает вывод об отсутствии лицензии.")};
  }
  public async Task OpenOfficialLauncher(){await Bridge("officialLauncher");}
- async Task<StoreOperation> InstallLatest(bool upgrade=false){var result=await InstallLatestOnce(upgrade);if(upgrade&&result.Code=="0x8A150014")result=await InstallLatestOnce(false);return result;}
+ async Task<StoreOperation> InstallLatest(bool upgrade=false)
+ {
+  var result=await InstallLatestOnce(upgrade);
+  if(upgrade&&result.Code=="0x8A150014"){
+   Net.ProgressSink.Value?.Invoke(new{type="progress",message="WinGet не нашёл Minecraft; обновление через Microsoft Store…",percent=0,indeterminate=true,scope="store"});
+   try{await Bridge("storeUpdate");return new(true,"0x00000000","");}
+   catch(IOException e){return new(false,result.Code,result.Message+" Запасной способ через Store API тоже не сработал: "+e.Message);}
+  }
+  return result;
+ }
  async Task<StoreOperation> InstallLatestOnce(bool upgrade)
  {
   var folder=Path.Combine(store.Root,"bedrock");Directory.CreateDirectory(folder);var log=Path.Combine(folder,"last-store-install.log");
