@@ -33,7 +33,7 @@ public sealed class FriendPacks(Store store,GameService game,FriendsService frie
  {
   await gate.WaitAsync();try{
    var id=game.PresenceInstanceId;if(id==null)return "";
-   var instance=store.Get(id);if(game.Activities.TryGetValue(id,out var activity))instance=instance with{Version=activity.Version,Loader=activity.Loader,LoaderVersion=activity.LoaderVersion};var manifest=await Snapshot(instance);var digest=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest,Store.Json))));var scope=store.Config.FriendsEndpoint+":"+friends.Account.Str("id");
+   var instance=store.Get(id);if(instance.Loader=="vanilla")return "";if(game.Activities.TryGetValue(id,out var activity))instance=instance with{Version=activity.Version,Loader=activity.Loader,LoaderVersion=activity.LoaderVersion};var manifest=await Snapshot(instance);var digest=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest,Store.Json))));var scope=store.Config.FriendsEndpoint+":"+friends.Account.Str("id");
    if(scope+digest==publishedScope&&DateTime.UtcNow-publishedAt<TimeSpan.FromMinutes(10))return published;
    var response=await friends.Call("/packs/publish",manifest);var packId=response.Str("id");if(!ValidHash(packId))throw new IOException("Неверный идентификатор сборки");var root=store.Folder(instance);
    var missing=response["missing"]?.AsArray().Select(x=>x?.ToString()??"").ToHashSet()??[];
@@ -44,7 +44,7 @@ public sealed class FriendPacks(Store store,GameService game,FriendsService frie
  static bool ValidHash(string value)=>value.Length==64&&value.All(c=>c is >= 'a' and <= 'f' or >= '0' and <= '9');
  public async Task<(JsonNode Presence,FriendPackManifest Manifest,string PackId)> Remote(string owner)
  {
-  var presence=await friends.JoinInfo(owner,false);var node=await friends.Call("/packs/"+owner);var manifest=node.Deserialize<FriendPackManifest>(Store.Json)??throw new IOException("Неверная сборка");var packId=node.Str("id");
+  var presence=await friends.JoinInfo(owner,false);if(presence.Str("loader")=="vanilla")throw new IOException("Для Vanilla сборка не требуется");var node=await friends.Call("/packs/"+owner);var manifest=node.Deserialize<FriendPackManifest>(Store.Json)??throw new IOException("Неверная сборка");var packId=node.Str("id");
   if(manifest.Files==null||!ValidHash(packId)||packId!=presence.Str("sharedPack")||manifest.Version!=presence.Str("version")||manifest.Loader!=presence.Str("loader")||manifest.LoaderVersion!=presence.Str("loaderVersion")||manifest.Files.Count>2000)throw new IOException("Сборка друга изменилась. Откройте подключение заново.");
   long total=0;var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);foreach(var f in manifest.Files){if(!Kinds.Contains(f.Kind)||!ValidHash(f.Hash)||f.Size<1||f.Size>64L*1024*1024||f.Name.Length>180||f.Name!=Path.GetFileName(f.Name)||f.Name.IndexOfAny(Path.GetInvalidFileNameChars())>=0||!Path.GetExtension(f.Name).Equals(f.Kind=="mods"?".jar":".zip",StringComparison.OrdinalIgnoreCase)||!paths.Add(f.Kind+"/"+f.Name))throw new IOException("Неверный файл сборки");total+=f.Size;}if(total>512L*1024*1024)throw new IOException("Слишком большая сборка");return(presence,manifest,packId);
  }

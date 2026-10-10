@@ -16,3 +16,9 @@ assert.equal(vm.runInContext("SpectraBedrock.visiblePackages([{id:'latest',lates
 console.log('PASS: Preview/Windows 10 labels and latest choice pinned above sorted releases');
 
 assert.equal(vm.runInContext("SpectraBedrock.editionName({legacy:true,format:'UWP'})",context),'Windows 10 Edition');
+(async()=>{
+ const calls=[],dialogs=[];context.state={selection:{edition:'bedrock',bedrockId:'latest'}};context.api=async(action,data)=>{calls.push({action,data});if(action==='bedrockVersions')return {latestStatus:{installed:true,updateAvailable:true},installed:[],available:[]};if(action==='bedrockOfficialLauncher')return null;throw Error('Unexpected '+action);};context.modal=html=>dialogs.push(html);context.closeButton=()=>'';context.esc=String;
+ await vm.runInContext('SpectraBedrock.load()',context);await vm.runInContext("SpectraBedrock.launch('latest')",context);
+ assert.equal(calls.filter(x=>x.action==='bedrockOfficialLauncher').length,1);assert.equal(calls.filter(x=>x.action==='bedrockLaunch').length,0);assert(dialogs[0].includes('Скачайте обновление через Minecraft Launcher'));
+ console.log('PASS: latest Bedrock Update opens official launcher and displays update guidance');
+})().catch(error=>{console.error(error);process.exitCode=1;});

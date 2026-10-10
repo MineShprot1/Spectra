@@ -23,10 +23,31 @@ public partial class MainWindow : Window
   int preference=WindowState==WindowState.Maximized?1:2;
   _=DwmSetWindowAttribute(hwnd,33,ref preference,sizeof(int));
  }
+ bool fullscreen;
+ Rect restoredBounds;
+ WindowState restoredState;
+ void ToggleFullscreen()
+ {
+  if(!fullscreen){restoredBounds=new Rect(Left,Top,Width,Height);restoredState=WindowState;WindowState=WindowState.Normal;fullscreen=true;
+   var screen=System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(this).Handle).Bounds;
+   var matrix=PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice??System.Windows.Media.Matrix.Identity;
+   var origin=matrix.Transform(new Point(screen.Left,screen.Top));var size=matrix.Transform(new Point(screen.Width,screen.Height));
+   MaxWidth=double.PositiveInfinity;MaxHeight=double.PositiveInfinity;Left=origin.X;Top=origin.Y;Width=size.X;Height=size.Y;
+  }else{fullscreen=false;WindowState=WindowState.Normal;Left=restoredBounds.Left;Top=restoredBounds.Top;Width=restoredBounds.Width;Height=restoredBounds.Height;WindowState=restoredState;}
+  store.Config.LauncherFullscreen=fullscreen;store.Save();Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized,fullscreen});
+ }
+ nint WindowHook(nint hwnd,int message,nint wParam,nint lParam,ref bool handled)
+ {
+  if(message!=0x24||fullscreen)return 0;
+  var screen=System.Windows.Forms.Screen.FromHandle(hwnd);var work=screen.WorkingArea;var bounds=screen.Bounds;
+  var info=Marshal.PtrToStructure<MinMaxInfo>(lParam);info.MaxPosition=new NativePoint{X=work.Left-bounds.Left,Y=work.Top-bounds.Top};info.MaxSize=new NativePoint{X=work.Width,Y=work.Height};Marshal.StructureToPtr(info,lParam,false);handled=true;return 0;
+ }
+ [StructLayout(LayoutKind.Sequential)] struct NativePoint{public int X,Y;}
+ [StructLayout(LayoutKind.Sequential)] struct MinMaxInfo{public NativePoint Reserved,MaxSize,MaxPosition,MinTrackSize,MaxTrackSize;}
  bool librarySized;
  void ExpandLibrary()
  {
-  if(librarySized)return;librarySized=true;
+  if(librarySized||fullscreen)return;librarySized=true;
   var screen=System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(this).Handle).WorkingArea;
   var transform=PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice??System.Windows.Media.Matrix.Identity;
   var area=transform.Transform(new Point(screen.Left,screen.Top));
@@ -56,7 +77,7 @@ public partial class MainWindow : Window
  readonly SemaphoreSlim libraryMutation=new(1,1);
  public MainWindow()
  {
-  InitializeComponent();logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>ApplyWindowsCorners();StateChanged+=(_,_)=>{ApplyWindowsCorners();if(Browser.CoreWebView2!=null)Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});};auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);bedrock=new(store);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);Loaded+=async(_,_)=>await Initialize();
+  InitializeComponent();logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>{ApplyWindowsCorners();HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);};StateChanged+=(_,_)=>{ApplyWindowsCorners();if(Browser.CoreWebView2!=null)Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});};auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);bedrock=new(store);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);Loaded+=async(_,_)=>await Initialize();
  }
  async void RefreshPresence(){if(sendingPresence)return;sendingPresence=true;try{await friends.Heartbeat();}catch{}finally{sendingPresence=false;}}
  async Task Initialize()
@@ -65,7 +86,7 @@ public partial class MainWindow : Window
   {
    var env=await CoreWebView2Environment.CreateAsync(null,Path.Combine(store.Root,"webview"));await Browser.EnsureCoreWebView2Async(env);
    var core=Browser.CoreWebView2;
-   core.Settings.AreDefaultContextMenusEnabled=false;core.Settings.AreDevToolsEnabled=false;core.Settings.IsStatusBarEnabled=false;
+   core.Settings.AreBrowserAcceleratorKeysEnabled=false;core.Settings.AreDefaultContextMenusEnabled=false;core.Settings.AreDevToolsEnabled=false;core.Settings.IsStatusBarEnabled=false;
    core.SetVirtualHostNameToFolderMapping("app.spectra.local",Path.Combine(AppContext.BaseDirectory,"Web"),CoreWebView2HostResourceAccessKind.DenyCors);
    core.SetVirtualHostNameToFolderMapping("data.spectra.local",store.Root,CoreWebView2HostResourceAccessKind.DenyCors);
    var skinFolder=Path.Combine(store.Root,"skins");Directory.CreateDirectory(skinFolder);
@@ -78,6 +99,7 @@ public partial class MainWindow : Window
    core.WebMessageReceived+=Receive;
    // Clear only cached assets, preserving cookies and appearance storage.
    try{await core.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache);}catch{ /* Cache cleanup must not prevent startup. */ }
+   if(store.Config.LauncherFullscreen)ToggleFullscreen();
    core.Navigate("https://app.spectra.local/index.html");
   }
   catch(Exception ex){MessageBox.Show("Для Spectra нужен Microsoft Edge WebView2 Runtime.\n"+ex.Message,"Spectra");Close();}
@@ -104,21 +126,21 @@ public partial class MainWindow : Window
   try
   {
    var message=JsonNode.Parse(e.WebMessageAsJson)!;requestId=message.Str("id");if(!activeRequests.Add(requestId))return;
-   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "packContents" or "bedrockLaunch" or "bedrockDownload" or "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
-   if(action is "launch" or "launchTarget" or "joinFriend" or "install" or "installPack" or "installFriendPack" or "importPack" or "importInstance" or "dropPack" or "exportInstance" or "saveInstance" or "deleteInstance" or "enableFiles" or "toggle" or "serverAction" or "worldAction"){await libraryMutation.WaitAsync();mutating=true;}
+   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
+   if(action is "contentDownload" or "contentImport" or "bedrockContentDelete" or "installVersion" or "deleteVersion" or "launch" or "launchTarget" or "joinFriend" or "install" or "installPack" or "installFriendPack" or "importPack" or "importInstance" or "dropPack" or "exportInstance" or "saveInstance" or "deleteInstance" or "enableFiles" or "toggle" or "serverAction" or "worldAction"){await libraryMutation.WaitAsync();mutating=true;}
    if(action=="dropPack")
    {
     transfer=true;var files=e.AdditionalObjects.OfType<CoreWebView2File>().ToArray();if(files.Length!=1||!files[0].Path.EndsWith(".zip",StringComparison.OrdinalIgnoreCase))throw new IOException("Перенесите один ZIP-архив сборки");
     await Task.Run(()=>archives.Import(files[0].Path));result=State();Emit(new{type="transferComplete"});
    }
    else result=await Handle(action,d);
-   if(action is "packContents" or "bedrockLaunch" or "bedrockDownload" or "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
+   if(action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launch" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
    Emit(new{type="reply",id=requestId,ok=true,result});
   }
   catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=ex.Message});}
   finally{Net.ProgressSink.Value=null;if(mutating)libraryMutation.Release();activeRequests.Remove(requestId);}
  }
- object State()=>new{networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,hideOnlineStatus=store.Config.HideOnlineStatus,friendsSharingError=friends.LastSharingError,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit.txt")).Trim():"",updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,selection=new{edition=store.Config.SelectedEdition,bedrockId=store.Config.SelectedBedrock,bedrockLabel=store.Config.SelectedBedrockLabel,version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
+ object State()=>new{launcherFullscreen=fullscreen,bedrockSkinFolder=store.Config.BedrockSkinFolder,networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,hideOnlineStatus=store.Config.HideOnlineStatus,friendsSharingError=friends.LastSharingError,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit.txt")).Trim():"",updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,selection=new{edition=store.Config.SelectedEdition,bedrockId=store.Config.SelectedBedrock,bedrockLabel=store.Config.SelectedBedrockLabel,version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
  async Task<object?> Handle(string action,JsonNode d)
  {
   switch(action)
@@ -129,11 +151,11 @@ public partial class MainWindow : Window
    }
    case "networkBegin":
    {
-    return await friends.BeginGoogle();
+    await friends.ConnectMinecraft();return new{status="connected",state=State()};
    }
    case "networkPoll":
    {
-    var result=await friends.PollGoogle(d.Str("flowId"));return new{status=result.Str("status"),state=State()};
+    return new{status="connected",state=State()};
    }
    case "networkLogout":
    {
@@ -174,7 +196,10 @@ public partial class MainWindow : Window
    case "joinFriend":
    {
     if(!game.Running.IsEmpty)throw new IOException("Закройте Minecraft перед подключением к другу");
-    var match=await friendPacks.Match(d.Str("id"),d.Str("instanceId"),d["allowCustomized"]?.GetValue<bool>()==true);var matching=match.Instance;var presence=match.Presence;var version=presence.Str("version");await game.Metadata(version);
+    var presence=await friends.JoinInfo(d.Str("id"));Instance matching;
+    if(presence.Str("loader")=="vanilla")matching=new Instance{Id="vanilla",Version=presence.Str("version"),Settings=store.Config.Defaults with {}};
+    else{var match=await friendPacks.Match(d.Str("id"),d.Str("instanceId"),d["allowCustomized"]?.GetValue<bool>()==true);matching=match.Instance;presence=match.Presence;}
+    var version=presence.Str("version");await game.Metadata(version);
     if(presence.Str("targetKind")=="lan"){
      var host=presence.Str("target").Split(':')[0];if(!System.Net.IPAddress.TryParse(host,out var remoteIp))throw new IOException("Неверный LAN-адрес");
      var bytes=remoteIp.GetAddressBytes();var sameNetwork=System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces().Where(n=>n.OperationalStatus==System.Net.NetworkInformation.OperationalStatus.Up).SelectMany(n=>n.GetIPProperties().UnicastAddresses).Any(a=>a.Address.AddressFamily==System.Net.Sockets.AddressFamily.InterNetwork&&bytes.Length==4&&a.IPv4Mask!=null&&a.Address.GetAddressBytes().Zip(bytes,(local,remote)=>local^remote).Zip(a.IPv4Mask.GetAddressBytes(),(difference,mask)=>(difference&mask)==0).All(x=>x));
@@ -217,7 +242,7 @@ public partial class MainWindow : Window
    }
    case "login":
    {
-    await auth.Login(d["interactive"]?.GetValue<bool>()??true);ExpandLibrary();return State();
+    await auth.Login(d["interactive"]?.GetValue<bool>()??true);try{await friends.ConnectMinecraft();}catch(Exception ex){Emit(new{type="networkError",message=ex.Message});}ExpandLibrary();return State();
    }
    case "expand":
    {
@@ -229,7 +254,7 @@ public partial class MainWindow : Window
    }
    case "window":
    {
-    switch(d.Str("command")){case "close":Close();break;case "minimize":WindowState=WindowState.Minimized;break;case "maximize":WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});break;case "drag":if((GetAsyncKeyState(0x01)&0x8000)!=0){ReleaseCapture();SendMessage(new WindowInteropHelper(this).Handle,0x00A1,2,0);}break;}return null;
+    switch(d.Str("command")){case "close":Close();break;case "minimize":WindowState=WindowState.Minimized;break;case "fullscreen":ToggleFullscreen();break;case "maximize":if(fullscreen)ToggleFullscreen();WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});break;case "drag":if((GetAsyncKeyState(0x01)&0x8000)!=0){ReleaseCapture();SendMessage(new WindowInteropHelper(this).Handle,0x00A1,2,0);}break;}return null;
    }
    case "select":
    {
@@ -276,7 +301,9 @@ public partial class MainWindow : Window
    {
     return await Player(d.Str("name"));
    }
-   case "installedJava":return await Task.Run(()=>game.InstalledJava());
+   case "installVersion":await game.InstallVersion(d.Str("version"));return State();
+   case "deleteVersion":game.DeleteVersion(d.Str("version"));return State();
+   case "installedJava":return await Task.Run(()=>game.InstalledVanilla());
    case "versions":
    {
     return await game.Versions();
@@ -370,6 +397,13 @@ public partial class MainWindow : Window
     var img=new Microsoft.Win32.OpenFileDialog{Filter="Изображения|*.png;*.jpg;*.jpeg;*.webp"};if(img.ShowDialog()!=true)return null;
     if(new FileInfo(img.FileName).Length>20*1024*1024)throw new IOException("Изображение больше 20 МБ");var asset=Path.Combine(store.Root,"artwork",Guid.NewGuid()+Path.GetExtension(img.FileName));Directory.CreateDirectory(Path.GetDirectoryName(asset)!);File.Copy(img.FileName,asset);return game.Asset(asset);
    }
+   case "contentSearch":return await new ContentCatalog(store).Search(d);
+   case "contentDownload":return await new ContentCatalog(store).Download(d,new ContentService(store,game,auth));
+   case "contentSources":return ContentService.Sources(d.Str("edition"),d.Str("kind"),d.Str("query"));
+   case "contentImport":return await new ContentService(store,game,auth).Import(d,this);
+   case "bedrockContent":return new ContentService(store,game,auth).BedrockItems();
+   case "bedrockContentDelete":new ContentService(store,game,auth).DeleteBedrock(d.Str("id"));return null;
+   case "bedrockSkinFolder":using(var folder=new System.Windows.Forms.FolderBrowserDialog()){if(folder.ShowDialog()==System.Windows.Forms.DialogResult.OK){store.Config.BedrockSkinFolder=folder.SelectedPath;store.Save();}}return State();
    case "bedrockVersions":return await bedrock.Versions(d["refresh"]?.GetValue<bool>()??false);
    case "bedrockImport":
    {
@@ -379,9 +413,10 @@ public partial class MainWindow : Window
    {
     store.Config.SelectedEdition="bedrock";store.Config.SelectedBedrock=d.Str("id");store.Config.SelectedBedrockLabel=d.Str("label");store.Save();return State();
    }
-   case "bedrockLaunch":return await bedrock.Launch(d.Str("id"),d["install"]?.GetValue<bool>()??false,false,d["replace"]?.GetValue<bool>()??false);
+   case "bedrockLaunch":return await bedrock.Launch(d.Str("id"),d["install"]?.GetValue<bool>()??false,false,d["replace"]?.GetValue<bool>()??false,d["installOnly"]?.GetValue<bool>()??false);
    case "bedrockDownload":return await bedrock.Download(d.Str("id"));
    case "bedrockOfficialLauncher":await bedrock.OpenOfficialLauncher();return null;
+   case "bedrockDeleteVersion":await bedrock.DeleteVersion(d.Str("id"));return State();
    case "bedrockUnregister":return await bedrock.Unregister();
    case "bedrockLaunchCurrent":return await bedrock.Launch("latest",false,true);
    case "bedrockStore":BedrockService.OpenStore();return null;

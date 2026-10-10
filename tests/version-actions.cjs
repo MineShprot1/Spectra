@@ -1,0 +1,19 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const elements=new Map();let rows=[],calls=[],finishInstall,confirmDelete;
+function element(id){if(!elements.has(id))elements.set(id,{id,value:id==='sort'?'new':'',checked:false,hidden:false,disabled:false,style:{},classList:{toggle(){}},addEventListener(){},get innerHTML(){return this.html||'';},set innerHTML(html){this.html=html;if(id==='versionList'){rows=[];for(const match of html.matchAll(/<(?:article|button)[^>]+>/g)){const node={dataset:{},disabled:false};for(const attribute of match[0].matchAll(/data-([a-z-]+)="([^"]*)"/g))node.dataset[attribute[1].replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=attribute[2];if(Object.keys(node.dataset).length)rows.push(node);}}}});return elements.get(id);}
+const query=s=>s[0]==='#'?element(s.slice(1)):s==='.installed-versions'?{addEventListener(){}}:null;
+const context={console,Number,URLSearchParams,location:{search:''},document:{querySelector:query,querySelectorAll(s){const name=s.match(/^\[data-([a-z-]+)\]$/)?.[1]?.replace(/-([a-z])/g,(_,c)=>c.toUpperCase());return name?rows.filter(x=>name in x.dataset):[];},addEventListener(){}},window:{},setTimeout(){},clearTimeout(){},structuredClone,Intl,Map,Set,Date,localStorage:{getItem(){return null;},setItem(){}}};
+vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/Spectra/Web/app.js'),'utf8').replace(/boot\(\)\.then\([\s\S]*$/,''),context);
+context.mockApi=async(action,data)=>{calls.push({action,data});if(action==='versions')return [{id:'1.21.4',type:'release',releaseTime:'2025-01-01'},{id:'1.20.1',type:'release',releaseTime:'2023-01-01'}];if(action==='installedJava')return ['1.20.1'];if(action==='artwork')return {};if(action==='installVersion')return new Promise(resolve=>finishInstall=()=>resolve(context.nextState));if(action==='deleteVersion')return context.nextState;if(action==='launch')return context.nextState;if(action==='select')return context.nextState;throw Error(action);};
+context.captureConfirm=(title,message,callback)=>confirmDelete=callback;
+vm.runInContext("state={instances:[],running:[],views:{versions:'cards'},selection:{}};globalThis.nextState=state;api=mockApi;date=()=>'';heading=()=>'';viewButtons=()=>'';bindViews=()=>{};renderQuick=()=>{};updateState=value=>state=value;toast=()=>{};confirmAction=captureConfirm;choose=async()=>{};launch=async()=>{await api('launch',{})}",context);
+const button=(kind,id)=>rows.find(x=>x.dataset[kind]===id),tick=()=>new Promise(setImmediate),event={stopPropagation(){}};
+(async()=>{
+ await vm.runInContext('renderVersions()',context);await tick();
+ assert(element('versionList').innerHTML.includes('Скачать версию'));assert(button('deleteVersion','1.20.1'));assert(!button('deleteVersion','1.21.4'));
+ const download=button('playVersion','1.21.4');download.onclick(event);await tick();assert(download.disabled);assert.equal(calls.filter(x=>x.action==='launch').length,0);
+ finishInstall();await tick();assert(button('deleteVersion','1.21.4'));assert.match(element('versionList').innerHTML,/data-play-version="1.21.4"[^>]*>[^]*?ИГРАТЬ/);
+ button('playVersion','1.21.4').onclick(event);await tick();assert.equal(calls.filter(x=>x.action==='launch').length,1);
+ button('deleteVersion','1.21.4').onclick(event);assert.equal(calls.filter(x=>x.action==='deleteVersion').length,0,'confirmation must precede deletion');await confirmDelete();assert(!button('deleteVersion','1.21.4'));assert(element('versionList').innerHTML.includes('Скачать версию'));assert.equal(calls.filter(x=>x.action==='deleteVersion').length,1);
+ console.log('PASS: missing Java version downloads without launching, pending button disables, success changes to PLAY, confirmed removal changes back');
+})().catch(e=>{console.error(e);process.exitCode=1;});

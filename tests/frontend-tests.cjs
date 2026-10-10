@@ -50,7 +50,8 @@ console.log('PASS: selection toggle, additive selection, empty-space clearing, n
 // Screenshot click/drag behavior without a renderer: drag must never act as a click.
 const viewerImage={clientWidth:400,clientHeight:200,style:{},onload:null};
 const viewerStage={clientWidth:400,clientHeight:200,classList:{toggle(){}},querySelector:()=>viewerImage,setPointerCapture(){},releasePointerCapture(){},getBoundingClientRect:()=>({left:0,top:0,width:400,height:200})};
-const viewerDialog={classList:{add(){},remove(){}},showModal(){}};
+context.requestAnimationFrame=fn=>fn();
+const viewerDialog={setAttribute(){},classList:{add(){},remove(){}},showModal(){}};
 const previousQuery=context.document.querySelector;
 context.document.querySelector=selector=>selector==='#shotViewport'?viewerStage:selector==='#modal'?viewerDialog:selector==='#modalContent'?{innerHTML:''}:null;
 evaluate("screenshotViewer('https://example.test/screenshot.png')");

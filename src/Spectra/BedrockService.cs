@@ -47,13 +47,13 @@ public sealed partial class BedrockService(Store store)
   if(File.Exists(destination+".part"))File.Move(destination+".part",destination,true);
   var item=new Package("import:"+hash+ext,name,version,"",app,name.Contains("Beta")||name.Contains("Preview"),parsed.Major==0||parsed.Major==1&&parsed.Minor<2,false);await File.WriteAllTextAsync(Path.Combine(folder,hash+ext+".json"),JsonSerializer.Serialize(item,Store.Json));return item;
  }
- public async Task<object> Launch(string id,bool install=false,bool skipUpdate=false,bool replace=false)
+ public async Task<object> Launch(string id,bool install=false,bool skipUpdate=false,bool replace=false,bool installOnly=false)
  {
   await gate.WaitAsync();try{
    Package? selected;
    if(id=="latest"){
     var current=await Bridge("list");selected=LatestAnyInstalled(current);var status=LatestStatus(current,await Catalogue());
-    if(status.UpdateAvailable&&!skipUpdate){if(!install)return new{status="needsUpdate",message="Установлена версия "+status.InstalledVersion+"; в каталоге доступна "+status.AvailableVersion+". Обновить обычный Minecraft через Microsoft Store?"};var updateResult=await InstallLatest(true);if(!updateResult.Success&&updateResult.Code!="0x8A15002B")return new{status="installerUnavailable",message=updateResult.Message,code=updateResult.Code};selected=LatestAnyInstalled(await Bridge("list"))??selected;}
+    if(status.UpdateAvailable&&!skipUpdate){await OpenOfficialLauncher();return new{status="officialLauncher",message="Скачайте обновление через Minecraft Launcher. Выберите Minecraft for Windows."};}
     if(selected==null){
      if(!install)return new{status="needsInstall",message="Minecraft не найден. Установить через Microsoft Store в фоне? Нужны WinGet и аккаунт Store с лицензией игры."};
      var installResult=await InstallLatest();if(!installResult.Success)return new{status="installerUnavailable",message=installResult.Message,code=installResult.Code};selected=LatestInstalled(await Bridge("list"));
@@ -66,8 +66,27 @@ public sealed partial class BedrockService(Store store)
     if(selected==null){if(WouldReplace(item.Name,item.Version,current)&&!replace)throw new IOException("Этот пакет заменит установленную игру. Установка отменена; пакет сохранён отдельно.");if(!install)throw new IOException("Сначала установите выбранный пакет Bedrock");var path=Path.Combine(folder,file);if(await Net.Hash(path,"SHA256")!=file[..64])throw new IOException("Пакет Bedrock изменился");var manifest=replace?await ExtractPackage(path,item.Name,item.Version):"";selected=(replace?await ReplaceWithBackup(current,item.Name,()=>Bridge("register",manifest,item.Name,item.Version)):await Bridge("install",path,item.Name,item.Version)).FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);}
    }else selected=(await Bridge("list")).FirstOrDefault(p=>p.Id==id);
    if(selected==null)throw new IOException("Выбранная версия не установлена. Обновите список Bedrock.");
+   if(installOnly)return new{status="installed",version=selected.Version,message="Версия установлена. Нажмите ИГРАТЬ для запуска."};
    if(!System.Text.RegularExpressions.Regex.IsMatch(selected.Family,@"\A[A-Za-z0-9_.-]+\z")||!System.Text.RegularExpressions.Regex.IsMatch(selected.AppId,@"\A[A-Za-z0-9_.-]+\z"))throw new IOException("Неверный идентификатор приложения Windows");
-   var info=new ProcessStartInfo("explorer.exe"){UseShellExecute=true};info.ArgumentList.Add("shell:AppsFolder\\"+selected.Family+"!"+selected.AppId);Process.Start(info);return new{status="launched",version=selected.Version,message="Запуск передан Windows; права на игру проверяются Minecraft / Microsoft Store."};
+   var info=new ProcessStartInfo("explorer.exe"){UseShellExecute=true};info.ArgumentList.Add("shell:AppsFolder\\"+selected.Family+"!"+selected.AppId);Process.Start(info);if(id=="latest")await ContentService.OpenBedrockFiles(store);return new{status="launched",version=selected.Version,message="Запуск передан Windows; права на игру проверяются Minecraft / Microsoft Store."};
+  }finally{gate.Release();}
+ }
+ public async Task DeleteVersion(string id)
+ {
+  await gate.WaitAsync();try{
+   var current=await Bridge("list");var installed=current.FirstOrDefault(p=>p.Id==id);
+   if(installed==null&&id.StartsWith("online:",StringComparison.Ordinal)){var release=(await Catalogue()).FirstOrDefault(r=>r.Id==id);if(release!=null)installed=current.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);}
+   if(installed==null&&id.StartsWith("import:",StringComparison.Ordinal)){
+    var file=id[7..];if(!System.Text.RegularExpressions.Regex.IsMatch(file,@"\A[a-f0-9]{64}\.(appx|msix)\z"))throw new IOException("Неверный пакет");
+    var path=Path.Combine(store.Root,"bedrock","packages",file);var item=JsonSerializer.Deserialize<Package>(await File.ReadAllTextAsync(path+".json"),Store.Json);
+    installed=current.FirstOrDefault(p=>p.Name==item?.Name&&p.Version==item.Version);
+    if(installed==null){File.Delete(path);File.Delete(path+".json");return;}
+   }
+   if(installed==null)throw new IOException("Установленная версия не найдена");
+   if(Process.GetProcessesByName("Minecraft.Windows").Length>0)throw new IOException("Закройте Bedrock перед удалением");
+   ContentService.BackupInstalledData(store);
+   await Bridge("removeVersion",installed.Id,installed.Name,installed.Version);
+   if(store.Config.SelectedBedrock==id){store.Config.SelectedBedrock="";store.Config.SelectedBedrockLabel="";store.Save();}
   }finally{gate.Release();}
  }
  public async Task<object> Unregister()

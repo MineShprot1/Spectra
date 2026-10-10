@@ -35,6 +35,27 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   foreach(var instance in Directory.EnumerateDirectories(root).Take(1000)){var versionsFolder=Path.Combine(instance,".minecraft","versions");if(!Directory.Exists(versionsFolder))continue;foreach(var folder in Directory.EnumerateDirectories(versionsFolder).Take(2000)){var id=Path.GetFileName(folder);var json=Path.Combine(folder,id+".json");var jar=Path.Combine(folder,id+".jar");try{if(!File.Exists(jar)||new FileInfo(jar).Length==0||!File.Exists(json)||new FileInfo(json).Length>8*1024*1024)continue;var node=JsonNode.Parse(File.ReadAllText(json));if(node.Str("id")==id&&node?["inheritsFrom"]==null)ids.Add(id);}catch{}}}
   return ids.OrderByDescending(id=>id,StringComparer.Ordinal).ToArray();
  }
+ public async Task InstallVersion(string version)
+ {
+  await Metadata(version);await installationGate.WaitAsync();try{
+   var instance=new Instance{Id="vanilla",Version=version,Settings=store.Config.Defaults with {}};
+   await Java(instance);var launcher=CreateLauncher(store.Folder(instance));
+   launcher.FileProgressChanged+=(_,e)=>emit(new{type="progress",message=e.Name,percent=e.TotalTasks>0?e.ProgressedTasks*100d/e.TotalTasks:0});
+   await launcher.InstallAsync(version);
+  }finally{installationGate.Release();}
+ }
+ public void DeleteVersion(string version)
+ {
+  if(!System.Text.RegularExpressions.Regex.IsMatch(version,@"\A[A-Za-z0-9_.-]+\z")||version is "." or "..")throw new IOException("Неверная версия");
+  if(Running.ContainsKey("vanilla"))throw new IOException("Закройте Minecraft");
+  var root=Path.Combine(store.Root,"instances","vanilla",".minecraft");
+  var directory=Store.SafePath(root,"versions/"+version);if(Directory.Exists(directory))Directory.Delete(directory,true);
+ }
+ public string[] InstalledVanilla()
+ {
+  var root=Path.Combine(store.Root,"instances","vanilla",".minecraft","versions");
+  return !Directory.Exists(root)?[]:Directory.EnumerateDirectories(root).Select(Path.GetFileName).Where(id=>id!=null&&File.Exists(Path.Combine(root,id,id+".jar"))&&File.Exists(Path.Combine(root,id,id+".json"))).Select(id=>id!).ToArray();
+ }
  public async Task<JsonNode> Versions() => (await Manifest())["versions"]!.DeepClone();
  async Task<JsonNode> Manifest() => manifest??=await Net.Get("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json");
  public async Task<JsonNode> Metadata(string version)
@@ -141,7 +162,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader!="vanilla") await launcher.InstallAsync(version);
-   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.14.6"});
+   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.16.0"});
    if(targetKind!=""){
     if(target.Contains('"')||target.Contains('\\')&&targetKind=="servers"||target.Any(char.IsControl))throw new IOException("Некорректная цель запуска");
     var modern=Version.TryParse(i.Version,out var mc)&&mc>=new Version(1,20);

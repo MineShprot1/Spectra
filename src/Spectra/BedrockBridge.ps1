@@ -29,8 +29,29 @@ try {
     $candidates = @((Join-Path ${env:ProgramFiles} 'Minecraft Launcher\MinecraftLauncher.exe'))
     if (${env:ProgramFiles(x86)}) { $candidates += Join-Path ${env:ProgramFiles(x86)} 'Minecraft Launcher\MinecraftLauncher.exe' }
     $exe = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
-    if (-not $exe) { throw 'Official Minecraft Launcher not found. Open it manually to update Minecraft for Windows.' }
+    if (-not $exe) { Start-Process 'https://www.minecraft.net/download'; ConvertTo-Json -InputObject @() -Compress; exit 0 }
     Start-Process -FilePath $exe | Out-Null
+   }
+   # Best-effort navigation to the Minecraft for Windows tab using Windows UI Automation.
+   # The Launcher does not publish a stable Bedrock-page command-line/deep-link contract.
+   try {
+    Add-Type -AssemblyName UIAutomationClient
+    Add-Type -AssemblyName UIAutomationTypes
+    for ($attempt = 0; $attempt -lt 12; $attempt++) {
+     $process = Get-Process -Name 'MinecraftLauncher' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+     if ($process) {
+      $window = [System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+      $elements = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+      $tab = $elements | Where-Object { $_.Current.Name -match '^(Minecraft (for|для|für|para|pour|per) Windows|Minecraft: Windows( Edition)?)$' } | Select-Object -First 1
+      if ($tab) {
+       $pattern = $null
+       if ($tab.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern,[ref]$pattern)) { $pattern.Invoke(); break }
+       if ($tab.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern,[ref]$pattern)) { $pattern.Select(); break }
+      }
+     }
+     Start-Sleep -Milliseconds 500
+    }
+   } catch { # The launcher still opens; select Minecraft for Windows manually if UI Automation is unavailable.
    }
    ConvertTo-Json -InputObject @() -Compress
   }
@@ -91,6 +112,15 @@ try {
     }
    }
    Add-AppxPackage -Register $manifest -ErrorAction Stop | Out-Null
+   ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress
+  }
+  'removeVersion' {
+   if (Get-Process -Name 'Minecraft.Windows' -ErrorAction SilentlyContinue) { throw 'Close Minecraft before deleting a version.' }
+   $name = $env:SPECTRA_BEDROCK_NAME
+   if ($name -notmatch '^Microsoft\.Minecraft(UWP|WindowsBeta|Windows|WindowsPreview)$') { throw 'Invalid Minecraft identity.' }
+   $selected = Get-AppxPackage -Name $name | Where-Object { ($_.PackageFullName -eq ($env:SPECTRA_BEDROCK_PACKAGE -split '!')[0] -or $_.PackageFamilyName -eq ($env:SPECTRA_BEDROCK_PACKAGE -split '!')[0]) -and ($env:SPECTRA_BEDROCK_VERSION -eq '0.0.0.0' -or $_.Version.ToString() -eq $env:SPECTRA_BEDROCK_VERSION) } | Select-Object -First 1
+   if (-not $selected) { throw 'Installed Minecraft package not found.' }
+   Remove-AppxPackage -Package $selected.PackageFullName -ErrorAction Stop | Out-Null
    ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress
   }
   'unregister' {

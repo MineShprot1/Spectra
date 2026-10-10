@@ -47,6 +47,8 @@ public record Configuration
  public bool ShareGameActivity {get;set;}=true;
  public bool HideOnlineStatus {get;set;}
  public string AppliedInstallerLanguage {get;set;}="";
+ public string BedrockSkinFolder {get;set;}=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Downloads");
+ public bool LauncherFullscreen {get;set;}
  public string AppearanceJson {get;set;}="{}";
  public GameSettings Defaults { get; set; } = new();
  public string SelectedEdition {get;set;}="java";
