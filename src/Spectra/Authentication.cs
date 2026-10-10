@@ -78,8 +78,8 @@ public sealed class Authentication
     result=await browserApp.AcquireTokenInteractive(MsalClientHelper.XboxScopes).WithUseEmbeddedWebView(false)
      .WithSystemWebViewOptions(new SystemWebViewOptions
      {
-      HtmlMessageSuccess="<html><head><meta charset=\"utf-8\"><title>Spectra</title></head><body style=\"font-family:Segoe UI,sans-serif;text-align:center;padding-top:15vh\"><h2>Готово!</h2><p>Доступ подтверждён. Можно закрыть эту вкладку и вернуться в Spectra.</p></body></html>",
-      HtmlMessageError="<html><head><meta charset=\"utf-8\"><title>Spectra</title></head><body style=\"font-family:Segoe UI,sans-serif;text-align:center;padding-top:15vh\"><h2>Не удалось войти</h2><p>Вернитесь в Spectra и попробуйте ещё раз.</p></body></html>"
+      HtmlMessageSuccess=AuthPages.Success,
+      HtmlMessageError=AuthPages.Error
      }).ExecuteAsync(timeout.Token);
    else
    {
