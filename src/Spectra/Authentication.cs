@@ -19,6 +19,8 @@ public sealed class Authentication
  readonly CmlLib.Core.Auth.Microsoft.JELoginHandler handler;
  IPublicClientApplication? browserApp;
  readonly SemaphoreSlim loginGate=new(1);
+ // Application (client) ID приложения Spectra в Microsoft Entra; microsoft-oauth.json может его переопределить.
+ const string DefaultClientId="ace5fdf7-f1a5-47a1-9379-a6a4486f0164";
  public MSession? Session { get; private set; }
  public JsonNode? Profile { get; private set; }
  public bool HasSavedAccount=>accounts.HasAccounts;
@@ -36,18 +38,16 @@ public sealed class Authentication
   {
    if(!interactive&&!HasSavedAccount)throw new InvalidOperationException("Войдите с Microsoft, чтобы продолжить");
    if(interactive)emit(new{type="auth",state="waiting",message="Подтвердите вход на странице Microsoft"});
+   // Вход всегда идёт через системный браузер с собственным appID приложения:
+   // пользователь видит обычную страницу Microsoft и только подтверждает доступ.
    var configPath=Path.Combine(AppContext.BaseDirectory,"microsoft-oauth.json");
-   var clientId=File.Exists(configPath)?JsonNode.Parse(await File.ReadAllTextAsync(configPath)).Str("clientId"):"";
-   MSession session;
-   if(string.IsNullOrWhiteSpace(clientId))
+   var clientId=DefaultClientId;
+   if(File.Exists(configPath))
    {
-    // Documented CmlLib default provider; no custom app configuration is supplied.
-    // This provider uses its own WebView2 OAuth window, not the external browser.
-    using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(5));
-    session=interactive?await handler.AuthenticateInteractively(timeout.Token)
-     :await handler.AuthenticateSilently(timeout.Token);
+    var configured=JsonNode.Parse(await File.ReadAllTextAsync(configPath)).Str("clientId");
+    if(!string.IsNullOrWhiteSpace(configured))clientId=configured;
    }
-   else
+   MSession session;
    {
    if(!Guid.TryParse(clientId,out var appId)||appId==Guid.Empty)
     throw new InvalidOperationException("Некорректный clientId в microsoft-oauth.json");
@@ -76,7 +76,11 @@ public sealed class Authentication
    AuthenticationResult result;
    if(interactive)
     result=await browserApp.AcquireTokenInteractive(MsalClientHelper.XboxScopes).WithUseEmbeddedWebView(false)
-     .WithPrompt(Prompt.SelectAccount).ExecuteAsync(timeout.Token);
+     .WithSystemWebViewOptions(new SystemWebViewOptions
+     {
+      HtmlMessageSuccess="<html><body style=\"font-family:Segoe UI,sans-serif;text-align:center;padding-top:15vh\"><h2>Готово!</h2><p>Доступ подтверждён. Можно закрыть эту вкладку и вернуться в Spectra.</p></body></html>",
+      HtmlMessageError="<html><body style=\"font-family:Segoe UI,sans-serif;text-align:center;padding-top:15vh\"><h2>Не удалось войти</h2><p>Вернитесь в Spectra и попробуйте ещё раз.</p></body></html>"
+     }).ExecuteAsync(timeout.Token);
    else
    {
     var cached=(await browserApp.GetAccountsAsync()).LastOrDefault();
