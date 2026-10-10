@@ -1,7 +1,7 @@
 // Logic tests run without WebView2; Windows smoke tests cover real DOM interaction.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const inert={hidden:true,textContent:'',disabled:false,style:{},classList:{toggle(){}},addEventListener(){}};
-const context={console,Number,URLSearchParams,location:{search:''},document:{querySelector:()=>inert,querySelectorAll:()=>[],addEventListener(){}},window:{},setTimeout:()=>0,clearTimeout(){},structuredClone,Intl,Map,Set,Date};
+const context={SpectraAppearance:{language:()=>'ru',text:s=>s},console,Number,URLSearchParams,location:{search:''},document:{querySelector:()=>inert,querySelectorAll:()=>[],addEventListener(){}},window:{},setTimeout:()=>0,clearTimeout(){},structuredClone,Intl,Map,Set,Date};
 vm.createContext(context);
 const source=fs.readFileSync(require('node:path').join(__dirname,'../src/Spectra/Web/app.js'),'utf8');
 // Do not bootstrap the application in the logic harness.
@@ -12,7 +12,7 @@ assert.equal(evaluate("safeImage('javascript:alert(1)')"),'');
 assert.equal(evaluate("safeImage('file:///C:/secret')"),'');
 assert.equal(evaluate("safeImage('https://cdn.modrinth.com/icon.png')"),'https://cdn.modrinth.com/icon.png');
 assert.equal(evaluate("safeImage('data:text/html;base64,AAAA')"),'');
-assert.match(evaluate('bytes(1048576)'),/1 МиБ/);
+assert.match(evaluate('bytes(1048576)'),/1 МиБ/);context.SpectraAppearance.language=()=> 'en';assert.equal(evaluate('bytes(1048576)'),'1 MiB');context.SpectraAppearance.language=()=> 'ru';
 assert.equal(evaluate("skinUrl({skins:[{url:'http://textures.minecraft.net/texture/test'}]})"),'https://textures.minecraft.net/texture/test');
 assert.equal(evaluate("findInstance('vanilla').loader"),'vanilla');
 assert.match(evaluate("quickCard('1.20.1',null)"),/assets\/terrain.svg/);

@@ -1,7 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const styles=new Map(),text={nodeValue:'Играть',parentElement:{closest:()=>false}};
 const context={console,localStorage:{getItem:()=>null,setItem(){}},NodeFilter:{SHOW_TEXT:4},MutationObserver:class{observe(){}},document:{body:{dataset:{}},documentElement:{},head:{append(s){styles.set('#'+s.id,s)}},querySelector:s=>styles.get(s),createElement:()=>({}),createTreeWalker:()=>{let done=false;return{nextNode(){if(done)return null;done=true;return text;}}},addEventListener(){}}};
-vm.createContext(context);vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../src/Spectra/Web/locales.js'),'utf8'),context);vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../src/Spectra/Web/appearance.js'),'utf8'),context);
+vm.createContext(context);vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../src/Spectra/Web/translations.js'),'utf8'),context);vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../src/Spectra/Web/locales.js'),'utf8'),context);vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../src/Spectra/Web/appearance.js'),'utf8'),context);
 vm.runInContext("SpectraAppearance.apply({language:'en',theme:'light',css:'.hero{display:none}'})",context);assert.equal(text.nodeValue,'Play');assert.equal(context.document.body.dataset.theme,'light');assert.equal(styles.get('#customThemeStyle').textContent,'.hero{display:none}');
 vm.runInContext("SpectraAppearance.apply({language:'ru',theme:'gradient',colors:['#112233','#abcdef'],angle:90})",context);assert.equal(text.nodeValue,'Играть');assert(styles.get('#themeStyle').textContent.includes('linear-gradient(90deg,#112233,#abcdef)'));
 const clean=vm.runInContext("SpectraAppearance.validate({language:'bad',theme:'bad',colors:['red','#123456'],angle:999})",context);assert.equal(clean.language,'ru');assert.equal(clean.angle,360);assert.equal(clean.colors.length,1);
@@ -20,3 +20,19 @@ vm.runInContext("SpectraAppearance.apply({theme:'windows',headingFont:'arial',bo
 console.log('PASS: separate font roles, custom-font URLs, rejected font injection, themed font isolation');
 
 vm.runInContext("SpectraAppearance.apply({theme:'steam',navigationPosition:'left'})",context);assert.equal(context.document.body.dataset.navigation,'left');assert.equal(vm.runInContext("SpectraAppearance.validate({navigationPosition:'sideways'}).navigationPosition",context),'top');vm.runInContext("SpectraAppearance.apply({navigationPosition:'bottom'});SpectraAppearance.apply({navigationPosition:'right'})",context);assert.equal(context.document.body.dataset.navigation,'right');console.log('PASS: navigation placement persists across themes and rejects invalid positions');
+
+for(const language of ['en','de','fr','es','pt','it','pl','uk','tr','zh','ja','ko']){
+ vm.runInContext(`SpectraAppearance.apply({language:${JSON.stringify(language)}})`,context);
+ for(const key of ['МОДПАКИ','КАРТЫ','СКИНЫ','АДДОНЫ','ДОПОЛНЕНИЯ','У вас есть несохранённые настройки','Расположение навигации','Верифицироваться через Google','Полноэкранный режим']){
+  const translated=vm.runInContext(`SpectraAppearance.text(${JSON.stringify(key)})`,context);
+  assert(translated&&translated!==key,language+': '+key);
+ }
+}
+vm.runInContext("SpectraAppearance.apply({language:'en'})",context);
+for(const [source,expected] of [['Установленные версии (12)','Installed versions (12)'],['  ▷ Играть  ','  ▷ Play  '],['Выбрано: 3','Selected: 3'],['Полноэкранный режим · F11','Fullscreen · F11'],['Minecraft: Alice · верифицирован','Minecraft: Alice · verified'],['Совместимость: 1.21 · fabric','Compatibility: 1.21 · fabric'],['Удалить Minecraft 1.21?','Delete Minecraft 1.21?'],['Состав (42)','Contents (42)'],['Скачивание ресурс паков','Download resource packs']]){
+ assert.equal(vm.runInContext(`SpectraAppearance.text(${JSON.stringify(source)})`,context),expected);
+}
+for(const source of ['My Russian сборка','Alice','https://example.test/Играть','$`$&','1.21.4'])assert.equal(vm.runInContext(`SpectraAppearance.text(${JSON.stringify(source)})`,context),source);
+text.nodeValue='Показать ещё';vm.runInContext("SpectraAppearance.apply({language:'de'})",context);assert.equal(text.nodeValue,'Mehr anzeigen');vm.runInContext("SpectraAppearance.apply({language:'ja'})",context);assert.equal(text.nodeValue,'もっと表示');vm.runInContext("SpectraAppearance.apply({language:'ru'})",context);assert.equal(text.nodeValue,'Показать ещё');
+assert.equal(vm.runInContext("SpectraLocales.dictionary('de')['Исполняемый файл Java']",context),'Java-Programm');
+console.log('PASS: 12 locale additions, decorated labels, counts, dynamic prefixes, unknown content and reversible language changes');
