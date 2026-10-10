@@ -1,0 +1,52 @@
+name: Build Spectra for Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Frontend logic tests
+        run: npm test
+      - name: Install UI test runtime
+        run: |
+          npm install
+          npx playwright install chromium
+      - name: DOM feature tests
+        run: npm run test:dom
+      - name: Feature parser tests
+        run: dotnet run --project tests/features/Features.Tests.csproj -c Release
+      - name: UI smoke tests
+        run: npm run test:ui
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Spectra-ui-screenshots
+          path: test-results/
+      - name: Restore
+        run: dotnet restore src/Spectra/Spectra.csproj
+      - name: Build
+        run: dotnet build src/Spectra/Spectra.csproj -c Release --no-restore
+      - name: Core tests
+        run: dotnet run --project tests/Spectra.Tests.csproj -c Release
+      - name: Mark source commit
+        shell: pwsh
+        run: '[IO.File]::WriteAllText("$pwd/src/Spectra/build-commit.txt", "${{ github.sha }}")'
+      - name: Publish Windows x64
+        run: dotnet publish src/Spectra/Spectra.csproj -c Release -r win-x64 --self-contained true -o dist/Spectra
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spectra-windows-x64
+          path: dist/Spectra/
+          retention-days: 30
