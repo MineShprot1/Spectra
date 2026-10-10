@@ -38,9 +38,10 @@ public sealed class ContentCatalog(Store store,Func<Uri,Task<ContentCatalog.Cata
   "skindex"=>Regex.IsMatch(path,@"^/skin/\d+/"),
   "mcpedl"=>path.Count(c=>c=='/')==2&&!new[]{"/category/","/tag/","/page/"}.Any(path.StartsWith)&&path!="/",
   "minecraftmaps"=>path.StartsWith("/maps/")&&path.Count(c=>c=='/')>=3,
+  _=>false};
  async Task<string> Page(Uri uri)
  {
-  using var request=new HttpRequestMessage(HttpMethod.Get,uri);request.Headers.UserAgent.ParseAdd("Spectra/0.16.2");
+  using var request=new HttpRequestMessage(HttpMethod.Get,uri);request.Headers.UserAgent.ParseAdd("Spectra/0.16.3");
   using var response=await Net.Http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);response.EnsureSuccessStatusCode();
   await using var stream=await response.Content.ReadAsStreamAsync();using var output=new MemoryStream();var buffer=new byte[8192];int count;
   while((count=await stream.ReadAsync(buffer))>0){if(output.Length+count>4*1024*1024)throw new IOException("Страница каталога слишком большая");output.Write(buffer,0,count);}
