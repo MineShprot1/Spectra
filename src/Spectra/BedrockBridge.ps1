@@ -53,9 +53,15 @@ try {
    $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
    $manager = New-Object Windows.ApplicationModel.Store.Preview.InstallControl.AppInstallManager
    $itemType = [Windows.ApplicationModel.Store.Preview.InstallControl.AppInstallItem]
-   $task = $asTask.MakeGenericMethod($itemType).Invoke($null, @($manager.UpdateAppByPackageFamilyNameAsync($target.family)))
-   $task.Wait(120000) | Out-Null
-   $item = $task.Result
+   try {
+    $task = $asTask.MakeGenericMethod($itemType).Invoke($null, @($manager.UpdateAppByPackageFamilyNameAsync($target.family)))
+    $task.Wait(120000) | Out-Null
+    $item = $task.Result
+   } catch {
+    $inner = $_.Exception
+    while ($inner.InnerException) { $inner = $inner.InnerException }
+    throw ('Store API: {0} (0x{1:X8}): {2}' -f $inner.GetType().Name, $inner.HResult, $inner.Message)
+   }
    if ($item) {
     $deadline = (Get-Date).AddMinutes(25)
     while ((Get-Date) -lt $deadline) {
