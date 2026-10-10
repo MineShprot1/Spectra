@@ -106,19 +106,30 @@ public sealed partial class BedrockService
   await gate.WaitAsync();try{var downloaded=await DownloadRelease(id);return new{status="downloaded",path=downloaded.Path,version=downloaded.Release.Version,message="Пакет сохранён. Установленная игра не изменена."};}finally{gate.Release();}
  }
  internal static bool MatchesUwpVersion(string display,string actual)=>System.Version.TryParse(display,out var expected)&&System.Version.TryParse(actual,out var installed)&&(installed==expected||actual==PackageVersion(display)||actual==$"{expected.Major}.{expected.Minor}.{expected.Build*100+Math.Max(0,expected.Revision)}.0");
+ void BackupWorlds(IEnumerable<Package> current,string name)
+ {
+  foreach(var family in current.Where(p=>p.Name.Equals(name,StringComparison.OrdinalIgnoreCase)).Select(p=>p.Family).Distinct()){
+   var source=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Packages",family,"LocalState","games","com.mojang","minecraftWorlds");
+   if(!Directory.Exists(source))continue;
+   var target=Path.Combine(store.Root,"bedrock","backups",DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+name);
+   foreach(var dir in Directory.EnumerateDirectories(source,"*",SearchOption.AllDirectories))Directory.CreateDirectory(dir.Replace(source,target));Directory.CreateDirectory(target);
+   foreach(var file in Directory.EnumerateFiles(source,"*",SearchOption.AllDirectories))File.Copy(file,file.Replace(source,target),true);
+   Net.ProgressSink.Value?.Invoke(new{type="progress",message="Копия миров сохранена: "+target,percent=100});
+  }
+ }
  internal static bool WouldReplace(string name,string version,IEnumerable<Package> current)=>current.Any(p=>p.Name.Equals(name,StringComparison.OrdinalIgnoreCase)&&p.Version!=version);
  internal sealed record LatestState(bool Installed,bool UpdateAvailable,string InstalledVersion,string AvailableVersion);
  internal static Package? LatestAnyInstalled(IEnumerable<Package> packages)=>packages.Where(p=>!p.Preview).OrderByDescending(p=>System.Version.TryParse(p.Version,out var v)?v:new System.Version()).FirstOrDefault();
  internal static LatestState LatestStatus(IEnumerable<Package> installed,IEnumerable<Release> available){var current=LatestAnyInstalled(installed);var newest=available.Where(r=>!r.Preview).OrderByDescending(r=>System.Version.Parse(r.PackageVersion)).FirstOrDefault();bool update=current!=null&&newest!=null&&System.Version.TryParse(current.Version,out var v)&&v>new System.Version(0,0,0,0)&&v<System.Version.Parse(newest.PackageVersion);return new(current!=null,update,current?.Version??"",newest?.Version??"");}
  internal static Package? LatestInstalled(IEnumerable<Package> packages)=>packages.Where(p=>!p.Preview&&!p.Legacy).OrderByDescending(p=>p.Name.Equals("Microsoft.MinecraftWindows",StringComparison.OrdinalIgnoreCase)).ThenByDescending(p=>System.Version.TryParse(p.Version,out var v)?v:new System.Version()).FirstOrDefault();
- async Task<Package?> InstallRelease(string id,List<Package> current)
+ async Task<Package?> InstallRelease(string id,List<Package> current,bool replace=false)
  {
   var release=(await Catalogue()).FirstOrDefault(r=>r.Id==id)??throw new IOException("Версия отсутствует в каталоге Bedrock");
   var selected=current.FirstOrDefault(p=>p.Name.Equals(release.Name,StringComparison.OrdinalIgnoreCase)&&(release.Format=="UWP"?MatchesUwpVersion(release.Version,p.Version):p.Version==release.PackageVersion));if(selected!=null)return selected;
-  if(WouldReplace(release.Name,release.PackageVersion,current))throw new IOException("Эта версия заменит установленный выпуск Minecraft. Spectra отменил установку. Используйте «Скачать пакет», чтобы сохранить его отдельно.");
+  if(WouldReplace(release.Name,release.PackageVersion,current)&&!replace)throw new IOException("Эта версия заменит установленный выпуск Minecraft. Spectra отменил установку. Используйте «Скачать пакет», чтобы сохранить его отдельно.");
   var downloaded=await DownloadRelease(id);release=downloaded.Release;
   if(release.Format=="GDK")throw new IOException("Пакет MSIXVC сохранён, но Add-AppxPackage не является установщиком Xbox Gaming Services. Используйте «Последняя версия» для установки через Microsoft Store. Текущая игра не изменена.");
-  Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Bedrock "+release.Version,percent=100});var registered=await Bridge("install",downloaded.Path,release.Name,release.PackageVersion);selected=registered.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);
+  Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Bedrock "+release.Version,percent=100});if(replace)BackupWorlds(current,release.Name);var registered=await Bridge(replace?"replace":"install",downloaded.Path,release.Name,release.PackageVersion);selected=registered.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);
   if(selected==null)throw new IOException("Установка завершилась, но выбранный пакет не найден: "+release.Name+" "+release.PackageVersion+". Найдены: "+string.Join(", ",registered.Select(p=>p.Name+" "+p.Version))+". Пакет сохранён: "+downloaded.Path);return selected;
  }
 }

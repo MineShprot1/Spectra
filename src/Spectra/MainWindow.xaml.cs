@@ -379,7 +379,7 @@ public partial class MainWindow : Window
    {
     store.Config.SelectedEdition="bedrock";store.Config.SelectedBedrock=d.Str("id");store.Config.SelectedBedrockLabel=d.Str("label");store.Save();return State();
    }
-   case "bedrockLaunch":return await bedrock.Launch(d.Str("id"),d["install"]?.GetValue<bool>()??false);
+   case "bedrockLaunch":return await bedrock.Launch(d.Str("id"),d["install"]?.GetValue<bool>()??false,false,d["replace"]?.GetValue<bool>()??false);
    case "bedrockDownload":return await bedrock.Download(d.Str("id"));
    case "bedrockOfficialLauncher":await bedrock.OpenOfficialLauncher();return null;
    case "bedrockLaunchCurrent":return await bedrock.Launch("latest",false,true);

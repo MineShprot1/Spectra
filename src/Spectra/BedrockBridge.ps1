@@ -44,6 +44,19 @@ try {
    Add-AppxPackage -Path $env:SPECTRA_BEDROCK_PACKAGE -ErrorAction Stop | Out-Null
    ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress
   }
+  'replace' {
+   if (Get-Process -Name 'Minecraft.Windows' -ErrorAction SilentlyContinue) { throw 'Close Minecraft before installation.' }
+   $name = $env:SPECTRA_BEDROCK_NAME
+   $version = $env:SPECTRA_BEDROCK_VERSION
+   if ($name -notmatch '^Microsoft\.Minecraft(UWP|WindowsBeta|Windows|WindowsPreview)$' -or $version -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw 'Missing expected package identity.' }
+   if ([IO.Path]::GetExtension($env:SPECTRA_BEDROCK_PACKAGE) -notin @('.appx','.msix')) { throw 'MSIXVC requires Xbox Gaming Services installation, not Add-AppxPackage.' }
+   # Same-identity switch: user data (worlds, settings) is preserved; Spectra already made a worlds backup.
+   foreach ($old in @(Get-AppxPackage -Name $name | Where-Object { $_.Version.ToString() -ne $version })) {
+    Remove-AppxPackage -Package $old.PackageFullName -PreserveApplicationData -ErrorAction Stop
+   }
+   Add-AppxPackage -Path $env:SPECTRA_BEDROCK_PACKAGE -ErrorAction Stop | Out-Null
+   ConvertTo-Json -InputObject @(Installed) -Depth 5 -Compress
+  }
   default { throw 'Unknown Bedrock operation' }
  }
 } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }

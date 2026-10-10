@@ -47,23 +47,23 @@ public sealed partial class BedrockService(Store store)
   if(File.Exists(destination+".part"))File.Move(destination+".part",destination,true);
   var item=new Package("import:"+hash+ext,name,version,"",app,name.Contains("Beta")||name.Contains("Preview"),parsed.Major==0||parsed.Major==1&&parsed.Minor<2,false);await File.WriteAllTextAsync(Path.Combine(folder,hash+ext+".json"),JsonSerializer.Serialize(item,Store.Json));return item;
  }
- public async Task<object> Launch(string id,bool install=false,bool skipUpdate=false)
+ public async Task<object> Launch(string id,bool install=false,bool skipUpdate=false,bool replace=false)
  {
   await gate.WaitAsync();try{
    Package? selected;
    if(id=="latest"){
     var current=await Bridge("list");selected=LatestAnyInstalled(current);var status=LatestStatus(current,await Catalogue());
-    if(status.UpdateAvailable&&!skipUpdate){if(!install)return new{status="needsUpdate",message="Установлена версия "+status.InstalledVersion+"; в каталоге доступна "+status.AvailableVersion+". Обновить обычный Minecraft через Microsoft Store?"};var updateResult=await InstallLatest(true);if(!updateResult.Success)return new{status="installerUnavailable",message=updateResult.Message,code=updateResult.Code};selected=LatestAnyInstalled(await Bridge("list"));}
+    if(status.UpdateAvailable&&!skipUpdate){if(!install)return new{status="needsUpdate",message="Установлена версия "+status.InstalledVersion+"; в каталоге доступна "+status.AvailableVersion+". Обновить обычный Minecraft через Microsoft Store?"};var updateResult=await InstallLatest(true);if(!updateResult.Success&&updateResult.Code!="0x8A15002B")return new{status="installerUnavailable",message=updateResult.Message,code=updateResult.Code};selected=LatestAnyInstalled(await Bridge("list"))??selected;}
     if(selected==null){
      if(!install)return new{status="needsInstall",message="Minecraft не найден. Установить через Microsoft Store в фоне? Нужны WinGet и аккаунт Store с лицензией игры."};
      var installResult=await InstallLatest();if(!installResult.Success)return new{status="installerUnavailable",message=installResult.Message,code=installResult.Code};selected=LatestInstalled(await Bridge("list"));
      if(selected==null)throw new IOException("Store сообщил об установке, но Minecraft не найден. Подробности: bedrock/last-store-install.log");
     }
    }else if(id.StartsWith("online:",StringComparison.Ordinal)){
-    if(!install)throw new IOException("Подтвердите установку версии Bedrock");selected=await InstallRelease(id,await Bridge("list"));
+    if(!install)throw new IOException("Подтвердите установку версии Bedrock");selected=await InstallRelease(id,await Bridge("list"),replace);
    }else if(id.StartsWith("import:",StringComparison.Ordinal)){
     var file=id[7..];if(!System.Text.RegularExpressions.Regex.IsMatch(file,@"\A[a-f0-9]{64}\.(appx|msix)\z"))throw new IOException("Неверный пакет Bedrock");var folder=Path.Combine(store.Root,"bedrock","packages");var item=JsonSerializer.Deserialize<Package>(await File.ReadAllTextAsync(Path.Combine(folder,file+".json")),Store.Json)??throw new IOException("Пакет не найден");var current=await Bridge("list");selected=current.FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);
-    if(selected==null){if(WouldReplace(item.Name,item.Version,current))throw new IOException("Этот пакет заменит установленную игру. Установка отменена; пакет сохранён отдельно.");if(!install)throw new IOException("Сначала установите выбранный пакет Bedrock");var path=Path.Combine(folder,file);if(await Net.Hash(path,"SHA256")!=file[..64])throw new IOException("Пакет Bedrock изменился");selected=(await Bridge("install",path,item.Name,item.Version)).FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);}
+    if(selected==null){if(WouldReplace(item.Name,item.Version,current)&&!replace)throw new IOException("Этот пакет заменит установленную игру. Установка отменена; пакет сохранён отдельно.");if(!install)throw new IOException("Сначала установите выбранный пакет Bedrock");var path=Path.Combine(folder,file);if(await Net.Hash(path,"SHA256")!=file[..64])throw new IOException("Пакет Bedrock изменился");if(replace)BackupWorlds(current,item.Name);selected=(await Bridge(replace?"replace":"install",path,item.Name,item.Version)).FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);}
    }else selected=(await Bridge("list")).FirstOrDefault(p=>p.Id==id);
    if(selected==null)throw new IOException("Выбранная версия не установлена. Обновите список Bedrock.");
    if(!System.Text.RegularExpressions.Regex.IsMatch(selected.Family,@"\A[A-Za-z0-9_.-]+\z")||!System.Text.RegularExpressions.Regex.IsMatch(selected.AppId,@"\A[A-Za-z0-9_.-]+\z"))throw new IOException("Неверный идентификатор приложения Windows");
@@ -81,7 +81,8 @@ public sealed partial class BedrockService(Store store)
    _=>new(false,code,"Установка через Microsoft Store / WinGet не завершена ("+code+"). Причина записана в bedrock/last-store-install.log; по одному этому коду Spectra не делает вывод об отсутствии лицензии.")};
  }
  public async Task OpenOfficialLauncher(){await Bridge("officialLauncher");}
- async Task<StoreOperation> InstallLatest(bool upgrade=false)
+ async Task<StoreOperation> InstallLatest(bool upgrade=false){var result=await InstallLatestOnce(upgrade);if(upgrade&&result.Code=="0x8A150014")result=await InstallLatestOnce(false);return result;}
+ async Task<StoreOperation> InstallLatestOnce(bool upgrade)
  {
   var folder=Path.Combine(store.Root,"bedrock");Directory.CreateDirectory(folder);var log=Path.Combine(folder,"last-store-install.log");
   var info=new ProcessStartInfo("winget.exe"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8};foreach(var arg in LatestInstallArguments(upgrade))info.ArgumentList.Add(arg);
