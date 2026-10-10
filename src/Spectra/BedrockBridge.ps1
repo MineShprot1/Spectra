@@ -1,4 +1,4 @@
-param([string]$Action)
+﻿param([string]$Action)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 function Installed {
@@ -83,7 +83,7 @@ try {
    if ((Split-Path -Leaf $manifest) -ne 'AppxManifest.xml' -or -not (Test-Path -LiteralPath $manifest -PathType Leaf)) { throw 'Bad package manifest.' }
    # Check developer mode BEFORE touching the installed game, so a failed registration cannot leave the PC without Minecraft.
    $dev = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -Name AllowDevelopmentWithoutDevLicense -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
-   if ($dev -ne 1) { throw 'Включите режим разработчика Windows (Параметры - Конфиденциальность и защита - Для разработчиков), затем повторите.' }
+   if ($dev -ne 1) { throw 'Enable Windows Developer Mode (Settings - Privacy and security - For developers), then try again.' }
    foreach ($old in @(Get-AppxPackage -Name $name)) {
     try { Remove-AppxPackage -Package $old.PackageFullName -PreserveApplicationData -ErrorAction Stop }
     catch {

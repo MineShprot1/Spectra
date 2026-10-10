@@ -23,7 +23,7 @@ public sealed partial class BedrockService(Store store)
   if(expectedVersion!=null)info.Environment["SPECTRA_BEDROCK_VERSION"]=expectedVersion;
   using var process=Process.Start(info)??throw new IOException("Не удалось проверить Bedrock в Windows");var output=process.StandardOutput.ReadToEndAsync();var errors=process.StandardError.ReadToEndAsync();using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(action=="storeUpdate"?30:action is "install" or "replace" or "register"?10:1));
   try{await process.WaitForExitAsync(timeout.Token);}catch(OperationCanceledException){try{process.Kill(true);}catch{}throw new IOException("Проверка или установка Bedrock превысила время ожидания");}
-  var raw=await output;var message=await errors;if(process.ExitCode!=0)throw new IOException("Windows: "+message.Trim());
+  var raw=await output;var message=await errors;if(process.ExitCode!=0)throw new IOException("Windows: "+message.Trim()+(message.Contains("Developer Mode")?" — Включите режим разработчика: Параметры → Конфиденциальность и защита → Для разработчиков.":""));
   return (JsonSerializer.Deserialize<List<Package>>(raw,Store.Json)??[]).Where(p=>MinecraftIdentity(p.Name)).Select(p=>p with{Name=CanonicalIdentity(p.Name)!}).ToList();
  }
  public async Task<object> Versions(bool refresh=false)
