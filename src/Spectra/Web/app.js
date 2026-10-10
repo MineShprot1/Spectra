@@ -16,7 +16,7 @@ async function run(fn){try{return await fn();}catch(e){toast(e.message||String(e
 function bind(root=document){root.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>navigate(b.dataset.page));}
 function date(s){return s?new Date(s).toLocaleDateString(SpectraAppearance.language(),{day:'numeric',month:'short',year:'numeric'}):'Ещё не запускалась';}
 let latestCommitLabel=null;
-function updateState(s){if(!s)return;state=s;const build=$('#installedVersion');if(build){build.textContent=latestCommitLabel?.name||s.installedCommitName||s.installedCommit?.slice(0,7)||'0.16.1';build.title=latestCommitLabel?latestCommitLabel.name+' · GitHub '+latestCommitLabel.sha+' · installed '+(s.installedCommit||'unknown'):(s.installedCommit||'0.16.1');build.setAttribute('data-no-i18n','');}SpectraAppearance.hydrate(s.appearance);const name=state.profile?.name||'Войти';$('#accountName').textContent=name;$('#profileTab').textContent=state.profile?.name?.toUpperCase()||'ПРОФИЛЬ';if(state.profile?.name)$('#profileTab').removeAttribute('data-i18n');else $('#profileTab').setAttribute('data-i18n','ПРОФИЛЬ');SpectraAppearance.navigation();$('.avatar').textContent=name[0];if(state.profile)paintFace($('.avatar'),skinUrl(state.profile));renderQuick();syncPlayButtons();if(typeof SpectraShell!=='undefined')SpectraShell.refresh();}
+function updateState(s){if(!s)return;state=s;const build=$('#installedVersion');if(build){build.textContent=latestCommitLabel?.name||s.installedCommitName||s.installedCommit?.slice(0,7)||'0.16.2';build.title=latestCommitLabel?latestCommitLabel.name+' · GitHub '+latestCommitLabel.sha+' · installed '+(s.installedCommit||'unknown'):(s.installedCommit||'0.16.2');build.setAttribute('data-no-i18n','');}SpectraAppearance.hydrate(s.appearance);const name=state.profile?.name||'Войти';$('#accountName').textContent=name;$('#profileTab').textContent=state.profile?.name?.toUpperCase()||'ПРОФИЛЬ';if(state.profile?.name)$('#profileTab').removeAttribute('data-i18n');else $('#profileTab').setAttribute('data-i18n','ПРОФИЛЬ');SpectraAppearance.navigation();$('.avatar').textContent=name[0];if(state.profile)paintFace($('.avatar'),skinUrl(state.profile));renderQuick();syncPlayButtons();if(typeof SpectraShell!=='undefined')SpectraShell.refresh();}
 function onMessage(m){
  if(m.type==='networkError'){toast('Друзья: '+m.message);return;}
  if(m.type==='windowState'){state.launcherFullscreen=m.fullscreen===true;const button=$('[data-window="maximize"]');button?.setAttribute('aria-pressed',String(m.maximized));button?.setAttribute('aria-label',m.maximized?'Восстановить':'Развернуть');return;}
@@ -241,7 +241,7 @@ async function previewApi(action,data){
  if(action==='state'||action==='expand')return state;
  if(action==='bootstrap')return{update:'Просмотр интерфейса · проверка обновлений недоступна',available:false};
  if(action==='versions')return ['1.21.4','1.21.3','1.21.1','1.20.6','1.20.4','1.20.1','1.19.4','1.18.2','1.16.5','1.12.2','1.7.10','1.0','b1.7.3','a1.2.6','25w05a'].map((id,i)=>({id,type:id.startsWith('b')?'old_beta':id.startsWith('a')?'old_alpha':id.includes('w')?'snapshot':'release',releaseTime:new Date(2025-i,0,1).toISOString()}));
- if(action==='loaders')return data.loader==='vanilla'?[]:[{version:'0.16.10',recommended:true},{version:'0.16.9',recommended:false}];
+ if(action==='loaders')return data.loader==='vanilla'?[]:[{version:'0.16.20',recommended:true},{version:'0.16.9',recommended:false}];
  if(action==='artwork')return {};
  if(action==='components')return [{name:'Minecraft',version:'Просмотр интерфейса'},{name:'Загрузчик',version:'Просмотр интерфейса'}];
  if(action==='gpus')return ['Просмотр интерфейса · GPU не запрошены'];
@@ -265,5 +265,5 @@ async function previewApi(action,data){
  if(action==='window')return;
  throw new Error('Это просмотр интерфейса. Действие доступно в приложении Spectra для Windows.');
 }
-if(preview&&new URLSearchParams(location.search).has('sample'))state.instances=[{id:'sample-1',name:'Тихая долина',version:'1.20.1',loader:'fabric',loaderVersion:'0.16.10',lastPlayed:'2026-10-07',icon:'',banner:'',settings:structuredClone(state.defaults)},{id:'sample-2',name:'Чистый Minecraft',version:'1.21.4',loader:'vanilla',loaderVersion:'',icon:'',banner:'',settings:structuredClone(state.defaults)}];
+if(preview&&new URLSearchParams(location.search).has('sample'))state.instances=[{id:'sample-1',name:'Тихая долина',version:'1.20.1',loader:'fabric',loaderVersion:'0.16.20',lastPlayed:'2026-10-07',icon:'',banner:'',settings:structuredClone(state.defaults)},{id:'sample-2',name:'Чистый Minecraft',version:'1.21.4',loader:'vanilla',loaderVersion:'',icon:'',banner:'',settings:structuredClone(state.defaults)}];
 boot().then(()=>{getVersions().then(()=>renderQuick()).catch(()=>{});api('artwork').then(art=>{versionArt=art;renderQuick();}).catch(()=>{});});

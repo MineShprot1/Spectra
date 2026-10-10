@@ -34,25 +34,37 @@ public sealed class ContentCatalog(Store store,Func<Uri,Task<ContentCatalog.Cata
  }
  static ContentService.ContentSource Source(JsonNode data)=>ContentService.Sources(data.Str("edition"),data.Str("kind"),data.Str("query")).FirstOrDefault(x=>x.Id==data.Str("source"))??throw new IOException("Источник недоступен в этой категории");
  static bool ProjectPath(string source,string kind,string path)=>source switch{
-  "planetminecraft"=>Regex.IsMatch(path,kind=="skins"?@"^/skin/[^/]+/":kind=="worlds"?@"^/project/[^/]+/":kind=="addons"?@"^/mod/[^/]+/":@"^/texture-pack/[^/]+/"),
   "namemc"=>Regex.IsMatch(path,@"^/skin/[a-fA-F0-9]+$"),
   "skindex"=>Regex.IsMatch(path,@"^/skin/\d+/"),
-  "novaskin"=>Regex.IsMatch(path,@"^/skin/\d+"),
   "mcpedl"=>path.Count(c=>c=='/')==2&&!new[]{"/category/","/tag/","/page/"}.Any(path.StartsWith)&&path!="/",
   "minecraftmaps"=>path.StartsWith("/maps/")&&path.Count(c=>c=='/')>=3,
-  "minecraftinside"=>Regex.IsMatch(path,@"^/maps/\d+[^/]*\.html$"),_=>false};
  async Task<string> Page(Uri uri)
  {
-  using var request=new HttpRequestMessage(HttpMethod.Get,uri);request.Headers.UserAgent.ParseAdd("Spectra/0.16.0");
+  using var request=new HttpRequestMessage(HttpMethod.Get,uri);request.Headers.UserAgent.ParseAdd("Spectra/0.16.2");
   using var response=await Net.Http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);response.EnsureSuccessStatusCode();
   await using var stream=await response.Content.ReadAsStreamAsync();using var output=new MemoryStream();var buffer=new byte[8192];int count;
   while((count=await stream.ReadAsync(buffer))>0){if(output.Length+count>4*1024*1024)throw new IOException("Страница каталога слишком большая");output.Write(buffer,0,count);}
   return System.Text.Encoding.UTF8.GetString(output.ToArray());
  }
+ async Task<object> NameMc(JsonNode data,string catalogUrl,int offset)
+ {
+  if(string.IsNullOrWhiteSpace(store.Config.ParseKey))return new{items=Array.Empty<Item>(),hasMore=false,url=catalogUrl,warning="Укажите ключ Parse в настройках NameMC API или откройте каталог в Spectra.",browserRequired=true};
+  var query=data.Str("query").Trim();
+  var path=query==""?"get_trending_skins?category=trending&page="+(offset/48+1):"get_player_profile?identifier="+Uri.EscapeDataString(query);
+  using var request=new HttpRequestMessage(HttpMethod.Get,"https://api.parse.bot/scraper/74336619-75f3-4075-a721-9dc0b199d651/"+path);
+  request.Headers.Add("X-API-Key",store.Config.ParseKey);
+  using var response=await Net.Http.SendAsync(request);if(!response.IsSuccessStatusCode)throw new IOException("NameMC API: HTTP "+(int)response.StatusCode+". Проверьте ключ Parse и лимит запросов.");
+  var result=JsonNode.Parse(await response.Content.ReadAsStringAsync())??throw new IOException("Пустой ответ NameMC API");
+  var payload=result["data"]??result;
+  var rows=payload as JsonArray??(payload as JsonObject)?["skins"] as JsonArray??throw new IOException("NameMC API вернул неизвестный формат списка");
+  var items=rows.Where(row=>Regex.IsMatch(row.Str("id"),@"\A[a-fA-F0-9]{16}\z")).Skip(query==""?offset%48:offset).Take(24).Select(row=>new Item(row.Str("id"),"Скин "+row.Str("id"),query==""?"":query,row.Str("thumbnail"),"https://namemc.com/skin/"+row.Str("id"))).ToArray();
+  return new{items,hasMore=query==""?rows.Count>=48||offset%48+24<rows.Count:offset+24<rows.Count,url=catalogUrl,warning=""};
+ }
  public async Task<object> Search(JsonNode data,bool browser=false)
  {
   var source=Source(data);var offset=Math.Max(0,data["offset"]?.GetValue<int>()??0);if(offset>2400)throw new IOException("Слишком большая страница");
   try{
+   if(source.Id=="namemc"&&!browser)return await NameMc(data,source.Url,offset);
    if(source.Id=="curseforge"){
     var category=await CurseCategory(data.Str("edition"),data.Str("kind"));
     var result=await Curse($"mods/search?gameId={category.Game}&classId={category.Class}&pageSize=24&index={offset}&sortField=2&sortOrder=desc&searchFilter="+Uri.EscapeDataString(data.Str("query")));
@@ -74,12 +86,12 @@ public sealed class ContentCatalog(Store store,Func<Uri,Task<ContentCatalog.Cata
    }
    return new{items=entries,hasMore=entries.Count==24,url=source.Url,warning=entries.Count==0?"На этой странице не найден список проектов. Откройте список в браузере Spectra и нажмите «Показать список».":"",browserRequired=entries.Count==0};
   }catch(HttpRequestException e) when(e.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.TooManyRequests){return new{items=Array.Empty<Item>(),hasMore=false,url=source.Url,warning="Сайт требует открытие в браузере. Нажмите «Открыть в Spectra», завершите проверку сайта и нажмите «Показать список».",browserRequired=true};}
-  catch(Exception e) when(e is IOException or HttpRequestException or TaskCanceledException){return new{items=Array.Empty<Item>(),hasMore=false,url=source.Url,warning="Каталог не ответил. Можно открыть его в Spectra или в обычном браузере.",browserRequired=true};}
+  catch(Exception e) when(e is IOException or HttpRequestException or TaskCanceledException){return new{items=Array.Empty<Item>(),hasMore=false,url=source.Url,warning=e is IOException?e.Message:"Каталог не ответил. Можно открыть его в Spectra или в обычном браузере.",browserRequired=true};}
  }
  static bool AllowedDownload(string source,Uri uri)
  {
   if(uri.Scheme!="https"||!string.IsNullOrEmpty(uri.UserInfo)||!uri.IsDefaultPort)return false;
-  string[] hosts=source switch{"curseforge"=>["forgecdn.net"],"planetminecraft"=>["planetminecraft.com"],"namemc"=>["namemc.com"],"skindex"=>["minecraftskins.com"],"novaskin"=>["novaskin.me"],"mcpedl"=>["mcpedl.com"],"minecraftmaps"=>["minecraftmaps.com"],"minecraftinside"=>["minecraft-inside.ru"],_=>[]};
+  string[] hosts=source switch{"curseforge"=>["forgecdn.net"],"namemc"=>["namemc.com"],"skindex"=>["minecraftskins.com"],"mcpedl"=>["mcpedl.com"],"minecraftmaps"=>["minecraftmaps.com"],_=>[]};
   return hosts.Any(h=>uri.Host==h||uri.Host.EndsWith("."+h,StringComparison.OrdinalIgnoreCase));
  }
  public async Task<object> Download(JsonNode data,ContentService content)

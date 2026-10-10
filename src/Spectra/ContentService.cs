@@ -16,18 +16,14 @@ public sealed class ContentService(Store store,GameService game,Authentication a
   var q=Uri.EscapeDataString(query);var sources=new List<ContentSource>();
   if(edition=="bedrock"){
    sources.Add(new("curseforge","CurseForge","https://www.curseforge.com/minecraft-bedrock/search?search="+q));
-   sources.Add(new("planetminecraft","Planet Minecraft","https://www.planetminecraft.com/"+(kind=="skins"?"skins":kind=="worlds"?"projects":kind=="addons"?"mods":"texture-packs")+"/?keywords=bedrock%20"+q));
    if(kind=="addons")sources.Add(new("mcpedl","MCPEDL","https://mcpedl.com/?s="+q));
-  }else if(kind=="skins"){
+  }
+  if(kind=="skins"){
    sources.Add(new("namemc","NameMC",query==""?"https://namemc.com/minecraft-skins/trending":"https://namemc.com/minecraft-skins/tag/"+q));
    sources.Add(new("skindex","Skindex",query==""?"https://www.minecraftskins.com/":"https://www.minecraftskins.com/search/skin/"+q+"/1/"));
-   sources.Add(new("novaskin","Nova Skin","https://minecraft.novaskin.me/gallery"));
-   sources.Add(new("planetminecraft","Planet Minecraft","https://www.planetminecraft.com/skins/?keywords="+q));
-  }else if(kind=="worlds"){
+  }else if(edition=="java"&&kind=="worlds"){
    sources.Add(new("curseforge","CurseForge","https://www.curseforge.com/minecraft/search?class=worlds&search="+q));
-   sources.Add(new("planetminecraft","Planet Minecraft","https://www.planetminecraft.com/projects/?keywords="+q));
    sources.Add(new("minecraftmaps","Minecraft Maps","https://www.minecraftmaps.com/"));
-   sources.Add(new("minecraftinside","Minecraft Inside","https://minecraft-inside.ru/maps/"));
   }
   return sources.ToArray();
  }
