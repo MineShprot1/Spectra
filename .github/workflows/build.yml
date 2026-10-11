@@ -27,6 +27,8 @@ jobs:
         run: npm run test:dom
       - name: Feature parser tests
         run: dotnet run --project tests/features/Features.Tests.csproj -c Release
+      - name: Bedrock pack import tests
+        run: dotnet run --project tests/BedrockPack.Tests.csproj -c Release
       - name: UI smoke tests
         run: npm run test:ui
       - uses: actions/upload-artifact@v4

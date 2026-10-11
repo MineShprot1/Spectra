@@ -35,3 +35,10 @@ assert.equal(vm.runInContext("SpectraBedrock.matchesInstalled({name:'Microsoft.M
  assert.equal(dialogs.length,0);assert.equal(calls.find(x=>x.action==='bedrockLaunch').data.install,false);assert.equal(ctx.busy.size,0);
  console.log('PASS: installed online Bedrock launches directly, version aliases match and Preview stays separate');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+(async()=>{
+ const calls=[],toasts=[];const ctx={state:{selection:{}},busy:new Set(),syncPlayButtons(){},settleGameStatus(){},toast:message=>toasts.push(message),page:'instances',run:fn=>fn(),modal(){throw Error('No install dialog expected');},$:()=>({close(){}}),api:async(action,data)=>{calls.push({action,data});if(action==='bedrockVersions')return {installed:[{id:'installed',name:'Microsoft.MinecraftUWP',version:'1.21.5000.0',installed:true}],available:[]};if(action==='bedrockLaunch')return {status:'importingContent',count:2,message:'Import pending packs'};throw Error(action);}};
+ vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/Spectra/Web/bedrock.js'),'utf8'),ctx);await vm.runInContext("SpectraBedrock.launch('installed')",ctx);
+ assert.deepEqual(toasts,['Import pending packs']);assert.equal(calls.filter(x=>x.action==='bedrockLaunch').length,1);assert.equal(ctx.busy.size,0);
+ console.log('PASS: pending-pack response ends launch flow and displays import guidance');
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -542,7 +542,8 @@ const SpectraTranslations={
   "Недопустимый файл в карте": "Invalid file in map",
   "Карта больше 4 ГиБ": "The map exceeds 4 GiB",
   "Карта установлена:": "Map installed:",
-  "ID сети:": "Network ID:"
+  "ID сети:": "Network ID:",
+  "Открыты неустановленные дополнения Bedrock для импорта. После завершения импорта нажмите ИГРАТЬ ещё раз.": "Pending Bedrock additions were opened for import. When importing is complete, press PLAY again."
  },
  "de": {
   "МОДПАКИ": "Modpacks",

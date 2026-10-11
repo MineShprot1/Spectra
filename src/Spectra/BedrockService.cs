@@ -78,7 +78,9 @@ public sealed partial class BedrockService(Store store)
    if(selected==null)throw new IOException("Выбранная версия не установлена. Обновите список Bedrock.");
    if(installOnly)return new{status="installed",version=selected.Version,message="Версия установлена. Нажмите ИГРАТЬ для запуска."};
    if(!System.Text.RegularExpressions.Regex.IsMatch(selected.Family,@"\A[A-Za-z0-9_.-]+\z")||!System.Text.RegularExpressions.Regex.IsMatch(selected.AppId,@"\A[A-Za-z0-9_.-]+\z"))throw new IOException("Неверный идентификатор приложения Windows");
-   var info=new ProcessStartInfo("explorer.exe"){UseShellExecute=true};info.ArgumentList.Add("shell:AppsFolder\\"+selected.Family+"!"+selected.AppId);Process.Start(info);if(id=="latest")await ContentService.OpenBedrockFiles(store);return new{status="launched",version=selected.Version,message="Запуск передан Windows; права на игру проверяются Minecraft / Microsoft Store."};
+   var pending=await ContentService.OpenPendingBedrockPacks(store,selected.Preview);
+   if(pending>0)return new{status="importingContent",count=pending,message="Открыты неустановленные дополнения Bedrock для импорта. После завершения импорта нажмите ИГРАТЬ ещё раз."};
+   var info=new ProcessStartInfo("explorer.exe"){UseShellExecute=true};info.ArgumentList.Add("shell:AppsFolder\\"+selected.Family+"!"+selected.AppId);Process.Start(info);if(id=="latest")await ContentService.OpenBedrockWorlds(store);return new{status="launched",version=selected.Version,message="Запуск передан Windows; права на игру проверяются Minecraft / Microsoft Store."};
   }finally{gate.Release();}
  }
  public async Task DeleteVersion(string id)

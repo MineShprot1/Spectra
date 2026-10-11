@@ -26,12 +26,14 @@ public sealed class ContentService(Store store,GameService game,Authentication a
  }
  public ContentItem[] BedrockItems()=>QueuedBedrockItems().Concat(InstalledBedrockItems()).ToArray();
  static bool Linked(string path){for(var current=new DirectoryInfo(path);current!=null;current=current.Parent)if(current.Exists&&(current.Attributes&FileAttributes.ReparsePoint)!=0)return true;return false;}
- static IEnumerable<string> BedrockRoots()
+ static IEnumerable<string> BedrockRoots(bool? preview=null)
  {
   foreach(var family in new[]{"Microsoft.MinecraftUWP_8wekyb3d8bbwe","Microsoft.MinecraftWindows_8wekyb3d8bbwe","Microsoft.MinecraftWindowsBeta_8wekyb3d8bbwe","Microsoft.MinecraftWindowsPreview_8wekyb3d8bbwe"}){
+   if(preview.HasValue&&(family.Contains("Beta")||family.Contains("Preview"))!=preview.Value)continue;
    var root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Packages",family,"LocalState","games","com.mojang");if(Directory.Exists(root)&&!Linked(root))yield return root;
   }
   foreach(var gameName in new[]{"Minecraft Bedrock","Minecraft Bedrock Preview"}){
+   if(preview.HasValue&&gameName.EndsWith("Preview",StringComparison.Ordinal)!=preview.Value)continue;
    var users=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),gameName,"Users");if(!Directory.Exists(users)||Linked(users))continue;
    foreach(var user in Directory.EnumerateDirectories(users).Take(100)){var root=Path.Combine(user,"games","com.mojang");if(Directory.Exists(root)&&!Linked(root))yield return root;}
   }
@@ -77,10 +79,19 @@ public sealed class ContentService(Store store,GameService game,Authentication a
   if(!Regex.IsMatch(id,@"\A[a-f0-9]{32}\z"))throw new IOException("Неверный ID");
   var item=QueuedBedrockItems().Single(x=>x.Id==id);File.Delete(Store.SafePath(ContentRoot,item.File));File.Delete(Path.Combine(ContentRoot,id+".json"));
  }
- public static async Task OpenBedrockFiles(Store store)
+ public static async Task<int> OpenPendingBedrockPacks(Store store,bool preview)
+ {
+  var root=Path.Combine(store.Root,"bedrock","content");if(!Directory.Exists(root))return 0;
+  var installed=BedrockPackIndex.Installed(BedrockRoots(preview));
+  var pending=Directory.EnumerateFiles(root).Where(p=>Path.GetExtension(p).Equals(".mcpack",StringComparison.OrdinalIgnoreCase)||Path.GetExtension(p).Equals(".mcaddon",StringComparison.OrdinalIgnoreCase)).Where(p=>!BedrockPackIndex.IsInstalled(p,installed)).OrderBy(p=>p,StringComparer.OrdinalIgnoreCase).ToArray();
+  // Opening an associated file may start Minecraft itself. Do not additionally activate the game.
+  for(int index=0;index<pending.Length;index++){Process.Start(new ProcessStartInfo(pending[index]){UseShellExecute=true});if(index+1<pending.Length)await Task.Delay(1500);}
+  return pending.Length;
+ }
+ public static async Task OpenBedrockWorlds(Store store)
  {
   var root=Path.Combine(store.Root,"bedrock","content");if(!Directory.Exists(root))return;
-  foreach(var file in Directory.EnumerateFiles(root).Where(p=>new[]{".mcworld",".mcpack",".mcaddon"}.Contains(Path.GetExtension(p).ToLowerInvariant()))){Process.Start(new ProcessStartInfo(file){UseShellExecute=true});await Task.Delay(1500);}
+  foreach(var file in Directory.EnumerateFiles(root).Where(p=>Path.GetExtension(p).Equals(".mcworld",StringComparison.OrdinalIgnoreCase))){Process.Start(new ProcessStartInfo(file){UseShellExecute=true});await Task.Delay(1500);}
  }
  public async Task<object> Import(JsonNode data,System.Windows.Window owner)
  {
