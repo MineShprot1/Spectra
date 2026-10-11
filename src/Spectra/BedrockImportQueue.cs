@@ -3,7 +3,7 @@ namespace Spectra;
 public static class BedrockImportQueue
 {
  // A pair of positive checks avoids immediately advancing when a manifest first appears.
- public static async Task<int> Run(IEnumerable<string> files,Func<string,Task<bool>> installed,Action<string> open,Func<Task> delay,Action<string,int,int>? progress=null,int maxPolls=180,Func<bool>? running=null,Func<TimeSpan>? elapsed=null,Func<Task>? restart=null,CancellationToken cancellationToken=default)
+ public static async Task<int> Run(IEnumerable<string> files,Func<string,Task<bool>> installed,Action<string> open,Func<Task> delay,Action<string,int,int>? progress=null,int maxPolls=180,Func<bool>? running=null,Func<TimeSpan>? elapsed=null,Func<Task>? restart=null,CancellationToken cancellationToken=default,Func<string,Task<bool>>? complete=null,Func<string,Task<bool>>? registered=null)
  {
   if(maxPolls<2)throw new ArgumentOutOfRangeException(nameof(maxPolls));
   var timer=System.Diagnostics.Stopwatch.StartNew();elapsed??=()=>timer.Elapsed;
@@ -15,9 +15,9 @@ public static class BedrockImportQueue
    if(opened>0&&restart!=null){await restart();seenRunning=false;cancellationToken.ThrowIfCancellationRequested();}
    progress?.Invoke(file,index,pending.Length);open(file);opened++;var lastOpened=elapsed();int confirmations=0;
    for(int attempt=0;attempt<maxPolls;attempt++){
-    await delay();CheckRunning();confirmations=await installed(file)?confirmations+1:0;CheckRunning();
+    await delay();CheckRunning();bool detectable=await (registered??installed)(file);bool imported=detectable&&(complete==null||await complete(file));if(imported&&registered!=null)imported=await installed(file);confirmations=imported?confirmations+1:0;CheckRunning();
     if(confirmations>=2)break;
-    if(attempt+1<maxPolls&&confirmations==0&&elapsed()-lastOpened>=TimeSpan.FromSeconds(15)){progress?.Invoke(file,index,pending.Length);CheckRunning();open(file);lastOpened=elapsed();}
+    if(attempt+1<maxPolls&&!detectable&&confirmations==0&&elapsed()-lastOpened>=TimeSpan.FromSeconds(15)){progress?.Invoke(file,index,pending.Length);CheckRunning();open(file);lastOpened=elapsed();}
    }
    if(confirmations<2)throw new TimeoutException("Не удалось подтвердить импорт дополнения: "+System.IO.Path.GetFileName(file)+". Очередь остановлена. Проверьте сообщение об импорте в Minecraft и нажмите ИГРАТЬ ещё раз.");
   }

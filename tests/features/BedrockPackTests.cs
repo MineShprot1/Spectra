@@ -39,5 +39,13 @@ try{
  Check(restarts==1,"Two imported files require one restart; the final game stays open");
  opened.Clear();polls.Clear();restarts=0;
  await BedrockImportQueue.Run(["only"],Imported,file=>opened.Add(file),()=>Task.CompletedTask,maxPolls:5,restart:()=>{restarts++;return Task.CompletedTask;});Check(restarts==0,"Single/final pack never restarts Minecraft");
+ var assets=Path.Combine(root,"assets.mcpack");using(var zip=ZipFile.Open(assets,ZipArchiveMode.Create)){using(var writer=new StreamWriter(zip.CreateEntry("manifest.json").Open()))writer.Write(Manifest(a,1));using(var writer=new StreamWriter(zip.CreateEntry("textures/test.txt").Open(),new UTF8Encoding(false)))writer.Write("abc");}
+ var required=BedrockPackIndex.Required(assets);installed=BedrockPackIndex.Installed([Path.Combine(root,"game")]);
+ Check(!BedrockPackIndex.FilesComplete(required,installed),"Manifest alone cannot confirm resource copying");
+ Directory.CreateDirectory(Path.Combine(folder,"textures"));var texture=Path.Combine(folder,"textures","test.txt");File.WriteAllText(texture,"abx",new UTF8Encoding(false));
+ Check(!BedrockPackIndex.FilesComplete(required,installed),"Same-size unfinished resource fails checksum");File.WriteAllText(texture,"abc",new UTF8Encoding(false));Check(BedrockPackIndex.FilesComplete(required,installed),"Complete resource set matches archive");
+ opened.Clear();int completionTicks=0;elapsed=TimeSpan.Zero;restarts=0;
+ await BedrockImportQueue.Run(["copying","next"],file=>Task.FromResult(opened.Contains(file)),file=>opened.Add(file),()=>{completionTicks++;elapsed+=TimeSpan.FromSeconds(3);return Task.CompletedTask;},maxPolls:20,elapsed:()=>elapsed,registered:file=>Task.FromResult(opened.Contains(file)),complete:_=>Task.FromResult(completionTicks>=6),restart:()=>{Check(completionTicks>=7,"Restart waits for completed resources and consecutive confirmations");restarts++;return Task.CompletedTask;});
+ Check(opened.SequenceEqual(new[]{"copying","next"})&&restarts==1,"Registered but still copying pack is not reopened at 15 seconds");
  Console.WriteLine($"{checks} Bedrock pack checks passed");
 }finally{Directory.Delete(root,true);}

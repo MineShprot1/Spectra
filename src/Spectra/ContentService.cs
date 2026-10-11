@@ -85,9 +85,16 @@ public sealed class ContentService(Store store,GameService game,Authentication a
   var files=Directory.EnumerateFiles(root).Where(p=>Path.GetExtension(p).Equals(".mcpack",StringComparison.OrdinalIgnoreCase)||Path.GetExtension(p).Equals(".mcaddon",StringComparison.OrdinalIgnoreCase)).OrderBy(p=>p,StringComparer.OrdinalIgnoreCase).ToArray();
   var identities=await Task.Run(()=>files.ToDictionary(file=>file,file=>BedrockPackIndex.Required(file)));
   // Re-scan the game storage, but parse each queued archive only once per attempt.
-  Task<bool> Installed(string file)=>Task.Run(()=>BedrockPackIndex.Satisfied(identities[file],BedrockPackIndex.Installed(BedrockRoots(preview))));
+  Task<bool> Installed(string file)=>Task.Run(()=>BedrockPackIndex.FilesComplete(identities[file],BedrockPackIndex.Installed(BedrockRoots(preview))));
+  Task<bool> Registered(string file)=>Task.Run(()=>BedrockPackIndex.Satisfied(identities[file],BedrockPackIndex.Installed(BedrockRoots(preview))));
+  var quiet=new Dictionary<string,(string Snapshot,long Since)>();
+  Task<bool> Complete(string file)=>Task.Run(()=>{
+   var snapshot=BedrockPackIndex.Snapshot(identities[file],BedrockPackIndex.Installed(BedrockRoots(preview)));if(snapshot==null){quiet.Remove(file);return false;}
+   var now=Environment.TickCount64;if(!quiet.TryGetValue(file,out var prior)||prior.Snapshot!=snapshot){quiet[file]=(snapshot,now);return false;}
+   return now-prior.Since>=10000;
+  });
   return await BedrockImportQueue.Run(files,Installed,file=>Process.Start(new ProcessStartInfo(file){UseShellExecute=true}),()=>Task.Delay(1000),
-   (file,index,total)=>Net.ProgressSink.Value?.Invoke(new{type="progress",message="Импорт дополнений Bedrock · "+(index+1)+" / "+total+" · "+Path.GetFileName(file),percent=index*100d/total,indeterminate=true}),running:BedrockService.IsRunning,restart:BedrockService.StopProcesses,cancellationToken:cancellationToken);
+   (file,index,total)=>Net.ProgressSink.Value?.Invoke(new{type="progress",message="Импорт дополнений Bedrock · "+(index+1)+" / "+total+" · "+Path.GetFileName(file),percent=index*100d/total,indeterminate=true}),running:BedrockService.IsRunning,restart:BedrockService.StopProcesses,cancellationToken:cancellationToken,complete:Complete,registered:Registered);
  }
  public static async Task OpenBedrockWorlds(Store store)
  {
