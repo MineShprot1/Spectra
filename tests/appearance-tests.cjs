@@ -1,6 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const storage=new Map();
 const styles=new Map(),text={nodeValue:'Играть',parentElement:{closest:()=>false}};
-const context={console,localStorage:{getItem:()=>null,setItem(){}},NodeFilter:{SHOW_TEXT:4},MutationObserver:class{observe(){}},document:{body:{dataset:{}},documentElement:{},head:{append(s){styles.set('#'+s.id,s)}},querySelector:s=>styles.get(s),createElement:()=>({}),createTreeWalker:()=>{let done=false;return{nextNode(){if(done)return null;done=true;return text;}}},addEventListener(){}}};
+const context={console,localStorage:{getItem:key=>storage.get(key)||null,setItem(key,value){storage.set(key,value)}},NodeFilter:{SHOW_TEXT:4},MutationObserver:class{observe(){}},document:{body:{dataset:{}},documentElement:{},head:{append(s){styles.set('#'+s.id,s)}},querySelector:s=>styles.get(s),createElement:()=>({}),createTreeWalker:()=>{let done=false;return{nextNode(){if(done)return null;done=true;return text;}}},addEventListener(){}}};
 vm.createContext(context);vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../src/Spectra/Web/translations.js'),'utf8'),context);vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../src/Spectra/Web/locales.js'),'utf8'),context);vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../src/Spectra/Web/appearance.js'),'utf8'),context);
 vm.runInContext("SpectraAppearance.apply({language:'en',theme:'light',css:'.hero{display:none}'})",context);assert.equal(text.nodeValue,'Play');assert.equal(context.document.body.dataset.theme,'light');assert.equal(styles.get('#customThemeStyle').textContent,'.hero{display:none}');
 vm.runInContext("SpectraAppearance.apply({language:'ru',theme:'gradient',colors:['#112233','#abcdef'],angle:90})",context);assert.equal(text.nodeValue,'Играть');assert(styles.get('#themeStyle').textContent.includes('linear-gradient(90deg,#112233,#abcdef)'));
@@ -36,3 +37,25 @@ for(const source of ['My Russian сборка','Alice','https://example.test/И�
 text.nodeValue='Показать ещё';vm.runInContext("SpectraAppearance.apply({language:'de'})",context);assert.equal(text.nodeValue,'Mehr anzeigen');vm.runInContext("SpectraAppearance.apply({language:'ja'})",context);assert.equal(text.nodeValue,'もっと表示');vm.runInContext("SpectraAppearance.apply({language:'ru'})",context);assert.equal(text.nodeValue,'Показать ещё');
 assert.equal(vm.runInContext("SpectraLocales.dictionary('de')['Исполняемый файл Java']",context),'Java-Programm');
 console.log('PASS: 12 locale additions, decorated labels, counts, dynamic prefixes, unknown content and reversible language changes');
+
+vm.runInContext("SpectraAppearance.apply({language:'en',theme:'gradient',colors:['#112233','#445566'],angle:40,gradientTargets:{top:{inherit:false,colors:['#abcdef','#123456'],angle:80},bottom:{enabled:false},hud:{inherit:true}}});var savedId=SpectraAppearance.addPreset('My gradient');",context);
+let gradientStyle=styles.get('#themeStyle').textContent;
+assert(gradientStyle.includes('body[data-theme="gradient"] #titlebar'));
+assert(gradientStyle.includes('linear-gradient(80deg,#abcdef,#123456)!important'));
+assert(gradientStyle.includes('body[data-theme="gradient"] .glass'));
+assert(!gradientStyle.includes('body[data-theme="gradient"] #shell > footer'));
+vm.runInContext("SpectraAppearance.selectPreset(savedId);",context);
+const savedAppearance=JSON.parse(storage.get('spectraAppearance'));
+assert.equal(savedAppearance.gradientPresets.length,1);assert.equal(savedAppearance.gradientPresets[0].name,'My gradient');
+vm.runInContext(`SpectraAppearance.apply({theme:'dark'});SpectraAppearance.apply(SpectraAppearance.validate(${JSON.stringify(savedAppearance)}));SpectraAppearance.selectPreset(savedId);`,context);
+
+gradientStyle=styles.get('#themeStyle').textContent;
+assert(gradientStyle.includes('linear-gradient(40deg,#112233,#445566)'));
+assert(gradientStyle.includes('linear-gradient(80deg,#abcdef,#123456)!important'));
+assert.equal(vm.runInContext("SpectraAppearance.selectPreset('missing')",context),false);
+const invalidPresets=vm.runInContext("SpectraAppearance.validate({gradientPresets:[{id:'bad\"',name:'x'},{id:'safe',name:' A ',colors:['red','url(x)','#112233','#445566']},{id:'safe',name:'duplicate'}],gradientTargets:{top:{angle:Infinity,colors:['url(x)','#112233','#445566']}}})",context);
+assert.equal(invalidPresets.gradientPresets.length,1);assert.equal(invalidPresets.gradientPresets[0].name,'A');assert.equal(invalidPresets.gradientTargets.top.angle,135);assert.equal(invalidPresets.gradientTargets.top.colors.length,2);
+vm.runInContext("SpectraAppearance.removePreset(savedId);",context);assert.equal(vm.runInContext("SpectraAppearance.selectPreset(savedId)",context),false);
+for(const lang of ['en','de','fr','es','pt','it','pl','uk','tr','zh','ja','ko']){vm.runInContext(`SpectraAppearance.apply({language:'${lang}'})`,context);assert.notEqual(vm.runInContext("SpectraAppearance.text('Пресеты градиента')",context),'Пресеты градиента');}
+vm.runInContext("SpectraAppearance.apply({theme:'dark'})",context);assert(!styles.get('#themeStyle').textContent.includes('background-image:linear-gradient'));
+console.log('PASS: independent gradient targets, presets survive JSON roundtrip, invalid inputs, removal and theme isolation');
