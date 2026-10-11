@@ -82,11 +82,12 @@ public sealed class ContentService(Store store,GameService game,Authentication a
  public static async Task<int> OpenPendingBedrockPacks(Store store,bool preview)
  {
   var root=Path.Combine(store.Root,"bedrock","content");if(!Directory.Exists(root))return 0;
-  var installed=BedrockPackIndex.Installed(BedrockRoots(preview));
-  var pending=Directory.EnumerateFiles(root).Where(p=>Path.GetExtension(p).Equals(".mcpack",StringComparison.OrdinalIgnoreCase)||Path.GetExtension(p).Equals(".mcaddon",StringComparison.OrdinalIgnoreCase)).Where(p=>!BedrockPackIndex.IsInstalled(p,installed)).OrderBy(p=>p,StringComparer.OrdinalIgnoreCase).ToArray();
-  // Opening an associated file may start Minecraft itself. Do not additionally activate the game.
-  for(int index=0;index<pending.Length;index++){Process.Start(new ProcessStartInfo(pending[index]){UseShellExecute=true});if(index+1<pending.Length)await Task.Delay(1500);}
-  return pending.Length;
+  var files=Directory.EnumerateFiles(root).Where(p=>Path.GetExtension(p).Equals(".mcpack",StringComparison.OrdinalIgnoreCase)||Path.GetExtension(p).Equals(".mcaddon",StringComparison.OrdinalIgnoreCase)).OrderBy(p=>p,StringComparer.OrdinalIgnoreCase).ToArray();
+  var identities=await Task.Run(()=>files.ToDictionary(file=>file,file=>BedrockPackIndex.Required(file)));
+  // Re-scan the game storage, but parse each queued archive only once per attempt.
+  Task<bool> Installed(string file)=>Task.Run(()=>BedrockPackIndex.Satisfied(identities[file],BedrockPackIndex.Installed(BedrockRoots(preview))));
+  return await BedrockImportQueue.Run(files,Installed,file=>Process.Start(new ProcessStartInfo(file){UseShellExecute=true}),()=>Task.Delay(2000),
+   (file,index,total)=>Net.ProgressSink.Value?.Invoke(new{type="progress",message="Импорт дополнений Bedrock · "+(index+1)+" / "+total+" · "+Path.GetFileName(file),percent=index*100d/total,indeterminate=true}));
  }
  public static async Task OpenBedrockWorlds(Store store)
  {

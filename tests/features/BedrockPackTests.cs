@@ -20,5 +20,11 @@ try{
  Check(BedrockPackIndex.IsInstalled(addon,[new(a,[1,0,1]),new(b,[1,0,1])]),"All nested mcaddon packs must be installed");
  var broken=Path.Combine(root,"broken.mcpack");File.WriteAllText(broken,"not a ZIP");Check(!BedrockPackIndex.IsInstalled(broken,installed),"Opening or malformed input does not count as installation");
  Check(!BedrockPackIndex.IsInstalled(pack,BedrockPackIndex.Installed([Path.Combine(root,"other-edition")])),"A different edition storage does not inherit installation state");
+ var opened=new List<string>();var polls=new Dictionary<string,int>();
+ Task<bool> Imported(string file){if(!opened.Contains(file))return Task.FromResult(false);polls[file]=polls.GetValueOrDefault(file)+1;return Task.FromResult(polls[file]>=2);}
+ await BedrockImportQueue.Run(["first","second"],Imported,file=>{if(file=="second")Check(polls["first"]>=3,"Second file waits for two import confirmations");opened.Add(file);},()=>Task.CompletedTask,maxPolls:5);
+ Check(opened.SequenceEqual(new[]{"first","second"}),"Packs open sequentially");
+ opened.Clear();await BedrockImportQueue.Run(["already"],_=>Task.FromResult(true),file=>opened.Add(file),()=>Task.CompletedTask);Check(opened.Count==0,"Installed files are skipped");
+ opened.Clear();try{await BedrockImportQueue.Run(["failed","never-open"],_=>Task.FromResult(false),file=>opened.Add(file),()=>Task.CompletedTask,maxPolls:3);throw new Exception("Expected timeout");}catch(TimeoutException){Check(opened.SequenceEqual(new[]{"failed"}),"Failed import stops the queue");}
  Console.WriteLine($"{checks} Bedrock pack checks passed");
 }finally{Directory.Delete(root,true);}

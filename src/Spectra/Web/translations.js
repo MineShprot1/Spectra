@@ -543,7 +543,8 @@ const SpectraTranslations={
   "Карта больше 4 ГиБ": "The map exceeds 4 GiB",
   "Карта установлена:": "Map installed:",
   "ID сети:": "Network ID:",
-  "Открыты неустановленные дополнения Bedrock для импорта. После завершения импорта нажмите ИГРАТЬ ещё раз.": "Pending Bedrock additions were opened for import. When importing is complete, press PLAY again."
+  "Открыты неустановленные дополнения Bedrock для импорта. После завершения импорта нажмите ИГРАТЬ ещё раз.": "Pending Bedrock additions were opened for import. When importing is complete, press PLAY again.",
+  "Импорт дополнений Bedrock подтверждён. Нажмите ИГРАТЬ ещё раз для обычного запуска.": "Bedrock additions were imported. Press PLAY again to launch normally."
  },
  "de": {
   "МОДПАКИ": "Modpacks",

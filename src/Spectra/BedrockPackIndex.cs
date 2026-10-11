@@ -39,9 +39,14 @@ public static class BedrockPackIndex
   return result.ToArray();
  }
  static int Compare(int[] a,int[] b){for(int i=0;i<3;i++){int cmp=a[i].CompareTo(b[i]);if(cmp!=0)return cmp;}return 0;}
- public static bool IsInstalled(string file,IEnumerable<Identity> installed)
+ public static Identity[] Required(string file)
  {
-  try{using var zip=ZipFile.OpenRead(file);var required=new List<Identity>();ReadArchive(zip,required,0);var present=installed.ToArray();return required.Count>0&&required.All(pack=>present.Any(p=>p.Uuid==pack.Uuid&&Compare(p.Version,pack.Version)>=0));}
-  catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException){return false;}
+  try{using var zip=ZipFile.OpenRead(file);var required=new List<Identity>();ReadArchive(zip,required,0);return required.ToArray();}
+  catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException){return [];}
  }
+ public static bool Satisfied(IReadOnlyCollection<Identity> required,IEnumerable<Identity> installed)
+ {
+  var present=installed.ToArray();return required.Count>0&&required.All(pack=>present.Any(p=>p.Uuid==pack.Uuid&&Compare(p.Version,pack.Version)>=0));
+ }
+ public static bool IsInstalled(string file,IEnumerable<Identity> installed)=>Satisfied(Required(file),installed);
 }
