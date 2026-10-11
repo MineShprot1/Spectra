@@ -26,5 +26,13 @@ try{
  Check(opened.SequenceEqual(new[]{"first","second"}),"Packs open sequentially");
  opened.Clear();await BedrockImportQueue.Run(["already"],_=>Task.FromResult(true),file=>opened.Add(file),()=>Task.CompletedTask);Check(opened.Count==0,"Installed files are skipped");
  opened.Clear();try{await BedrockImportQueue.Run(["failed","never-open"],_=>Task.FromResult(false),file=>opened.Add(file),()=>Task.CompletedTask,maxPolls:3);throw new Exception("Expected timeout");}catch(TimeoutException){Check(opened.SequenceEqual(new[]{"failed"}),"Failed import stops the queue");}
+ opened.Clear();var elapsed=TimeSpan.Zero;int retryPoll=0;
+ await BedrockImportQueue.Run(["retry"],_=>Task.FromResult(++retryPoll>=18),file=>opened.Add(file),()=>{elapsed+=TimeSpan.FromSeconds(1);return Task.CompletedTask;},maxPolls:25,elapsed:()=>elapsed);
+ Check(opened.SequenceEqual(new[]{"retry","retry"}),"Unconfirmed pack reopens after 15 seconds");
+ opened.Clear();int ticks=0;
+ try{await BedrockImportQueue.Run(["closing","must-not-open"],_=>Task.FromResult(false),file=>opened.Add(file),()=>{ticks++;return Task.CompletedTask;},maxPolls:20,running:()=>ticks<2);throw new Exception("Expected cancellation");}catch(OperationCanceledException){Check(opened.SequenceEqual(new[]{"closing"}),"Closing Bedrock stops imports and prevents reopening");}
+ opened.Clear();elapsed=TimeSpan.Zero;
+ try{await BedrockImportQueue.Run(["starting"],_=>Task.FromResult(false),file=>opened.Add(file),()=>{elapsed+=TimeSpan.FromSeconds(1);return Task.CompletedTask;},maxPolls:16,running:()=>false,elapsed:()=>elapsed);}catch(TimeoutException){}
+ Check(opened.Count==2,"Startup delay allows retry before a game process has been observed");
  Console.WriteLine($"{checks} Bedrock pack checks passed");
 }finally{Directory.Delete(root,true);}
