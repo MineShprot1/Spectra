@@ -38,7 +38,7 @@ text.nodeValue='Показать ещё';vm.runInContext("SpectraAppearance.appl
 assert.equal(vm.runInContext("SpectraLocales.dictionary('de')['Исполняемый файл Java']",context),'Java-Programm');
 console.log('PASS: 12 locale additions, decorated labels, counts, dynamic prefixes, unknown content and reversible language changes');
 
-vm.runInContext("SpectraAppearance.apply({language:'en',theme:'gradient',colors:['#112233','#445566'],angle:40,gradientTargets:{top:{inherit:false,colors:['#abcdef','#123456'],angle:80},bottom:{enabled:false},hud:{inherit:true}}});var savedId=SpectraAppearance.addPreset('My gradient');",context);
+vm.runInContext("SpectraAppearance.apply({language:'en',theme:'gradient',gradientUnified:false,colors:['#112233','#445566'],angle:40,gradientTargets:{top:{inherit:false,colors:['#abcdef','#123456'],angle:80},bottom:{enabled:false},hud:{inherit:true}}});var savedId=SpectraAppearance.addPreset('My gradient');",context);
 let gradientStyle=styles.get('#themeStyle').textContent;
 assert(gradientStyle.includes('body[data-theme="gradient"] #titlebar'));
 assert(gradientStyle.includes('linear-gradient(80deg,#abcdef,#123456)!important'));
@@ -59,3 +59,12 @@ vm.runInContext("SpectraAppearance.removePreset(savedId);",context);assert.equal
 for(const lang of ['en','de','fr','es','pt','it','pl','uk','tr','zh','ja','ko']){vm.runInContext(`SpectraAppearance.apply({language:'${lang}'})`,context);assert.notEqual(vm.runInContext("SpectraAppearance.text('Пресеты градиента')",context),'Пресеты градиента');}
 vm.runInContext("SpectraAppearance.apply({theme:'dark'})",context);assert(!styles.get('#themeStyle').textContent.includes('background-image:linear-gradient'));
 console.log('PASS: independent gradient targets, presets survive JSON roundtrip, invalid inputs, removal and theme isolation');
+
+vm.runInContext("SpectraAppearance.apply({theme:'gradient',colors:['#123456','#abcdef'],angle:120});var unifiedId=SpectraAppearance.addPreset('Unified');SpectraAppearance.selectPreset(unifiedId);",context);
+const sharedCss=styles.get('#themeStyle').textContent;
+assert.equal((sharedCss.match(/linear-gradient\(120deg,#123456,#abcdef\)/g)||[]).length,1);
+assert(sharedCss.includes('background:#09111930!important'));
+assert(sharedCss.includes('.ambient{display:none}'));
+assert.equal(JSON.parse(storage.get('spectraAppearance')).gradientUnified,true);
+assert.equal(JSON.parse(storage.get('spectraAppearance')).gradientPresets[0].gradientUnified,true);
+console.log('PASS: shared backdrop gradient occurs once, panel tints and unified preset persistence');
