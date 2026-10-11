@@ -10,6 +10,14 @@ namespace Spectra;
 public sealed partial class BedrockService(Store store)
 {
  readonly SemaphoreSlim gate=new(1,1);
+ public static bool IsRunning()
+ {
+  foreach(var name in new[]{"Minecraft.Windows","Minecraft.WindowsBeta","Minecraft.WindowsPreview"}){
+   Process[] processes;try{processes=Process.GetProcessesByName(name);}catch(System.ComponentModel.Win32Exception){continue;}
+   bool running=processes.Length>0;foreach(var process in processes)process.Dispose();if(running)return true;
+  }
+  return false;
+ }
  JsonNode? updates;
  public sealed record Package(string Id,string Name,string Version,string Family,string AppId,bool Preview,bool Legacy,bool Installed);
  internal static string? CanonicalIdentity(string name)=>new[]{"Microsoft.MinecraftUWP","Microsoft.MinecraftWindowsBeta","Microsoft.MinecraftWindows","Microsoft.MinecraftWindowsPreview"}.FirstOrDefault(n=>n.Equals(name,StringComparison.OrdinalIgnoreCase));
@@ -60,7 +68,9 @@ public sealed partial class BedrockService(Store store)
      if(selected==null)throw new IOException("Store сообщил об установке, но Minecraft не найден. Подробности: bedrock/last-store-install.log");
     }
    }else if(id.StartsWith("online:",StringComparison.Ordinal)){
-    if(!install)throw new IOException("Подтвердите установку версии Bedrock");selected=await InstallRelease(id,await Bridge("list"),replace);
+    var current=await Bridge("list");var release=(await Catalogue()).FirstOrDefault(r=>r.Id==id)??throw new IOException("Версия отсутствует в каталоге Bedrock");
+    selected=current.FirstOrDefault(p=>p.Name.Equals(release.Name,StringComparison.OrdinalIgnoreCase)&&(release.Format=="UWP"?MatchesUwpVersion(release.Version,p.Version):p.Version==release.PackageVersion));
+    if(selected==null){if(!install)throw new IOException("Подтвердите установку версии Bedrock");selected=await InstallRelease(id,current,replace);}
    }else if(id.StartsWith("import:",StringComparison.Ordinal)){
     var file=id[7..];if(!System.Text.RegularExpressions.Regex.IsMatch(file,@"\A[a-f0-9]{64}\.(appx|msix)\z"))throw new IOException("Неверный пакет Bedrock");var folder=Path.Combine(store.Root,"bedrock","packages");var item=JsonSerializer.Deserialize<Package>(await File.ReadAllTextAsync(Path.Combine(folder,file+".json")),Store.Json)??throw new IOException("Пакет не найден");var current=await Bridge("list");selected=current.FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);
     if(selected==null){if(WouldReplace(item.Name,item.Version,current)&&!replace)throw new IOException("Этот пакет заменит установленную игру. Установка отменена; пакет сохранён отдельно.");if(!install)throw new IOException("Сначала установите выбранный пакет Bedrock");var path=Path.Combine(folder,file);if(await Net.Hash(path,"SHA256")!=file[..64])throw new IOException("Пакет Bedrock изменился");var manifest=replace?await ExtractPackage(path,item.Name,item.Version):"";selected=(replace?await ReplaceWithBackup(current,item.Name,()=>Bridge("register",manifest,item.Name,item.Version)):await Bridge("install",path,item.Name,item.Version)).FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);}

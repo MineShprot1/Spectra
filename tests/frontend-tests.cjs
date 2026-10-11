@@ -61,3 +61,13 @@ viewerStage.onpointerdown(point(200,100));viewerStage.onpointermove(point(250,11
 viewerStage.onpointerdown(point(200,100));viewerStage.onpointerup(point(200,100));assert.equal(viewerImage.style.transform,'translate(0px,0px) scale(1)');
 context.document.querySelector=previousQuery;
 console.log('PASS: screenshot zoom, drag pan, click-to-reset');
+
+// Native process snapshots reconcile both editions; ongoing downloads keep their progress.
+const statusNode={textContent:''},progressNode={textContent:''},barNode={style:{}},trackNode={classList:{remove(){},toggle(){}}};
+const oldQuery=context.document.querySelector;context.document.querySelector=s=>({'#status':statusNode,'#progressText':progressNode,'#progressBar':barNode,'#progressTrack':trackNode}[s]||oldQuery(s));
+evaluate("onMessage({type:'gameStatus',running:[],bedrockRunning:true})");assert.equal(statusNode.textContent,'Minecraft запущен');
+evaluate("onMessage({type:'gameStatus',running:[],bedrockRunning:false})");assert.equal(statusNode.textContent,'Готов к приключениям');assert.equal(progressNode.textContent,'');
+evaluate("onMessage({type:'progress',message:'Test download',percent:50})");evaluate("onMessage({type:'gameStatus',running:[],bedrockRunning:false})");assert.equal(statusNode.textContent,'Загрузка');assert.equal(progressNode.textContent,'Test download');
+evaluate("onMessage({type:'transferComplete'})");assert.equal(statusNode.textContent,'Готов к приключениям');assert.equal(barNode.style.width,'0%');
+evaluate("onMessage({type:'gameStatus',running:['vanilla'],bedrockRunning:false})");evaluate("onMessage({type:'exited',instanceId:'vanilla',code:0})");assert.equal(statusNode.textContent,'Готов к приключениям');
+console.log('PASS: Java/Bedrock start and exit snapshots reset status without clearing active transfer progress');
