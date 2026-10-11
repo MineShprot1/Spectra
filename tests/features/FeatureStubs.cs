@@ -15,7 +15,7 @@ public sealed class Store
  public TestConfig Config{get;}=new();
 }
 public sealed class TestConfig{public string CurseForgeKey{get;set;}="";public string SelectedBedrock{get;set;}="";public string SelectedBedrockLabel{get;set;}="";}
-public static class ContentService{public static void BackupInstalledData(Store store){}public static Task<int> OpenPendingBedrockPacks(Store store,bool preview)=>Task.FromResult(0);public static Task OpenBedrockWorlds(Store store)=>Task.CompletedTask;}
+public static class ContentService{public static void BackupInstalledData(Store store){}public static Task<int> OpenPendingBedrockPacks(Store store,bool preview,CancellationToken cancellationToken=default)=>Task.FromResult(0);public static Task OpenBedrockWorlds(Store store)=>Task.CompletedTask;}
 public sealed partial class CatalogService(Store store)
 {
  static string Q(string value)=>Uri.EscapeDataString(value);

@@ -71,3 +71,8 @@ evaluate("onMessage({type:'progress',message:'Test download',percent:50})");eval
 evaluate("onMessage({type:'transferComplete'})");assert.equal(statusNode.textContent,'Готов к приключениям');assert.equal(barNode.style.width,'0%');
 evaluate("onMessage({type:'gameStatus',running:['vanilla'],bedrockRunning:false})");evaluate("onMessage({type:'exited',instanceId:'vanilla',code:0})");assert.equal(statusNode.textContent,'Готов к приключениям');
 console.log('PASS: Java/Bedrock start and exit snapshots reset status without clearing active transfer progress');
+const javaButton={dataset:{playVersion:'1.21'},innerHTML:'ИГРАТЬ',disabled:false},bedrockButton={dataset:{bedrockPlay:'installed'},innerHTML:'Играть',disabled:false};
+const oldAll=context.document.querySelectorAll;context.document.querySelectorAll=s=>s==='[data-play-version]'?[javaButton]:s==='[data-bedrock-play]'?[bedrockButton]:oldAll(s);
+evaluate("onMessage({type:'gameStatus',running:['vanilla'],runningVersions:{vanilla:'1.21'},bedrockRunning:true})");assert.equal(javaButton.innerHTML,'■ Остановить');assert.equal(bedrockButton.innerHTML,'■ Остановить');assert.equal(bedrockButton.disabled,false);
+evaluate("onMessage({type:'gameStatus',running:[],runningVersions:{},bedrockRunning:false})");assert.equal(javaButton.innerHTML,'ИГРАТЬ');assert.equal(bedrockButton.innerHTML,'Играть');
+console.log('PASS: Java version and Bedrock catalogue buttons switch to Stop and restore after exit');

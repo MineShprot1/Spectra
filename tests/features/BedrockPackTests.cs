@@ -34,5 +34,10 @@ try{
  opened.Clear();elapsed=TimeSpan.Zero;
  try{await BedrockImportQueue.Run(["starting"],_=>Task.FromResult(false),file=>opened.Add(file),()=>{elapsed+=TimeSpan.FromSeconds(1);return Task.CompletedTask;},maxPolls:16,running:()=>false,elapsed:()=>elapsed);}catch(TimeoutException){}
  Check(opened.Count==2,"Startup delay allows retry before a game process has been observed");
+ opened.Clear();polls.Clear();int restarts=0;
+ await BedrockImportQueue.Run(["first","second"],Imported,file=>opened.Add(file),()=>Task.CompletedTask,maxPolls:5,restart:()=>{Check(opened.SequenceEqual(new[]{"first"}),"Restart happens after first import, before second opening");restarts++;return Task.CompletedTask;});
+ Check(restarts==1,"Two imported files require one restart; the final game stays open");
+ opened.Clear();polls.Clear();restarts=0;
+ await BedrockImportQueue.Run(["only"],Imported,file=>opened.Add(file),()=>Task.CompletedTask,maxPolls:5,restart:()=>{restarts++;return Task.CompletedTask;});Check(restarts==0,"Single/final pack never restarts Minecraft");
  Console.WriteLine($"{checks} Bedrock pack checks passed");
 }finally{Directory.Delete(root,true);}

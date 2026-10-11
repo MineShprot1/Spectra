@@ -42,3 +42,7 @@ assert.equal(vm.runInContext("SpectraBedrock.matchesInstalled({name:'Microsoft.M
  assert.deepEqual(toasts,['Import pending packs']);assert.equal(calls.filter(x=>x.action==='bedrockLaunch').length,1);assert.equal(ctx.busy.size,0);
  console.log('PASS: pending-pack response ends launch flow and displays import guidance');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{
+ const calls=[];const ctx={state:{bedrockRunning:true},busy:new Set(['bedrock']),updateState(){},api:async(action)=>{calls.push(action);return {bedrockRunning:false};}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/Spectra/Web/bedrock.js'),'utf8'),ctx);
+ assert.equal(vm.runInContext('SpectraBedrock.latestAction()',ctx),'■ Остановить');await vm.runInContext("SpectraBedrock.launch('installed')",ctx);assert.deepEqual(calls,['bedrockStop']);console.log('PASS: running Bedrock stops even during import, without another launch');
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -18,6 +18,14 @@ public sealed partial class BedrockService(Store store)
   }
   return false;
  }
+ CancellationTokenSource? importCancellation;
+ public async Task Stop(){importCancellation?.Cancel();await StopProcesses();}
+ public static async Task StopProcesses()
+ {
+  foreach(var name in new[]{"Minecraft.Windows","Minecraft.WindowsBeta","Minecraft.WindowsPreview"})foreach(var process in Process.GetProcessesByName(name)){
+   using(process){try{process.Kill(true);using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(10));await process.WaitForExitAsync(timeout.Token);}catch(InvalidOperationException){}}
+  }
+ }
  JsonNode? updates;
  public sealed record Package(string Id,string Name,string Version,string Family,string AppId,bool Preview,bool Legacy,bool Installed);
  internal static string? CanonicalIdentity(string name)=>new[]{"Microsoft.MinecraftUWP","Microsoft.MinecraftWindowsBeta","Microsoft.MinecraftWindows","Microsoft.MinecraftWindowsPreview"}.FirstOrDefault(n=>n.Equals(name,StringComparison.OrdinalIgnoreCase));
@@ -78,7 +86,9 @@ public sealed partial class BedrockService(Store store)
    if(selected==null)throw new IOException("Выбранная версия не установлена. Обновите список Bedrock.");
    if(installOnly)return new{status="installed",version=selected.Version,message="Версия установлена. Нажмите ИГРАТЬ для запуска."};
    if(!System.Text.RegularExpressions.Regex.IsMatch(selected.Family,@"\A[A-Za-z0-9_.-]+\z")||!System.Text.RegularExpressions.Regex.IsMatch(selected.AppId,@"\A[A-Za-z0-9_.-]+\z"))throw new IOException("Неверный идентификатор приложения Windows");
-   var pending=await ContentService.OpenPendingBedrockPacks(store,selected.Preview);
+   int pending;using(var cancellation=new CancellationTokenSource()){
+    importCancellation=cancellation;try{pending=await ContentService.OpenPendingBedrockPacks(store,selected.Preview,cancellation.Token);}finally{importCancellation=null;}
+   }
    if(pending>0)return new{status="importingContent",count=pending,message="Импорт дополнений Bedrock подтверждён. Нажмите ИГРАТЬ ещё раз для обычного запуска."};
    var info=new ProcessStartInfo("explorer.exe"){UseShellExecute=true};info.ArgumentList.Add("shell:AppsFolder\\"+selected.Family+"!"+selected.AppId);Process.Start(info);if(id=="latest")await ContentService.OpenBedrockWorlds(store);return new{status="launched",version=selected.Version,message="Запуск передан Windows; права на игру проверяются Minecraft / Microsoft Store."};
   }finally{gate.Release();}

@@ -162,7 +162,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader!="vanilla") await launcher.InstallAsync(version);
-   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.17.6"});
+   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.17.7"});
    if(targetKind!=""){
     if(target.Contains('"')||target.Contains('\\')&&targetKind=="servers"||target.Any(char.IsControl))throw new IOException("Некорректная цель запуска");
     var modern=Version.TryParse(i.Version,out var mc)&&mc>=new Version(1,20);
@@ -200,7 +200,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   return rows;
  }
  public string Redact(string line) { var token=auth.Session?.AccessToken;return string.IsNullOrEmpty(token)?line:line.Replace(token,"[REDACTED]"); }
- public void Stop(string id) { if(Running.TryGetValue(id,out var p))p.Kill(true); }
+ public void Stop(string id) { if(Running.TryGetValue(id,out var p)){try{p.Kill(true);}catch(InvalidOperationException){}} }
  public object Files(string id,string kind)
  {
   var i=store.Get(id);var root=store.Folder(i);var folder=KindFolder(kind);var path=Path.Combine(root,folder);Directory.CreateDirectory(path);
