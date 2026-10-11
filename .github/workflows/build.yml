@@ -52,3 +52,11 @@ jobs:
           name: Spectra-windows-x64
           path: dist/Spectra/
           retention-days: 30
+      - name: Build standalone installer
+        shell: pwsh
+        run: ./BuildInstaller.ps1 -SkipLauncherBuild
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spectra-installer-windows-x64
+          path: dist/Spectra-*-setup.zip
+          retention-days: 30
