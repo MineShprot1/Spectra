@@ -45,7 +45,7 @@ public sealed class ProtectedAccountManager : IXboxGameAccountManager
  {
   // Failed/cancelled interactive attempts must not become the default saved account.
   var successful=accounts.Where(a=>a is JEGameAccount je&&je.Profile!=null&&!string.IsNullOrEmpty(a.Identifier));
-  var array=new JArray(successful.Select(a=>((ProtectedSessionStorage)a.SessionStorage).Export()));
+  var array=new JArray(successful.GroupBy(a=>a.Identifier).Select(g=>g.Last()).Select(a=>((ProtectedSessionStorage)a.SessionStorage).Export()));
   var bytes=Encoding.UTF8.GetBytes(array.ToString(Formatting.None));
   try
   {

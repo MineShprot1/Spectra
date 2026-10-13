@@ -26,6 +26,10 @@ public sealed class ContentCatalog(Store store)
   var result=(game,category!["id"]!.GetValue<int>());CategoryCache[edition+":"+kind]=result;return result;
  }
  static ContentService.ContentSource Source(JsonNode data)=>ContentService.Sources(data.Str("edition"),data.Str("kind"),data.Str("query")).FirstOrDefault(x=>x.Id==data.Str("source"))??throw new IOException("Источник недоступен в этой категории");
+ public async Task<object> Details(JsonNode data)
+ {
+  var source=Source(data);if(source.Id!="curseforge"||!long.TryParse(data.Str("projectId"),out var id)||id<=0)throw new IOException("Неверный проект");var category=await CurseCategory(data.Str("edition"),data.Str("kind"));var project=(await Curse("mods/"+id))["data"]??throw new IOException("Проект не найден");if(project["gameId"]!.GetValue<int>()!=category.Game||project["classId"]!.GetValue<int>()!=category.Class)throw new IOException("Издание или категория проекта не совпадает");var description=await Curse("mods/"+id+"/description");var files=await Curse("mods/"+id+"/files?pageSize=30");return new{title=project.Str("name"),summary=project.Str("summary"),description=description.Str("data"),format="html",icon=project["logo"].Str("thumbnailUrl"),url=project["links"].Str("websiteUrl"),downloads=project["downloadCount"],created=project.Str("dateCreated"),updated=project.Str("dateModified"),screenshots=project["screenshots"]?.AsArray().Select(s=>new{url=s.Str("url"),caption=s.Str("title")})??[],authors=project["authors"]?.AsArray().Select(a=>new{name=a.Str("name"),url=a.Str("url")})??[],versions=files["data"]?.AsArray().Select(f=>new{name=f.Str("displayName"),date=f.Str("fileDate")})??[]};
+ }
  public async Task<object> Search(JsonNode data)
  {
   var source=Source(data);var offset=Math.Max(0,data["offset"]?.GetValue<int>()??0);if(offset>2400)throw new IOException("Слишком большая страница");

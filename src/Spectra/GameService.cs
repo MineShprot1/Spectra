@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json;
 using System.Xml.Linq;
 using CmlLib.Core;
+using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
 using CmlLib.Core.Installers;
 using CmlLib.Core.FileExtractors;
@@ -94,10 +95,10 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   }
   throw new IOException("Неизвестный загрузчик");
  }
- async Task<string> Java(Instance i)
+ async Task<string> Java(Instance i,int? requiredMajor=null)
  {
   if(!string.IsNullOrWhiteSpace(i.Settings.JavaPath)) { if(!File.Exists(i.Settings.JavaPath))throw new IOException("javaw.exe не найден");return i.Settings.JavaPath; }
-  var metadata=await Metadata(i.Version);var major=metadata["javaVersion"]?["majorVersion"]?.GetValue<int>()??8;
+  var metadata=await Metadata(i.Version);var major=requiredMajor??(metadata["javaVersion"]?["majorVersion"]?.GetValue<int>()??8);
   var dir=Path.Combine(store.Root,"runtimes",major.ToString());
   var existing=Directory.Exists(dir)?Directory.EnumerateFiles(dir,"javaw.exe",SearchOption.AllDirectories).FirstOrDefault():null;
   if(existing!=null)return existing;
@@ -119,7 +120,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
  public readonly ConcurrentDictionary<string,GameActivity> Activities=new();
  public record GameActivity(string Version,string Loader,string LoaderVersion,string Pack,string TargetKind,string Target,string PackSource,string PackId,string PackVersion,string GameState="menu",string WorldName="",int LanPort=0,DateTime StartedAt=default);
  readonly ConcurrentDictionary<string,CancellationTokenSource> activityWatchers=new();
- public string? PresenceInstanceId=>Activities.Where(x=>Running.ContainsKey(x.Key)).OrderByDescending(x=>x.Value.StartedAt).ThenBy(x=>x.Key,StringComparer.Ordinal).Select(x=>x.Key).FirstOrDefault();
+ public string? PresenceInstanceId=>Activities.Where(x=>Running.ContainsKey(x.Key)&&!x.Key.StartsWith("multi-",StringComparison.Ordinal)).OrderByDescending(x=>x.Value.StartedAt).ThenBy(x=>x.Key,StringComparer.Ordinal).Select(x=>x.Key).FirstOrDefault();
  static string LocalLanIp(){try{return System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces().Where(n=>n.OperationalStatus==System.Net.NetworkInformation.OperationalStatus.Up&&n.NetworkInterfaceType!=System.Net.NetworkInformation.NetworkInterfaceType.Loopback).OrderByDescending(n=>n.GetIPProperties().GatewayAddresses.Any(g=>g.Address.AddressFamily==System.Net.Sockets.AddressFamily.InterNetwork)).SelectMany(n=>n.GetIPProperties().UnicastAddresses).Select(a=>a.Address).Where(ip=>ip.AddressFamily==System.Net.Sockets.AddressFamily.InterNetwork).FirstOrDefault(ip=>{var b=ip.GetAddressBytes();return b[0]==10||b[0]==192&&b[1]==168||b[0]==172&&b[1]>=16&&b[1]<=31;})?.ToString()??"";}catch{return "";}}
  void ObserveActivity(string id,ActivityLog parser,string line,Process process){lock(parser){if(!Running.TryGetValue(id,out var live)||!ReferenceEquals(live,process))return;var observed=parser.Observe(line);if(observed==null)return;if(Activities.TryGetValue(id,out var current)){var kind=observed.Mode is "connecting" or "server"?"servers":observed.Mode=="world"?"worlds":observed.Mode=="lan"?"lan":"";Activities[id]=current with{GameState=observed.Mode,TargetKind=kind,Target=observed.Mode is "connecting" or "server"?observed.Target:observed.World,WorldName=observed.World,LanPort=observed.LanPort};emit(new{type="activity",instanceId=id,clearLan=(observed.Mode is "menu" or "connecting" or "server")||observed.Mode=="world"&&current.LanPort>0});}}}
  void WatchActivity(string id,ActivityLogWatcher watcher,CancellationTokenSource cancellation){_=Task.Run(async()=>{try{await watcher.Run(cancellation.Token);}catch(OperationCanceledException){}catch(Exception e) when(e is IOException or UnauthorizedAccessException){}finally{((ICollection<KeyValuePair<string,CancellationTokenSource>>)activityWatchers).Remove(new(id,cancellation));cancellation.Dispose();}});}
@@ -133,15 +134,36 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   var mode=world&&address!=""?"lan":item.GameState;var kind=mode=="lan"?"lan":item.TargetKind;var target=mode=="lan"?address:item.Target;
   return new{playing=true,gameState=mode,worldName=item.WorldName,version=item.Version,loader=item.Loader,loaderVersion=item.LoaderVersion,pack=item.Pack,targetKind=kind,target,packSource=item.PackSource,packId=item.PackId,packVersion=item.PackVersion};
  }
- public async Task Launch(string id,string targetKind="",string target="")
+ public record ExitSummary(int Code,bool Stopped,DateTime Time);
+ public ConcurrentDictionary<string,ExitSummary> LastExits {get;}=new();
+ readonly ConcurrentDictionary<string,ConcurrentQueue<string>> recentLogs=new();
+ readonly ConcurrentDictionary<string,byte> stopped=new();
+ public string RecentLogs(string id)=>recentLogs.TryGetValue(id,out var lines)?string.Join("\n",lines):"";
+ public Task<string> ServerJava(Instance instance)=>Java(instance);
+ public Task<string> InstallerJava(Instance instance)=>Java(instance with {Settings=instance.Settings with {JavaPath=""}},21);
+ public async Task LaunchMany(string id,MultiClientProfile[] clients)
  {
-  var i=store.Get(id);Store.Validate(i.Settings);var activityTarget=target;
+  if(!store.Config.Accounts.Any(a=>!a.Offline))throw new IOException("Сначала подключите лицензионный аккаунт");
+  if(clients.Length>8)throw new IOException("Можно добавить до 8 клиентов");
+  if(clients.Select(c=>c.Name).Append(auth.Profile.Str("name")).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=clients.Length+1)throw new IOException("Имена клиентов должны отличаться");
+  foreach(var client in clients){Authentication.ValidateName(client.Name);if(client.ElyName!="")Authentication.ValidateName(client.ElyName);if(!System.Text.RegularExpressions.Regex.IsMatch(client.Id,@"\A[a-f0-9]{32}\z"))throw new IOException("Неверный клиент");}
+  foreach(var client in clients){var index=store.Config.MultiClients.FindIndex(c=>c.Id==client.Id);if(index>=0)store.Config.MultiClients[index]=client;else store.Config.MultiClients.Add(client);}store.Config.MultiClientCount=clients.Length;store.Save();if(!Running.ContainsKey(id))await Launch(id);
+  foreach(var client in clients.Where(c=>!Running.ContainsKey("multi-"+id+"-"+c.Id)))await Launch(id,session:Authentication.OfflineSession(client.Name),client:client);
+ }
+ public async Task Launch(string id,string targetKind="",string target="",MSession? session=null,MultiClientProfile? client=null)
+ {
+  var i=store.Get(id);
+  if(client!=null&&Running.ContainsKey("multi-"+i.Id+"-"+client.Id))throw new IOException("Дополнительный клиент уже запущен");
+  if(client!=null){var original=store.Folder(i);id="multi-"+i.Id+"-"+client.Id;i=i with {Id=id,Name=i.Name+" · "+client.Name,Settings=i.Settings with {}};var isolated=store.Folder(i);await Task.Run(()=>{foreach(var directory in new[]{"mods","config","resourcepacks","shaderpacks"}){var source=Path.Combine(original,directory);var dest=Path.Combine(isolated,directory);if(!Directory.Exists(source))continue;if(Directory.Exists(dest))Directory.Delete(dest,true);foreach(var path in Directory.EnumerateFiles(source,"*",new EnumerationOptions{RecurseSubdirectories=true,AttributesToSkip=FileAttributes.ReparsePoint})){if((File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0)continue;var copiedFile=Store.SafePath(dest,Path.GetRelativePath(source,path));Directory.CreateDirectory(Path.GetDirectoryName(copiedFile)!);File.Copy(path,copiedFile,true);}}foreach(var file in new[]{"options.txt","servers.dat"})if(File.Exists(Path.Combine(original,file)))File.Copy(Path.Combine(original,file),Path.Combine(isolated,file),true);});}
+  Store.Validate(i.Settings);var activityTarget=target;
   if(targetKind=="worlds")activityTarget=Nbt.World(Path.Combine(new LibraryActions(store,this).PathFor(id,"worlds",target),"level.dat")).Name;
   if(Running.ContainsKey(id)||!busy.TryAdd(id,0))throw new IOException("Сборка уже запускается или запущена");
   await installationGate.WaitAsync();
   try
   {
-   await auth.Login(false);
+   if(session==null)await auth.Login(false);
+   session??=auth.Session??throw new IOException("Войдите в аккаунт");
+   recentLogs[id]=new();stopped.TryRemove(id,out _);
    var java=await Java(i);Gpu(java,i.Settings.Gpu);
    var root=store.Folder(i);var launcher=CreateLauncher(root);
    long lastProgress=0;
@@ -162,7 +184,9 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader!="vanilla") await launcher.InstallAsync(version);
-   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=auth.Session!,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.17.8"});
+   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=session,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.18.0"});
+   var elyName=client?.ElyName??(auth.IsOffline?auth.ActiveAccount?.ElyName:"");
+   if(!string.IsNullOrEmpty(elyName)){try{var agent=await OfflineSkinBridge.Agent(store);var bridge=OfflineSkinBridge.Shared;await bridge.Register(client?.Name??auth.Profile.Str("name"),elyName);var arg="-javaagent:"+agent+"="+bridge.Url;if(process.StartInfo.ArgumentList.Count>0)process.StartInfo.ArgumentList.Insert(0,arg);else process.StartInfo.Arguments="\""+arg+"\" "+process.StartInfo.Arguments;}catch(Exception error) when(error is IOException or System.Net.Http.HttpRequestException or TaskCanceledException){emit(new{type="progress",instanceId=id,message="Ely.by недоступен. Запускаем игру со стандартным скином.",percent=100});}}
    if(targetKind!=""){
     if(target.Contains('"')||target.Contains('\\')&&targetKind=="servers"||target.Any(char.IsControl))throw new IOException("Некорректная цель запуска");
     var modern=Version.TryParse(i.Version,out var mc)&&mc>=new Version(1,20);
@@ -177,9 +201,9 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    }
    process.StartInfo.UseShellExecute=false;process.StartInfo.RedirectStandardOutput=true;process.StartInfo.RedirectStandardError=true;process.StartInfo.CreateNoWindow=true;process.EnableRaisingEvents=true;
    var activityParser=new ActivityLog(targetKind=="worlds"?activityTarget:"");var logPath=Path.Combine(root,"logs","latest.log");var watcher=new ActivityLogWatcher(logPath,line=>{if(Running.TryGetValue(id,out var live)&&ReferenceEquals(live,process))ObserveActivity(id,activityParser,line,process);});try{watcher.Baseline();}catch(Exception e) when(e is IOException or UnauthorizedAccessException){}
-   void Log(string? line) { if(line!=null){emit(new{type="log",instanceId=id,line=Redact(line)});if(!watcher.HasCurrentLog)ObserveActivity(id,activityParser,line,process);} }
+   void Log(string? line) { if(line!=null){var clean=Redact(line);var queue=recentLogs.GetOrAdd(id,_=>new());queue.Enqueue(clean);while(queue.Count>500)queue.TryDequeue(out _);emit(new{type="log",instanceId=id,line=clean});if(!watcher.HasCurrentLog)ObserveActivity(id,activityParser,line,process);} }
    process.OutputDataReceived+=(s,e)=>Log(e.Data);process.ErrorDataReceived+=(s,e)=>Log(e.Data);
-   process.Exited+=(s,e)=>{Running.TryRemove(id,out _);StopActivity(id);Activities.TryRemove(id,out _);emit(new{type="exited",instanceId=id,code=process.ExitCode});process.Dispose();};
+   process.Exited+=(s,e)=>{Running.TryRemove(id,out _);StopActivity(id);Activities.TryRemove(id,out _);var code=process.ExitCode;LastExits[id]=new(code,stopped.TryRemove(id,out _),DateTime.UtcNow);emit(new{type="exited",instanceId=id,code});process.Dispose();};
    Activities[id]=new(i.Version,i.Loader,i.LoaderVersion,i.Name,"","",i.PackSource,i.PackId,i.PackVersion,StartedAt:DateTime.UtcNow);
    Running[id]=process;try{if(!process.Start())throw new IOException("Java не запустилась");}catch{Running.TryRemove(id,out _);Activities.TryRemove(id,out _);process.Dispose();throw;}var cancellation=new CancellationTokenSource();activityWatchers[id]=cancellation;WatchActivity(id,watcher,cancellation);if(!Running.ContainsKey(id))StopActivity(id);process.BeginOutputReadLine();process.BeginErrorReadLine();i.LastPlayed=DateTime.UtcNow;store.Save();
    if(Running.TryGetValue(id,out var live)&&ReferenceEquals(live,process))emit(new{type="started",instanceId=id,hide=i.Settings.HideOnLaunch});
@@ -199,8 +223,8 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   }
   return rows;
  }
- public string Redact(string line) { var token=auth.Session?.AccessToken;return string.IsNullOrEmpty(token)?line:line.Replace(token,"[REDACTED]"); }
- public void Stop(string id) { if(Running.TryGetValue(id,out var p)){try{p.Kill(true);}catch(InvalidOperationException){}} }
+ public string Redact(string line) { var token=auth.Session?.AccessToken;return string.IsNullOrEmpty(token)||token.Length<20?line:line.Replace(token,"[REDACTED]"); }
+ public void Stop(string id) { if(Running.TryGetValue(id,out var p)){try{stopped[id]=0;p.Kill(true);}catch(InvalidOperationException){}} }
  public object Files(string id,string kind)
  {
   var i=store.Get(id);var root=store.Folder(i);var folder=KindFolder(kind);var path=Path.Combine(root,folder);Directory.CreateDirectory(path);
@@ -216,7 +240,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    using var zip=ZipFile.OpenRead(p);var entry=zip.GetEntry("fabric.mod.json")??zip.GetEntry("quilt.mod.json");
    if(entry!=null){using var reader=new StreamReader(entry.Open());var n=JsonNode.Parse(reader.ReadToEnd())!;if(n["quilt_loader"]!=null)n=n["quilt_loader"]!;label=n["metadata"].Str("name");if(label=="")label=n.Str("name");version=n.Str("version");game=n["depends"]?.Str("minecraft")??"";var iconName=n.Str("icon");if(iconName!=""&&zip.GetEntry(iconName) is {} image&&image.Length<2*1024*1024){using var stream=image.Open();using var ms=new MemoryStream();stream.CopyTo(ms);icon="data:image/png;base64,"+Convert.ToBase64String(ms.ToArray());}}
   }catch(Exception ex) when(ex is IOException or JsonException or InvalidOperationException){}
-  return new{name,label=string.IsNullOrEmpty(label)?name:label,version,game,icon,path=Path.GetRelativePath(root,p),enabled=!p.EndsWith(".disabled",StringComparison.OrdinalIgnoreCase),size=new System.IO.FileInfo(p).Length,modified=File.GetLastWriteTimeUtc(p),image=kind=="screenshots"?Asset(p):""};
+  return new{side=kind=="mods"?store.Get(Path.GetFileName(Path.GetDirectoryName(root))!).ModSides.GetValueOrDefault(name,InstanceServer.ModSide(p)):"",name,label=string.IsNullOrEmpty(label)?name:label,version,game,icon,path=Path.GetRelativePath(root,p),enabled=!p.EndsWith(".disabled",StringComparison.OrdinalIgnoreCase),size=new System.IO.FileInfo(p).Length,modified=File.GetLastWriteTimeUtc(p),image=kind=="screenshots"?Asset(p):""};
  }
  public static string KindFolder(string kind)=>kind switch{"mods"=>"mods","shaders"=>"shaderpacks","resources"=>"resourcepacks","worlds"=>"saves","servers"=>"", "screenshots"=>"screenshots","logs"=>"logs",_=>throw new IOException("Неизвестная папка")};
  public string Asset(string p)=>"https://data.spectra.local/"+Uri.EscapeDataString(Path.GetRelativePath(store.Root,p).Replace('\\','/')).Replace("%2F","/");

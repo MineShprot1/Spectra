@@ -4,10 +4,12 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 namespace Spectra;
-public record CatalogItem(string Source,string Id,string Title,string Description,string Icon,long Downloads);
+public record CatalogItem(string Source,string Id,string Title,string Description,string Icon,long Downloads,string Side="unknown");
 public sealed partial class CatalogService(Store store,GameService game,Action<object> emit)
 {
  readonly SemaphoreSlim installation=new(1);
+ readonly System.Collections.Concurrent.ConcurrentDictionary<string,string> sides=new();
+ async Task<string> Side(string source,string id){if(source!="modrinth")return "unknown";if(sides.TryGetValue(id,out var cached))return cached;var project=await Net.Get("https://api.modrinth.com/v2/project/"+Q(id));var clientSide=project.Str("client_side");var serverSide=project.Str("server_side");if(!new[]{"required","optional","unsupported"}.Contains(clientSide)||!new[]{"required","optional","unsupported"}.Contains(serverSide))return sides[id]="unknown";var client=clientSide!="unsupported";var server=serverSide!="unsupported";return sides[id]=client&&server?"both":server?"server":"client";}
  readonly Dictionary<string,(long Size,long Ticks,string Hash)> installedHashes=new();
  readonly Dictionary<string,List<InstallFile>> knownVersions=new();
  static string Q(string x)=>Uri.EscapeDataString(x);
@@ -26,6 +28,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
    if(i!=null){url+="&gameVersion="+Q(i.Version);if(kind=="mods")url+="&modLoaderType="+LoaderNumber(i.Loader);}
    var n=await Curse(url);results.AddRange(n["data"]!.AsArray().Select(x=>new CatalogItem("curseforge",x.Str("id"),x.Str("name"),x.Str("summary"),x?["logo"].Str("thumbnailUrl")??"",(long)(x?["downloadCount"]?.GetValue<double>()??0))));
   }catch(Exception){warnings.Add("CurseForge недоступен или ключ не принят");}
+  if(kind=="mods")results=(await Task.WhenAll(results.Select(async item=>{try{return item with {Side=await Side(item.Source,item.Id)};}catch{return item;}}))).ToList();
   // Counts belong to different services, preserve source attribution.
   return new{items=results.OrderByDescending(x=>x.Downloads),warnings,nextOffset=offset+24};
  }
@@ -49,7 +52,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
   }
   throw new IOException("Неизвестный источник");
  }
- sealed record InstallFile(string Name,string Url,string Hash,string Algorithm);
+ sealed record InstallFile(string Name,string Url,string Hash,string Algorithm,string Side="unknown");
  public async Task Install(string source,string projectId,string kind,string instanceId)
  {
   await installation.WaitAsync();string stage="";var committed=new List<string>();var restored=new List<(string Original,string Backup)>();
@@ -63,6 +66,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
    foreach(var old in outdated){var backup=Path.Combine(stage,"old-"+Guid.NewGuid().ToString("N"));File.Move(old,backup);restored.Add((old,backup));}
    foreach(var item in ready){var dest=Store.SafePath(folder,item.File.Name);if(item.Existing==dest)continue;if(File.Exists(dest)){var backup=Store.SafePath(stage,"backup/"+item.File.Name);Directory.CreateDirectory(Path.GetDirectoryName(backup)!);File.Move(dest,backup);restored.Add((dest,backup));}
     if(item.Existing!=null){File.Move(item.Existing,dest);restored.Add((item.Existing,dest));}else{File.Move(Store.SafePath(stage,item.File.Name),dest);committed.Add(dest);}}
+   if(kind=="mods"){foreach(var file in plan)i.ModSides[file.Name]=file.Side;store.Save();}
    emit(new{type="progress",instanceId=i.Id,message="Мод и обязательные зависимости установлены",percent=100});
   }catch{foreach(var path in committed)if(File.Exists(path))File.Delete(path);foreach(var item in restored.AsEnumerable().Reverse())if(File.Exists(item.Backup))File.Move(item.Backup,item.Original,true);throw;}
   finally{if(stage!=""&&Directory.Exists(stage))Directory.Delete(stage,true);installation.Release();}
@@ -97,7 +101,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
   if(!knownVersions.ContainsKey(project)){var url="https://api.modrinth.com/v2/project/"+Q(project)+"/version?game_versions="+Q(JsonSerializer.Serialize(new[]{i.Version}));if(kind=="mods")url+="&loaders="+Q(JsonSerializer.Serialize(new[]{i.Loader}));knownVersions[project]=(await Net.Get(url)).AsArray().Where(x=>x!=null).Select(x=>ModrinthFile(x!)).ToList();}if(projects.TryGetValue(project,out var version)&&version!=id)throw new IOException("Зависимости требуют разные версии одной библиотеки: "+project);projects[project]=id;
   if(!visited.Add("version:"+id))return;if(visited.Count>100)throw new IOException("Слишком много зависимостей");
   if(v["game_versions"]?.AsArray().Any(x=>x?.ToString()==i.Version)!=true||kind=="mods"&&v["loaders"]?.AsArray().Any(x=>x?.ToString()==i.Loader)!=true)throw new IOException("Библиотека несовместима с версией игры или загрузчиком: "+project);
-  foreach(var d in v["dependencies"]?.AsArray()??[]){if(d.Str("dependency_type")!="required")continue;if(d.Str("version_id") is {Length:>0} pinned)await ResolveModrinth(await Net.Get("https://api.modrinth.com/v2/version/"+Q(pinned)),kind,i,folder,visited,projects,plan);else if(d.Str("project_id") is {Length:>0} dependency)await ResolveProject("modrinth",dependency,kind,i,folder,visited,projects,plan);else throw new IOException("Обязательная библиотека доступна только для ручной установки: "+d.Str("file_name"));}AddFile(plan,ModrinthFile(v));
+  foreach(var d in v["dependencies"]?.AsArray()??[]){if(d.Str("dependency_type")!="required")continue;if(d.Str("version_id") is {Length:>0} pinned)await ResolveModrinth(await Net.Get("https://api.modrinth.com/v2/version/"+Q(pinned)),kind,i,folder,visited,projects,plan);else if(d.Str("project_id") is {Length:>0} dependency)await ResolveProject("modrinth",dependency,kind,i,folder,visited,projects,plan);else throw new IOException("Обязательная библиотека доступна только для ручной установки: "+d.Str("file_name"));}AddFile(plan,ModrinthFile(v) with {Side=kind=="mods"?await Side("modrinth",project):"unknown"});
  }
  public async Task<Instance> ImportMrpack(string path)
  {

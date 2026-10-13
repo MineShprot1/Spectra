@@ -70,6 +70,8 @@ public partial class MainWindow : Window
  readonly BedrockService bedrock;
  readonly FriendsService friends;
  readonly FriendPacks friendPacks;
+ readonly InstanceServer servers;
+ readonly CrashAssistant crashAssistant;
  readonly DispatcherTimer gameStatusTimer=new(){Interval=TimeSpan.FromSeconds(2)};
  readonly DispatcherTimer friendsTimer=new(){Interval=TimeSpan.FromSeconds(10)};
  bool sendingPresence;
@@ -78,7 +80,7 @@ public partial class MainWindow : Window
  readonly SemaphoreSlim libraryMutation=new(1,1);
  public MainWindow()
  {
-  InitializeComponent();logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>{ApplyWindowsCorners();HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);};StateChanged+=(_,_)=>{ApplyWindowsCorners();if(Browser.CoreWebView2!=null)Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});};auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);bedrock=new(store);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);gameStatusTimer.Tick+=(_,_)=>Emit(new{type="gameStatus",running=game.Running.Keys.ToArray(),runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),bedrockRunning=BedrockService.IsRunning()});gameStatusTimer.Start();Closed+=(_,_)=>gameStatusTimer.Stop();Loaded+=async(_,_)=>await Initialize();
+  InitializeComponent();logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>{ApplyWindowsCorners();HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);};StateChanged+=(_,_)=>{ApplyWindowsCorners();if(Browser.CoreWebView2!=null)Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});};auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);servers=new(store,game,Emit);crashAssistant=new(store,game);bedrock=new(store);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);gameStatusTimer.Tick+=(_,_)=>Emit(new{type="gameStatus",running=game.Running.Keys.ToArray(),runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),bedrockRunning=BedrockService.IsRunning()});gameStatusTimer.Start();Closed+=(_,_)=>gameStatusTimer.Stop();Loaded+=async(_,_)=>await Initialize();
  }
  async void RefreshPresence(){if(sendingPresence)return;sendingPresence=true;try{await friends.Heartbeat();}catch{}finally{sendingPresence=false;}}
  async Task Initialize()
@@ -101,7 +103,7 @@ public partial class MainWindow : Window
    // Clear only cached assets, preserving cookies and appearance storage.
    try{await core.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache);}catch{ /* Cache cleanup must not prevent startup. */ }
    if(store.Config.LauncherFullscreen)ToggleFullscreen();
-   core.Navigate("https://app.spectra.local/index.html");
+   Browser.ZoomFactor=Math.Clamp(store.Config.InterfaceScale,0.65,1.5);core.Navigate("https://app.spectra.local/index.html");
   }
   catch(Exception ex){MessageBox.Show("Для Spectra нужен Microsoft Edge WebView2 Runtime.\n"+ex.Message,"Spectra");Close();}
  }
@@ -127,25 +129,47 @@ public partial class MainWindow : Window
   try
   {
    var message=JsonNode.Parse(e.WebMessageAsJson)!;requestId=message.Str("id");if(!activeRequests.Add(requestId))return;
-   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launch" or "launchTarget" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
-   if(action is "contentDownload" or "contentImport" or "bedrockContentDelete" or "installVersion" or "deleteVersion" or "launch" or "launchTarget" or "joinFriend" or "install" or "installPack" or "installFriendPack" or "importPack" or "importInstance" or "dropPack" or "exportInstance" or "saveInstance" or "deleteInstance" or "enableFiles" or "toggle" or "serverAction" or "worldAction"){await libraryMutation.WaitAsync();mutating=true;}
+   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launchMany" or "launch" or "launchTarget" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
+   if(action is "contentDownload" or "contentImport" or "bedrockContentDelete" or "installVersion" or "deleteVersion" or "launchMany" or "launch" or "launchTarget" or "joinFriend" or "install" or "installPack" or "installFriendPack" or "importPack" or "importInstance" or "dropPack" or "exportInstance" or "saveInstance" or "deleteInstance" or "enableFiles" or "toggle" or "serverAction" or "worldAction"){await libraryMutation.WaitAsync();mutating=true;}
    if(action=="dropPack")
    {
     transfer=true;var files=e.AdditionalObjects.OfType<CoreWebView2File>().ToArray();if(files.Length!=1||!files[0].Path.EndsWith(".zip",StringComparison.OrdinalIgnoreCase))throw new IOException("Перенесите один ZIP-архив сборки");
     await Task.Run(()=>archives.Import(files[0].Path));result=State();Emit(new{type="transferComplete"});
    }
    else result=await Handle(action,d);
-   if(action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launch" or "launchTarget" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
+   if(action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launchMany" or "launch" or "launchTarget" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
    Emit(new{type="reply",id=requestId,ok=true,result});
   }
   catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=ex.Message});}
   finally{Net.ProgressSink.Value=null;if(mutating)libraryMutation.Release();activeRequests.Remove(requestId);}
  }
- object State()=>new{bedrockRunning=BedrockService.IsRunning(),launcherFullscreen=fullscreen,bedrockSkinFolder=store.Config.BedrockSkinFolder,networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,hideOnlineStatus=store.Config.HideOnlineStatus,friendsSharingError=friends.LastSharingError,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit.txt")).Trim():"",updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),selection=new{edition=store.Config.SelectedEdition,bedrockId=store.Config.SelectedBedrock,bedrockLabel=store.Config.SelectedBedrockLabel,version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
+ object State()=>new{accounts=store.Config.Accounts.Select(a=>new{a.Id,a.Name,a.Offline,a.OwnerId,a.ElyName,skin=a.Profile?["skins"]?.AsArray().FirstOrDefault().Str("url")??""}),activeAccountId=store.Config.ActiveAccountId,friendsOwnerId=store.Config.FriendsOwnerId,offline=auth.IsOffline,interfaceScale=store.Config.InterfaceScale,multiClients=store.Config.MultiClients,multiClientCount=store.Config.MultiClientCount,geminiConfigured=crashAssistant.Configured,lastExits=game.LastExits,bedrockRunning=BedrockService.IsRunning(),launcherFullscreen=fullscreen,bedrockSkinFolder=store.Config.BedrockSkinFolder,networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,hideOnlineStatus=store.Config.HideOnlineStatus,friendsSharingError=friends.LastSharingError,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit.txt")).Trim():"",updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),selection=new{edition=store.Config.SelectedEdition,bedrockId=store.Config.SelectedBedrock,bedrockLabel=store.Config.SelectedBedrockLabel,version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
  async Task<object?> Handle(string action,JsonNode d)
  {
   switch(action)
   {
+   case "accountsSelect":await auth.SelectAccount(d.Str("id"));return State();
+   case "accountsOffline":{var account=auth.CreateOffline(d.Str("name"),d.Str("elyName"),d.Str("ownerId"));await auth.SelectAccount(account.Id);return State();}
+   case "offlineEdit":{if(!auth.IsOffline)throw new IOException("Выберите офлайн-аккаунт");var account=auth.ActiveAccount!;Authentication.ValidateName(d.Str("name"));if(d.Str("elyName")!="")Authentication.ValidateName(d.Str("elyName"));account.Name=d.Str("name");account.ElyName=d.Str("elyName");await auth.SelectAccount(account.Id);return State();}
+   case "friendsOwner":{if(!auth.IsOffline)throw new IOException("Эта настройка доступна офлайн");if(!store.Config.Accounts.Any(a=>!a.Offline&&a.Id==d.Str("id")))throw new IOException("Выберите свой Minecraft-аккаунт");store.Config.FriendsOwnerId=d.Str("id");auth.ActiveAccount!.OwnerId=d.Str("id");store.Save();return State();}
+   case "multiProfiles":{if(!store.Config.Accounts.Any(a=>!a.Offline))throw new IOException("Нужен лицензионный аккаунт");var clients=d["clients"]!.Deserialize<MultiClientProfile[]>(Store.Json)!;if(clients.Length>8)throw new IOException("Не больше 8 клиентов");foreach(var client in clients){Authentication.ValidateName(client.Name);if(client.ElyName!="")Authentication.ValidateName(client.ElyName);if(!System.Text.RegularExpressions.Regex.IsMatch(client.Id,@"\A[a-f0-9]{32}\z"))throw new IOException("Неверный клиент");}var count=d["count"]?.GetValue<int>()??clients.Length;if(count<1||count>8||count>clients.Length)throw new IOException("Неверное количество клиентов");store.Config.MultiClientCount=count;store.Config.MultiClients=clients.ToList();store.Save();return State();}
+   case "launchMany":await game.LaunchMany(d.Str("instanceId"),d["clients"]!.Deserialize<MultiClientProfile[]>(Store.Json)!);return State();
+   case "uiScale":{var scale=d["scale"]!.GetValue<double>();if(!double.IsFinite(scale)||scale<0.65||scale>1.5)throw new IOException("Масштаб: 65–150%");store.Config.InterfaceScale=scale;store.Save();Browser.ZoomFactor=scale;return State();}
+   case "geminiKey":crashAssistant.SetKey(d.Str("key"));return State();
+   case "askCrash":return await crashAssistant.Ask(d.Str("instanceId"),d.Str("language"));
+   case "instanceServerState":return await Task.Run(()=>servers.State(d.Str("instanceId")));
+   case "instanceServerCreate":await servers.Create(d.Str("instanceId"),d["acceptEula"]?.GetValue<bool>()==true,d["allowOffline"]?.GetValue<bool>()==true);return servers.State(d.Str("instanceId"));
+   case "instanceServerStart":await servers.Start(d.Str("instanceId"));return servers.State(d.Str("instanceId"));
+   case "instanceServerStop":await servers.Stop(d.Str("instanceId"));return servers.State(d.Str("instanceId"));
+   case "instanceServerCommand":await servers.Command(d.Str("instanceId"),d.Str("command"));return null;
+   case "instanceServerRead":return await servers.Read(d.Str("instanceId"),d.Str("path"));
+   case "instanceServerWrite":await servers.Write(d.Str("instanceId"),d.Str("path"),d.Str("text"));return null;
+   case "instanceServerFolder":Process.Start(new ProcessStartInfo("explorer.exe",servers.Root(d.Str("instanceId"))){UseShellExecute=true});return null;
+   case "modSide":{var instance=store.Get(d.Str("instanceId"));if(game.Running.ContainsKey(instance.Id))throw new IOException("Остановите игру");var name=Path.GetFileName(d.Str("name"));if(name!=d.Str("name")||!new[]{"client","server","both","unknown"}.Contains(d.Str("side")))throw new IOException("Неверная сторона мода");instance.ModSides[name]=d.Str("side");store.Save();return null;}
+   case "contentDetails":return await new ContentCatalog(store).Details(d);
+   case "serverCatalog":return await CommunityServers.Search(d.Str("query"),d["offset"]?.GetValue<int>()??0);
+   case "serverDetails":return await CommunityServers.Details(d.Str("id"));
+   case "profileEquip":{if(auth.IsOffline)throw new IOException("Нужен лицензионный аккаунт");var player=await Player(d.Str("name"));if(d.Str("kind")=="cape"){var theirs=player["capes"]?.AsArray().FirstOrDefault().Str("url");var mine=auth.Profile?["capes"]?.AsArray().FirstOrDefault(c=>c.Str("url").Replace("http://textures.minecraft.net/","https://textures.minecraft.net/")==theirs);if(mine==null)throw new IOException("Этот плащ отсутствует в вашем аккаунте");await auth.ProfileAction("cape",new JsonObject{["capeId"]=mine.Str("id")});}else{var skin=player["skins"]?[0]??throw new IOException("Скин игрока недоступен");await auth.EquipSkinUrl(skin.Str("url"),skin.Str("variant"));}return State();}
    case "state":
    {
     return State();
@@ -251,7 +275,7 @@ public partial class MainWindow : Window
    }
    case "logout":
    {
-    await friends.Disconnect();await auth.Logout();return State();
+    await auth.Logout();return State();
    }
    case "window":
    {
@@ -290,7 +314,7 @@ public partial class MainWindow : Window
    }
    case "skinTexture":
    {
-    var textureUri=new Uri(d.Str("url"));if(textureUri.Scheme!="https"||textureUri.Host!="textures.minecraft.net")throw new IOException("Неизвестный источник текстуры");
+    var textureUri=new Uri(d.Str("url"));if(textureUri.Scheme!="https"||textureUri.Host!="textures.minecraft.net"&&textureUri.Host!="skinsystem.ely.by")throw new IOException("Неизвестный источник текстуры");
     using(var response=await Net.Http.GetAsync(textureUri,HttpCompletionOption.ResponseHeadersRead))
     {
      response.EnsureSuccessStatusCode();await using var input=await response.Content.ReadAsStreamAsync();using var output=new MemoryStream();var buffer=new byte[8192];int count;

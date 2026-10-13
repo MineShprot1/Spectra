@@ -40,6 +40,8 @@ jobs:
         run: dotnet restore src/Spectra/Spectra.csproj
       - name: Build
         run: dotnet build src/Spectra/Spectra.csproj -c Release --no-restore
+      - name: Workspace feature tests
+        run: dotnet run --project tests/Workspace.Tests.csproj -c Release
       - name: Core tests
         run: dotnet run --project tests/Spectra.Tests.csproj -c Release
       - name: Mark source commit
@@ -51,4 +53,12 @@ jobs:
         with:
           name: Spectra-windows-x64
           path: dist/Spectra/
+          retention-days: 30
+      - name: Build standalone installer
+        shell: pwsh
+        run: ./BuildInstaller.ps1 -SkipLauncherBuild
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spectra-installer-windows-x64
+          path: dist/Spectra-*-setup.zip
           retention-days: 30

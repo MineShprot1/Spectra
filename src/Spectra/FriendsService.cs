@@ -24,7 +24,7 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
  public JsonNode? Account {get{LoadSession();return networkAccount?.DeepClone();}}
  void LoadSession()
  {
-  var owner=auth.Profile.Str("id");var endpoint=store.Config.FriendsEndpoint;
+  var owner=auth.FriendsProfile.Str("id");var endpoint=store.Config.FriendsEndpoint;
   var key=owner==""||endpoint==""?"":Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(endpoint+"\n"+owner))).ToLowerInvariant();if(scope==key)return;
   scope=key;token="";networkAccount=null;sessionFile=key==""?"":Path.Combine(store.Root,"network",key+".dat");
   if(sessionFile==""||!File.Exists(sessionFile))return;
@@ -49,22 +49,22 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
  public async Task<JsonNode> BeginGoogle()
  {
   await gate.WaitAsync();try{
-   if(auth.Profile==null)throw new IOException("Сначала войдите в свой Minecraft-профиль");LoadSession();
+   if(auth.FriendsProfile==null)throw new IOException("Сначала войдите в свой Minecraft-профиль");LoadSession();
    var endpoint=ValidateEndpoint(store.Config.FriendsEndpoint);if(endpoint=="")throw new IOException("Укажите сервер сети Spectra в настройках");
    var verifier=Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+','-').Replace('/','_');
    var challenge=Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))).TrimEnd('=').Replace('+','-').Replace('/','_');
-   var result=await Send(endpoint,"/oauth/start","",new{challenge,minecraftId=auth.Profile.Str("id"),minecraftName=auth.Profile.Str("name"),legacyToken=token});var id=result.Str("flowId");var url=result.Str("url");
+   var result=await Send(endpoint,"/oauth/start","",new{challenge,minecraftId=auth.FriendsProfile.Str("id"),minecraftName=auth.FriendsProfile.Str("name"),legacyToken=token});var id=result.Str("flowId");var url=result.Str("url");
    if(id.Length!=64||!id.All(Uri.IsHexDigit)||!Uri.TryCreate(url,UriKind.Absolute,out var uri)||uri.GetLeftPart(UriPartial.Authority)!=endpoint||uri.AbsolutePath!="/oauth/google/start"||uri.Query!="?flow="+id)throw new IOException("Сервер вернул неверную ссылку входа");
-   flowId=id;flowVerifier=verifier;flowEndpoint=endpoint;flowOwner=auth.Profile.Str("id");flowExpires=DateTime.UtcNow.AddMinutes(10);
+   flowId=id;flowVerifier=verifier;flowEndpoint=endpoint;flowOwner=auth.FriendsProfile.Str("id");flowExpires=DateTime.UtcNow.AddMinutes(10);
    Process.Start(new ProcessStartInfo(url){UseShellExecute=true});return new JsonObject{["flowId"]=id,["status"]="pending"};
   }finally{gate.Release();}
  }
  public async Task<JsonNode> PollGoogle(string id)
  {
   await gate.WaitAsync();try{
-   if(id==""||id!=flowId||DateTime.UtcNow>flowExpires||flowEndpoint!=store.Config.FriendsEndpoint||flowOwner!=auth.Profile.Str("id"))throw new IOException("Вход Spectra истёк или аккаунт изменился. Начните заново.");
-   var result=await Send(flowEndpoint,"/oauth/poll","",new{flowId=id,verifier=flowVerifier});if(flowOwner!=auth.Profile.Str("id")||flowEndpoint!=store.Config.FriendsEndpoint)throw new IOException("Аккаунт изменился во время входа");if(result.Str("status")!="connected")return new JsonObject{["status"]="pending"};
-   var value=result.Str("token");var account=result["account"];if(value.Length!=64||!value.All(Uri.IsHexDigit)||account.Str("id").Length!=32||account.Str("minecraftId")!=auth.Profile.Str("id")||account?["spectraVerified"]?.GetValue<bool>()!=true)throw new IOException("Сервер вернул неверную сессию Spectra");
+   if(id==""||id!=flowId||DateTime.UtcNow>flowExpires||flowEndpoint!=store.Config.FriendsEndpoint||flowOwner!=auth.FriendsProfile.Str("id"))throw new IOException("Вход Spectra истёк или аккаунт изменился. Начните заново.");
+   var result=await Send(flowEndpoint,"/oauth/poll","",new{flowId=id,verifier=flowVerifier});if(flowOwner!=auth.FriendsProfile.Str("id")||flowEndpoint!=store.Config.FriendsEndpoint)throw new IOException("Аккаунт изменился во время входа");if(result.Str("status")!="connected")return new JsonObject{["status"]="pending"};
+   var value=result.Str("token");var account=result["account"];if(value.Length!=64||!value.All(Uri.IsHexDigit)||account.Str("id").Length!=32||account.Str("minecraftId")!=auth.FriendsProfile.Str("id")||account?["spectraVerified"]?.GetValue<bool>()!=true)throw new IOException("Сервер вернул неверную сессию Spectra");
    LoadSession();token=value;networkAccount=account?.DeepClone();SaveSession();flowId="";flowVerifier="";
 
    return new JsonObject{["status"]="connected",["account"]=networkAccount?.DeepClone()};

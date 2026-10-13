@@ -25,6 +25,7 @@ public record Instance
  public string Icon { get; set; } = "";
  public string Banner { get; set; } = "";
  public GameSettings Settings { get; set; } = new();
+ public Dictionary<string,string> ModSides {get;set;}=new();
  public string PackSource {get;set;}="";
  public string PackId {get;set;}="";
  public string PackVersion {get;set;}="";
@@ -38,6 +39,22 @@ public record SavedSkin
  public string Variant {get;set;}="classic";
  public DateTime Added {get;set;}=DateTime.UtcNow;
 }
+public record LauncherAccount
+{
+ public string Id {get;set;}=Guid.NewGuid().ToString("N");
+ public string Name {get;set;}="";
+ public bool Offline {get;set;}
+ public string MicrosoftId {get;set;}="";
+ public string OwnerId {get;set;}="";
+ public string ElyName {get;set;}="";
+ public JsonNode? Profile {get;set;}
+}
+public record MultiClientProfile
+{
+ public string Id {get;set;}=Guid.NewGuid().ToString("N");
+ public string Name {get;set;}="SpectraAccount1";
+ public string ElyName {get;set;}="";
+}
 public record Configuration
 {
  [JsonIgnore] public string CurseForgeKey { get; set; } = "";
@@ -49,6 +66,12 @@ public record Configuration
  public string AppliedInstallerLanguage {get;set;}="";
  public string BedrockSkinFolder {get;set;}=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Downloads");
  public bool LauncherFullscreen {get;set;}
+ public List<LauncherAccount> Accounts {get;set;}=[];
+ public string ActiveAccountId {get;set;}="";
+ public string FriendsOwnerId {get;set;}="";
+ public int MultiClientCount {get;set;}=1;
+ public List<MultiClientProfile> MultiClients {get;set;}=[];
+ public double InterfaceScale {get;set;}=1;
  public string AppearanceJson {get;set;}="{}";
  public GameSettings Defaults { get; set; } = new();
  public string SelectedEdition {get;set;}="java";
