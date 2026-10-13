@@ -1,0 +1,53 @@
+/* Steam desktop palette, typography and controls without a second library. */
+#steamLibrary{display:none!important}
+body[data-theme=steam] #shell:not([hidden]){grid-template-columns:minmax(0,1fr)!important;grid-template-rows:66px minmax(0,1fr) 46px}
+body[data-theme=steam] #main{grid-column:1!important;grid-row:2;background:linear-gradient(180deg,#2b3544 0,#1b2838 440px)!important;padding:30px 30px 270px}
+body[data-theme=steam] #navigation{grid-column:1;gap:30px;border:0!important;background:#171d25!important}
+body[data-theme=steam] #navigation .nav-icon{display:none}body[data-theme=steam] #navigation .settings-link .nav-icon{display:inline-flex}
+body[data-theme=steam] #quickLaunch{left:auto!important;right:22px!important;bottom:60px;width:280px!important;background:#1b2838!important;border:1px solid #445569!important;box-shadow:0 8px 28px #0005}
+body[data-theme=steam] :is(button,input,select,textarea){font-family:Arial,'Segoe UI',sans-serif!important;border-radius:2px!important}
+body[data-theme=steam] button{background:linear-gradient(180deg,#3a4759,#2b3544)!important;border:1px solid #ffffff08!important;color:#d6d7d8!important}
+body[data-theme=steam] button:hover{background:linear-gradient(180deg,#53667d,#415168)!important;color:#fff!important}
+body[data-theme=steam] :is(.primary,.play,#quickPlay){background:linear-gradient(90deg,#75a921,#588a1b)!important;color:#fff!important}
+body[data-theme=steam] :is(input,select,textarea){background:#101822!important;border:1px solid #3c4b5b!important;color:#d6d7d8!important}
+body[data-theme=steam] #navigation>button{background:none!important;border:0!important;color:#d6d7d8!important;text-transform:uppercase}
+body[data-theme=steam] #navigation>button.active{color:#1a9fff!important}body[data-theme=steam] #navigation>button.active:after{background:#1a9fff!important}
+body[data-theme=steam] :is(.panel,.login-card,.welcome-card,#modal,.dropdown,.friends-panel,.notifications-panel){background:#202a36!important;border-color:#3c4858!important;border-radius:3px!important;backdrop-filter:none!important;box-shadow:0 8px 28px #0004}
+body[data-theme=steam] :is(.catalog-card,.version-card,.instance-card){background:linear-gradient(125deg,#293747,#202c3b)!important}
+body[data-theme=steam] .hero{background:linear-gradient(110deg,#344f6c,#223348)!important;border-radius:2px!important}
+body[data-theme=steam] :is(.account-face,.profile-avatar){border-radius:2px!important}body[data-theme=steam] .account-welcome{background:#1b2838}
+.icon-custom-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0}.icon-custom-row select{flex:1;min-width:140px}#iconEditor{margin:24px 0;padding:20px;border:1px solid color-mix(in srgb,var(--theme-text) 14%,transparent);border-radius:var(--theme-radius)}#iconPreview{width:44px;height:44px;display:grid;place-items:center;background:color-mix(in srgb,var(--theme-text) 8%,transparent);border-radius:10px}#iconPreview .pixel-icon{width:24px;height:24px}
+/* Modern: one quiet backdrop with violet, mint and blue highlights. */
+body[data-theme=modern]{--ui-font:'Segoe UI',Arial,sans-serif;--heading-font:var(--ui-font);background:radial-gradient(ellipse at 5% 0,#3b2c665c,transparent 55%),radial-gradient(ellipse at 95% 90%,#16576155,transparent 60%),#101426!important}
+body[data-theme=modern] :is(#titlebar,#navigation,#shell>footer){background:#101426c9!important;border-color:#c6d2ff14!important}
+body[data-theme=modern] :is(.panel,.hero,.instance-card,.version-card,.catalog-card,.glass,.login-card,.welcome-card){border-radius:18px!important;background:linear-gradient(135deg,#ffffff09,#ffffff02),#1a2137ed!important;border:1px solid #c9d5ff18!important;box-shadow:0 8px 26px #05081622,inset 0 1px 0 #ffffff06}
+body[data-theme=modern] .hero{background:linear-gradient(115deg,#493c715c,#214a5855),#1a2137!important}
+body[data-theme=modern] :is(.primary,.play,#quickPlay){background:linear-gradient(110deg,#c6b4ff,#96dbe6)!important;color:#18243c!important;border:0!important;border-radius:12px!important;box-shadow:0 5px 16px #a194fb20}
+body[data-theme=modern] :is(button,input,select,textarea){border-radius:10px!important}body[data-theme=modern] :is(input,select,textarea){background:#0f1526c9!important;border-color:#c9d5ff24!important;color:#edf2ff!important}
+body[data-theme=modern] .card-bg{filter:blur(5px);opacity:.25}body[data-theme=modern] .card-gradient{background:linear-gradient(90deg,#151c30b8,#151c3060)!important}
+body[data-theme=modern] #navigation>button.active{background:#bba9ff14!important;border-radius:12px!important;color:#cebcff!important}body[data-theme=modern] #navigation>button.active:after{display:none}
+body[data-theme=modern] :is(.account-face,.profile-avatar,.instance-icon,.catalog-icon,.project-avatar){border-radius:14px!important;border-color:#c9d5ff28!important}
+body[data-theme=modern] .account-welcome{background:radial-gradient(ellipse at top,#44396a88,transparent 65%),#101426!important}body[data-theme=modern] #modal .form-actions{background:#1a2137}
+/* Liquid Glass: iOS-inspired grouped cards, pill controls and translucent chrome. */
+body[data-theme=liquid]{--ui-font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--heading-font:var(--ui-font);--theme-muted:#556783;--theme-hover:#ffffff65;--theme-border:#ffffff80;--theme-accent-text:#fff;background:radial-gradient(ellipse at 10% 10%,#d7c6fa,transparent 60%),radial-gradient(ellipse at 90% 80%,#addce9,transparent 65%),#e7edf7!important}
+body[data-theme=liquid] :is(#titlebar,#navigation,#shell>footer){background:#f8fbff66!important;border-color:#ffffffb3!important;backdrop-filter:blur(20px) saturate(145%);-webkit-backdrop-filter:blur(20px) saturate(145%);color:#172339!important}
+body[data-theme=liquid] :is(.panel,.hero,.instance-card,.version-card,.catalog-card,.glass,.login-card,.welcome-card){background:#ffffff66!important;border:1px solid #ffffffbd!important;border-radius:24px!important;box-shadow:inset 0 1px 1px #ffffffc9,0 8px 24px #43546c14;color:#172339!important}
+body[data-theme=liquid] :is(#quickLaunch,#modal,.dropdown,.friends-panel,.notifications-panel,#toast){background:#f6f9ffcf!important;backdrop-filter:blur(22px) saturate(150%)!important;-webkit-backdrop-filter:blur(22px) saturate(150%);box-shadow:inset 0 1px 0 #fff,0 14px 38px #4b638628;color:#172339!important}
+body[data-theme=liquid] .ambient{display:none}body[data-theme=liquid] .hero:before,body[data-theme=liquid] .hero:after{display:none}
+body[data-theme=liquid] :is(h1,h2,h3){letter-spacing:-.025em;font-weight:600}body[data-theme=liquid] .heading h1{font-size:32px}
+body[data-theme=liquid] button{background:#ffffff80!important;color:#243b58!important;border:1px solid #ffffffbc!important;border-radius:999px!important;box-shadow:inset 0 1px 0 #ffffffc9;transition:background .15s,box-shadow .15s}
+body[data-theme=liquid] button:hover{background:#ffffffb8!important;box-shadow:inset 0 1px 0 #fff,0 3px 12px #60789920}
+body[data-theme=liquid] :is(.primary,.play,#quickPlay){background:linear-gradient(180deg,#2998ff,#007aff)!important;color:#fff!important;border-color:#fff5!important;box-shadow:0 5px 14px #007aff28,inset 0 1px 0 #ffffff50}
+body[data-theme=liquid] :is(input,select,textarea){background:#fff8!important;border:1px solid #fff!important;color:#243b58!important;border-radius:13px!important;box-shadow:inset 0 1px 4px #6078990d}
+body[data-theme=liquid] :is(input,textarea)::placeholder{color:#677c98!important;opacity:1}
+body[data-theme=liquid] .muted,body[data-theme=liquid] :is(.eyebrow,.hint,.source){color:#556783!important}
+body[data-theme=liquid] #navigation>button{background:transparent!important;box-shadow:none;border:0!important}body[data-theme=liquid] #navigation>button.active{background:#ffffff9c!important;color:#007aff!important;box-shadow:0 3px 12px #45536f12}body[data-theme=liquid] #navigation>button.active:after{display:none}
+body[data-theme=liquid] :is(.edition-switch,.content-tabs){border-radius:999px!important;background:#8295b514;padding:4px}body[data-theme=liquid] :is(.edition-switch,.content-tabs) button.active{background:#fff!important;color:#007aff!important;box-shadow:0 2px 8px #43546c15}
+body[data-theme=liquid] .card-bg{opacity:.12;filter:blur(6px)}body[data-theme=liquid] .card-gradient{background:linear-gradient(100deg,#f8fbffbb,#f8fbff22)!important}body[data-theme=liquid] :is(.instance-icon,.catalog-icon,.profile-avatar,.project-avatar,.account-face){background:#ffffff80!important;border-radius:18px!important;box-shadow:inset 0 1px 0 #fff,0 4px 12px #43546c12;color:#243b58}
+body[data-theme=liquid] .version-art{background:linear-gradient(135deg,#a3c5ef,#c0b8ef)!important}body[data-theme=liquid] .version-art span{background:#ffffff90;color:#243b58;text-shadow:none}
+body[data-theme=liquid] :is(.pill,.friendship-badge){background:#fff8!important;border-color:#fff!important;border-radius:999px;color:#243b58!important}body[data-theme=liquid] :is(.activity-track,.minecraft-tool .cape-row){background:#8295b518}body[data-theme=liquid] .account-welcome{background:radial-gradient(ellipse at top,#c7cff2,transparent 70%),#e7edf7!important}body[data-theme=liquid] #modal .form-actions{background:#f6f9fff0}
+body[data-theme=liquid] #modal::backdrop{background:#35466740;backdrop-filter:blur(6px)}body[data-theme=liquid] :is(.log,#serverConsole,.server-file-editor textarea){background:#f8fbffb0!important;color:#243b58!important}body[data-theme=liquid] :is(.quick-caption strong,.quick-caption span){color:#243b58!important}
+body:is([data-theme=modern],[data-theme=liquid]) :is(.skin-stage,.skin-preview){border-radius:20px!important}body:is([data-theme=modern],[data-theme=liquid]) :is(.settings-section,.profile-edit){padding:24px}
+@media(max-width:1050px){body[data-theme=steam] #main{padding:24px 24px 270px}body[data-theme=steam] #navigation{gap:20px}body[data-theme=steam] #quickLaunch{width:260px!important}}
+@media(prefers-reduced-transparency:reduce){body[data-theme=liquid] :is(.panel,.hero,.instance-card,.version-card,.catalog-card,.glass,#titlebar,#navigation,#shell>footer,#modal){background:#f4f7fc!important;backdrop-filter:none!important}}
+@media(prefers-reduced-motion:reduce){body[data-theme=liquid] button{transition:none}}

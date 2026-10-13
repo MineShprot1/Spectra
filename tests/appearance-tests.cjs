@@ -68,3 +68,10 @@ assert(sharedCss.includes('.ambient{display:none}'));
 assert.equal(JSON.parse(storage.get('spectraAppearance')).gradientUnified,true);
 assert.equal(JSON.parse(storage.get('spectraAppearance')).gradientPresets[0].gradientUnified,true);
 console.log('PASS: shared backdrop gradient occurs once, panel tints and unified preset persistence');
+
+const png='data:image/png;base64,iVBORw0KGgo=';context.iconPng=png;
+const newTheme=vm.runInContext("SpectraAppearance.validate({theme:'modern'})",context);assert.equal(newTheme.theme,'modern');assert.equal(vm.runInContext("SpectraAppearance.validate({theme:'liquid'}).theme",context),'liquid');
+vm.runInContext("SpectraAppearance.apply({theme:'steam',themeIcons:{steam:{style:'rounded',custom:{play:iconPng}},windows:{style:'outline'}}})",context);assert(styles.get('#themeStyle').textContent.includes(png));assert(styles.get('#themeStyle').textContent.includes('icons-rounded/cube.svg'));
+const icons=vm.runInContext("SpectraAppearance.validate({themeIcons:{steam:{style:'bad',custom:{play:'https://evil.test/x',edit:'data:image/png;base64,x);bad'}}}})",context);assert.equal(icons.themeIcons.steam.style,'outline');assert.deepEqual(Object.keys(icons.themeIcons.steam.custom),[]);
+vm.runInContext("SpectraAppearance.apply({theme:'liquid'})",context);assert(styles.get('#themeStyle').textContent.includes('icons-rounded/play.svg'));
+console.log('PASS: Modern/Liquid Glass, per-theme icon preferences, custom PNG persistence and invalid icon rejection');
