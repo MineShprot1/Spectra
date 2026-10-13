@@ -75,3 +75,9 @@ vm.runInContext("SpectraAppearance.apply({theme:'steam',themeIcons:{steam:{style
 const icons=vm.runInContext("SpectraAppearance.validate({themeIcons:{steam:{style:'bad',custom:{play:'https://evil.test/x',edit:'data:image/png;base64,x);bad'}}}})",context);assert.equal(icons.themeIcons.steam.style,'outline');assert.deepEqual(Object.keys(icons.themeIcons.steam.custom),[]);
 vm.runInContext("SpectraAppearance.apply({theme:'liquid'})",context);assert(styles.get('#themeStyle').textContent.includes('icons-rounded/play.svg'));
 console.log('PASS: Modern/Liquid Glass, per-theme icon preferences, custom PNG persistence and invalid icon rejection');
+
+vm.runInContext("SpectraAppearance.apply({theme:'liquid',liquidMode:'dark'})",context);assert.equal(context.document.body.dataset.liquidMode,'dark');assert(styles.get('#themeStyle').textContent.includes('--theme-bg:#101723'));
+assert.equal(vm.runInContext("SpectraAppearance.validate({liquidMode:'bad'}).liquidMode",context),'light');
+vm.runInContext("SpectraAppearance.apply({theme:'modern',colors:['#000000','#ffffff'],gradientPresets:[{id:'shared',name:'Across themes',colors:['#123456','#654321'],angle:135}]});if(!SpectraAppearance.selectPreset('shared'))throw Error('Preset missing')",context);assert.equal(context.document.body.dataset.theme,'modern');assert(styles.get('#themeStyle').textContent.includes('background:linear-gradient(135deg,#123456,#654321)!important'));
+for(const theme of ['dark','light','minecraft','gradient','modern','liquid','custom','windows','steam','aero']){context.testIconTheme=theme;assert.equal(vm.runInContext("SpectraAppearance.validate({themeIcons:{[testIconTheme]:{style:'rounded',custom:{play:iconPng}}}}).themeIcons[testIconTheme].custom.play",context),png);}
+console.log('PASS: Liquid Glass dark persistence, shared Modern gradients and icons in every theme');
