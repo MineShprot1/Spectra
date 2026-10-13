@@ -29,6 +29,7 @@ public record Instance
  public string PackSource {get;set;}="";
  public string PackId {get;set;}="";
  public string PackVersion {get;set;}="";
+ public DateTime? CreatedAt {get;set;}
  public DateTime? LastPlayed { get; set; }
 }
 public record SavedSkin
@@ -90,6 +91,7 @@ public sealed class Store
  public string Root { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Spectra");
  public Configuration Config { get; private set; }
  public Store() { Directory.CreateDirectory(Root); var p=Path.Combine(Root,"config.json"); Config=File.Exists(p)?JsonSerializer.Deserialize<Configuration>(File.ReadAllText(p),Json)??new():new();
+ foreach(var instance in Config.Instances){var directory=Path.Combine(Root,"instances",instance.Id);if(instance.CreatedAt==null&&Directory.Exists(directory))instance.CreatedAt=Directory.GetCreationTimeUtc(directory);}
  var secretPath=Path.Combine(Root,"connections.dat");if(File.Exists(secretPath)){var decrypted=ProtectedData.Unprotect(File.ReadAllBytes(secretPath),null,DataProtectionScope.CurrentUser);var secret=JsonSerializer.Deserialize<Dictionary<string,string>>(decrypted)!;Config.CurseForgeKey=secret.GetValueOrDefault("curseforge","");Config.CraftyKey=secret.GetValueOrDefault("crafty","");}
  if(!Config.FriendsEndpointInitialized){if(string.IsNullOrWhiteSpace(Config.FriendsEndpoint))Config.FriendsEndpoint="https://spectra-friends.spectrafriends.workers.dev";Config.FriendsEndpointInitialized=true;Save();}
  var localKeys=Path.Combine(AppContext.BaseDirectory,"api-keys.local.json");

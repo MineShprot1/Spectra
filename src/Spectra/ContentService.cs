@@ -133,7 +133,7 @@ public sealed class ContentService(Store store,GameService game,Authentication a
   }
   if(kind!="worlds")throw new IOException("Категория недоступна");
   Instance instance;
-  if(instanceId!="")instance=store.Get(instanceId);else{await game.Metadata(version);await game.InstallVersion(version);instance=new Instance{Id="vanilla",Version=version,Settings=store.Config.Defaults with {}};}
+  if(instanceId!="")instance=store.Get(instanceId);else{await game.Metadata(version);await game.InstallVersion(version);instance=new Instance{CreatedAt=DateTime.UtcNow,Id="vanilla",Version=version,Settings=store.Config.Defaults with {}};}
   if(game.Running.ContainsKey(instance.Id))throw new IOException("Закройте игру перед установкой карты");
   if(instanceId!=""&&!game.InstalledJava().Contains(instance.Version))await game.InstallVersion(instance.Version);
   var saves=Path.Combine(store.Folder(instance),"saves");Directory.CreateDirectory(saves);var staging=Path.Combine(saves,".import-"+Guid.NewGuid().ToString("N"));var destination=Path.Combine(saves,"Map-"+Guid.NewGuid().ToString("N")[..8]);

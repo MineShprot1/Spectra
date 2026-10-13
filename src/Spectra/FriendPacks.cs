@@ -61,7 +61,7 @@ public sealed class FriendPacks(Store store,GameService game,FriendsService frie
    var remote=await Remote(owner);if(remote.PackId!=packId)throw new IOException("Сборка друга изменилась. Откройте список заново.");await game.Metadata(remote.Manifest.Version);
    var kinds=categories.Select(x=>x?.ToString()??"").ToHashSet();if(kinds.Count==0||kinds.Any(k=>!Kinds.Contains(k)))throw new IOException("Неверная категория");
    var requested=selected.Select(x=>x?.ToString()??"").ToHashSet(StringComparer.Ordinal);var files=remote.Manifest.Files.Where(f=>kinds.Contains(f.Kind)&&requested.Contains(f.Kind+"/"+f.Name)).ToList();if(files.Count!=requested.Count)throw new IOException("Выбраны неизвестные файлы");
-   instance=overwrite==""?new Instance{Name=remote.Manifest.Name,Settings=store.Config.Defaults with{}}:store.Get(overwrite);if(instance.Id=="vanilla"||game.Running.ContainsKey(instance.Id))throw new IOException("Закройте игру перед заменой сборки");
+   instance=overwrite==""?new Instance{CreatedAt=DateTime.UtcNow,Name=remote.Manifest.Name,Settings=store.Config.Defaults with{}}:store.Get(overwrite);if(instance.Id=="vanilla"||game.Running.ContainsKey(instance.Id))throw new IOException("Закройте игру перед заменой сборки");
    previous=instance with{Settings=instance.Settings with{}};
    var root=store.Folder(instance);stage=Path.Combine(store.Root,"downloads","friend-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(stage);
    foreach(var f in files){emit(new{type="progress",instanceId=instance.Id,message="Сборка друга: "+f.Name,percent=0});await friends.Download("/packs/"+owner+"/"+packId+"/"+f.Hash,Store.SafePath(stage,GameService.KindFolder(f.Kind)+"/"+f.Name),f.Hash,f.Size);}

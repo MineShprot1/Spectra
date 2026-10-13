@@ -17,6 +17,7 @@ using Microsoft.Win32;
 namespace Spectra;
 public sealed class GameService(Store store, Authentication auth, Action<object> emit)
 {
+ public PlaytimeService Playtime {get;}=new(store.Root);
  public ConcurrentDictionary<string,Process> Running { get; } = new();
  readonly ConcurrentDictionary<string,byte> busy=new();
  readonly SemaphoreSlim installationGate=new(1,1);
@@ -39,7 +40,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
  public async Task InstallVersion(string version)
  {
   await Metadata(version);await installationGate.WaitAsync();try{
-   var instance=new Instance{Id="vanilla",Version=version,Settings=store.Config.Defaults with {}};
+   var instance=new Instance{CreatedAt=DateTime.UtcNow,Id="vanilla",Version=version,Settings=store.Config.Defaults with {}};
    await Java(instance);var launcher=CreateLauncher(store.Folder(instance));
    launcher.FileProgressChanged+=(_,e)=>emit(new{type="progress",message=e.Name,percent=e.TotalTasks>0?e.ProgressedTasks*100d/e.TotalTasks:0});
    await launcher.InstallAsync(version);
@@ -184,7 +185,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader!="vanilla") await launcher.InstallAsync(version);
-   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=session,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.18.0"});
+   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=session,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.18.1"});
    var elyName=client?.ElyName??(auth.IsOffline?auth.ActiveAccount?.ElyName:"");
    if(!string.IsNullOrEmpty(elyName)){try{var agent=await OfflineSkinBridge.Agent(store);var bridge=OfflineSkinBridge.Shared;await bridge.Register(client?.Name??auth.Profile.Str("name"),elyName);var arg="-javaagent:"+agent+"="+bridge.Url;if(process.StartInfo.ArgumentList.Count>0)process.StartInfo.ArgumentList.Insert(0,arg);else process.StartInfo.Arguments="\""+arg+"\" "+process.StartInfo.Arguments;}catch(Exception error) when(error is IOException or System.Net.Http.HttpRequestException or TaskCanceledException){emit(new{type="progress",instanceId=id,message="Ely.by недоступен. Запускаем игру со стандартным скином.",percent=100});}}
    if(targetKind!=""){
@@ -203,9 +204,9 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    var activityParser=new ActivityLog(targetKind=="worlds"?activityTarget:"");var logPath=Path.Combine(root,"logs","latest.log");var watcher=new ActivityLogWatcher(logPath,line=>{if(Running.TryGetValue(id,out var live)&&ReferenceEquals(live,process))ObserveActivity(id,activityParser,line,process);});try{watcher.Baseline();}catch(Exception e) when(e is IOException or UnauthorizedAccessException){}
    void Log(string? line) { if(line!=null){var clean=Redact(line);var queue=recentLogs.GetOrAdd(id,_=>new());queue.Enqueue(clean);while(queue.Count>500)queue.TryDequeue(out _);emit(new{type="log",instanceId=id,line=clean});if(!watcher.HasCurrentLog)ObserveActivity(id,activityParser,line,process);} }
    process.OutputDataReceived+=(s,e)=>Log(e.Data);process.ErrorDataReceived+=(s,e)=>Log(e.Data);
-   process.Exited+=(s,e)=>{Running.TryRemove(id,out _);StopActivity(id);Activities.TryRemove(id,out _);var code=process.ExitCode;LastExits[id]=new(code,stopped.TryRemove(id,out _),DateTime.UtcNow);emit(new{type="exited",instanceId=id,code});process.Dispose();};
+   process.Exited+=(s,e)=>{Running.TryRemove(id,out _);Playtime.Stop(id);StopActivity(id);Activities.TryRemove(id,out _);var code=process.ExitCode;LastExits[id]=new(code,stopped.TryRemove(id,out _),DateTime.UtcNow);emit(new{type="exited",instanceId=id,code});process.Dispose();};
    Activities[id]=new(i.Version,i.Loader,i.LoaderVersion,i.Name,"","",i.PackSource,i.PackId,i.PackVersion,StartedAt:DateTime.UtcNow);
-   Running[id]=process;try{if(!process.Start())throw new IOException("Java не запустилась");}catch{Running.TryRemove(id,out _);Activities.TryRemove(id,out _);process.Dispose();throw;}var cancellation=new CancellationTokenSource();activityWatchers[id]=cancellation;WatchActivity(id,watcher,cancellation);if(!Running.ContainsKey(id))StopActivity(id);process.BeginOutputReadLine();process.BeginErrorReadLine();i.LastPlayed=DateTime.UtcNow;store.Save();
+   Running[id]=process;try{if(!process.Start())throw new IOException("Java не запустилась");Playtime.Start(id,client==null?i.Id:"multi",i.Name,i.Version);if(!Running.ContainsKey(id))Playtime.Stop(id);}catch{Playtime.Stop(id);Running.TryRemove(id,out _);Activities.TryRemove(id,out _);process.Dispose();throw;}var cancellation=new CancellationTokenSource();activityWatchers[id]=cancellation;WatchActivity(id,watcher,cancellation);if(!Running.ContainsKey(id))StopActivity(id);process.BeginOutputReadLine();process.BeginErrorReadLine();i.LastPlayed=DateTime.UtcNow;store.Save();
    if(Running.TryGetValue(id,out var live)&&ReferenceEquals(live,process))emit(new{type="started",instanceId=id,hide=i.Settings.HideOnLaunch});
   }
   finally{installationGate.Release();busy.TryRemove(id,out _);}

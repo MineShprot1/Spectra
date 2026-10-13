@@ -91,7 +91,8 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
  public async Task Heartbeat(){LoadSession();if(token==""||networkAccount?["spectraVerified"]?.GetValue<bool>()!=true||store.Config.FriendsEndpoint=="")return;if(game.Running.IsEmpty||!game.Activities.Values.Any(a=>a.GameState is "world" or "lan"))LanAddress="";var shared="";LastSharingError="";
   if(!store.Config.HideOnlineStatus&&store.Config.ShareGameActivity&&!game.Running.IsEmpty&&PackPublisher!=null&&game.Activities.Values.Any(x=>x.Loader!="vanilla")){try{shared=await PackPublisher();}catch(Exception e) when(e is IOException or HttpRequestException or TaskCanceledException){LastSharingError=e.Message;}}
   // Re-read privacy after asynchronous uploads so a late heartbeat cannot undo a privacy change.
-  var visible=store.Config.ShareGameActivity&&!store.Config.HideOnlineStatus;var data=JsonSerializer.SerializeToNode(game.FriendPresence(visible,LanAddress),Store.Json)!.AsObject();data["online"]=!store.Config.HideOnlineStatus;data["sharedPack"]=visible&&!game.Running.IsEmpty?shared:"";await Call("/presence",data);
+  var visible=store.Config.ShareGameActivity&&!store.Config.HideOnlineStatus;var data=JsonSerializer.SerializeToNode(game.FriendPresence(visible,LanAddress),Store.Json)!.AsObject();if(visible){var stats=game.Playtime.Snapshot();data["activity"]=JsonSerializer.SerializeToNode(new{totalSeconds=stats.TotalSeconds,top=stats.Items.Where(e=>e.Seconds>0).Take(3)},Store.Json);}
+  data["online"]=!store.Config.HideOnlineStatus;data["sharedPack"]=visible&&!game.Running.IsEmpty?shared:"";await Call("/presence",data);
  }
  public async Task Upload(string path,string file,string expected,long size)
  {

@@ -111,7 +111,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
    using var zip=ZipFile.OpenRead(path);var index=zip.GetEntry("modrinth.index.json")??throw new IOException("Это не .mrpack");using var reader=new StreamReader(index.Open());var n=JsonNode.Parse(await reader.ReadToEndAsync())!;
    if(n.Str("game")!="minecraft")throw new IOException("Модпак не для Minecraft");
    var dependencies=n["dependencies"]!;var mc=dependencies.Str("minecraft");await game.Metadata(mc);
-   instance=new Instance{Name=n.Str("name"),Version=mc,Settings=store.Config.Defaults with{}};
+   instance=new Instance{CreatedAt=DateTime.UtcNow,Name=n.Str("name"),Version=mc,Settings=store.Config.Defaults with{}};
    foreach(var loader in new[]{("fabric-loader","fabric"),("quilt-loader","quilt"),("forge","forge"),("neoforge","neoforge")})if(dependencies.Str(loader.Item1) is {Length:>0} v){instance.Loader=loader.Item2;instance.LoaderVersion=v;break;}
    var root=store.Folder(instance);var files=n["files"]!.AsArray();if(files.Count>10000)throw new IOException("Слишком много файлов");
    foreach(var f in files)
@@ -139,7 +139,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
   try
   {
    using var zip=ZipFile.OpenRead(path);var entry=zip.GetEntry("manifest.json")??throw new IOException("Нет manifest.json CurseForge");using var reader=new StreamReader(entry.Open());var n=JsonNode.Parse(await reader.ReadToEndAsync())!;
-   var minecraft=n["minecraft"]!;var mc=minecraft.Str("version");await game.Metadata(mc);instance=new Instance{Name=n.Str("name"),Version=mc,Settings=store.Config.Defaults with{}};
+   var minecraft=n["minecraft"]!;var mc=minecraft.Str("version");await game.Metadata(mc);instance=new Instance{CreatedAt=DateTime.UtcNow,Name=n.Str("name"),Version=mc,Settings=store.Config.Defaults with{}};
    var loader=minecraft["modLoaders"]?.AsArray().FirstOrDefault(x=>x?["primary"]?.GetValue<bool>()==true)??minecraft["modLoaders"]?.AsArray().FirstOrDefault();
    if(loader!=null){var id=loader.Str("id");var separator=id.IndexOf('-');if(separator<0)throw new IOException("Неизвестный загрузчик модпака");instance.Loader=id[..separator];instance.LoaderVersion=id[(separator+1)..];if(instance.Loader is not ("forge" or "neoforge" or "fabric" or "quilt"))throw new IOException("Загрузчик не поддерживается");}
    var root=store.Folder(instance);var files=n["files"]!.AsArray();if(files.Count>10000)throw new IOException("Слишком много файлов");

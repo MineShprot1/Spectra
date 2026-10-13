@@ -33,7 +33,7 @@ public sealed class InstanceArchive(Store store,GameService game,Action<object> 
    var loaders=components.Where(c=>Loaders.ContainsKey(c.Str("uid"))).ToArray();if(loaders.Length>1)throw new IOException("Несколько загрузчиков в одной сборке");
    await game.Metadata(mc);using var cfgReader=new StreamReader(cfgEntry.Open());var cfg=ReadCfg(await cfgReader.ReadToEndAsync());
    var settings=store.Config.Defaults with {};if(cfg.GetValueOrDefault("OverrideMemory")=="true"){if(int.TryParse(cfg.GetValueOrDefault("MinMemAlloc"),out var min))settings.MinRam=min;if(int.TryParse(cfg.GetValueOrDefault("MaxMemAlloc"),out var max))settings.MaxRam=max;}Store.Validate(settings);
-   instance=new Instance{Name=cfg.GetValueOrDefault("name",Path.GetFileNameWithoutExtension(path)),Version=mc,Settings=settings};if(loaders.Length==1){instance.Loader=Loaders[loaders[0].Str("uid")];instance.LoaderVersion=loaders[0].Str("version");if(instance.Loader=="forge"&&instance.LoaderVersion.StartsWith(mc+"-"))instance.LoaderVersion=instance.LoaderVersion[(mc.Length+1)..];}
+   instance=new Instance{CreatedAt=DateTime.UtcNow,Name=cfg.GetValueOrDefault("name",Path.GetFileNameWithoutExtension(path)),Version=mc,Settings=settings};if(loaders.Length==1){instance.Loader=Loaders[loaders[0].Str("uid")];instance.LoaderVersion=loaders[0].Str("version");if(instance.Loader=="forge"&&instance.LoaderVersion.StartsWith(mc+"-"))instance.LoaderVersion=instance.LoaderVersion[(mc.Length+1)..];}
    var root=store.Folder(instance);long total=0;var names=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
    foreach(var e in entries)
    {
@@ -43,7 +43,8 @@ public sealed class InstanceArchive(Store store,GameService game,Action<object> 
     var dest=Store.SafePath(root,relative);Directory.CreateDirectory(Path.GetDirectoryName(dest)!);await using var source=e.Entry.Open();await using var output=File.Create(dest);await source.CopyToAsync(output);
    }
    var iconKey=cfg.GetValueOrDefault("iconKey","");var icon=entries.FirstOrDefault(e=>e.Name==prefix+iconKey+".png");if(icon.Entry!=null&&icon.Entry.Length<=1024*1024&&((icon.Entry.ExternalAttributes>>16)&0xF000)!=0xA000){var dest=Path.Combine(Path.GetDirectoryName(root)!,"icon.png");icon.Entry.ExtractToFile(dest,true);instance.Icon="https://data.spectra.local/instances/"+instance.Id+"/icon.png";}
-   store.Config.Instances.Add(instance);try{store.Save();}catch{store.Config.Instances.Remove(instance);throw;}emit(new{type="progress",message="Сборка импортирована",percent=100});return instance;
+   store.Config.Instances.Add(instance);try{store.Save();}catch{store.Config.Instances.Remove(instance);throw;}if(double.TryParse(cfg.GetValueOrDefault("totalTimePlayed"),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var played)){var identity=mc+"\n"+cfg.GetValueOrDefault("name","")+"\n"+cfg.GetValueOrDefault("lastLaunchTime","")+"\n"+played.ToString(System.Globalization.CultureInfo.InvariantCulture);var fingerprint=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(identity)));game.Playtime.Import(instance.Id,instance.Name,instance.Version,played,fingerprint);}
+   emit(new{type="progress",message="Сборка импортирована",percent=100});return instance;
   }
   catch{if(instance!=null){var folder=Path.Combine(store.Root,"instances",instance.Id);if(Directory.Exists(folder))Directory.Delete(folder,true);}throw;}
   finally{gate.Release();}
@@ -59,7 +60,7 @@ public sealed class InstanceArchive(Store store,GameService game,Action<object> 
     if(instance.Loader!="vanilla"){var uid=Loaders.Single(x=>x.Value==instance.Loader).Key;components.Add(new JsonObject{["uid"]=uid,["version"]=instance.LoaderVersion});if(instance.Loader=="fabric")components.Add(new JsonObject{["uid"]="net.fabricmc.intermediary",["version"]=instance.Version});}
     void Text(string name,string content){using var writer=new StreamWriter(zip.CreateEntry(name).Open(),new UTF8Encoding(false));writer.Write(content);}
     Text("mmc-pack.json",new JsonObject{["formatVersion"]=1,["components"]=components}.ToJsonString());
-    Text("instance.cfg","[General]\nInstanceType=OneSix\nname="+instance.Name.Replace("\\","\\\\").Replace("\r"," ").Replace("\n"," ")+"\niconKey="+(iconPath!=null&&File.Exists(iconPath)?"spectra":"default")+"\nOverrideMemory=true\nMinMemAlloc="+instance.Settings.MinRam+"\nMaxMemAlloc="+instance.Settings.MaxRam+"\n");
+    Text("instance.cfg","[General]\nInstanceType=OneSix\nname="+instance.Name.Replace("\\","\\\\").Replace("\r"," ").Replace("\n"," ")+"\ntotalTimePlayed="+((long)(game.Playtime.Snapshot().Items.FirstOrDefault(e=>e.Key==PlaytimeService.Key(id,instance.Version))?.Seconds??0)).ToString()+"\niconKey="+(iconPath!=null&&File.Exists(iconPath)?"spectra":"default")+"\nOverrideMemory=true\nMinMemAlloc="+instance.Settings.MinRam+"\nMaxMemAlloc="+instance.Settings.MaxRam+"\n");
     if(iconPath!=null&&File.Exists(iconPath))zip.CreateEntryFromFile(iconPath,"spectra.png",CompressionLevel.Fastest);
     var opts=new EnumerationOptions{RecurseSubdirectories=true,AttributesToSkip=FileAttributes.ReparsePoint};int count=0;
     foreach(var file in Directory.EnumerateFiles(root,"*",opts))
