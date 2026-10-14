@@ -44,9 +44,11 @@ public partial class MainWindow : Window
  }
  [StructLayout(LayoutKind.Sequential)] struct NativePoint{public int X,Y;}
  [StructLayout(LayoutKind.Sequential)] struct MinMaxInfo{public NativePoint Reserved,MaxSize,MaxPosition,MinTrackSize,MaxTrackSize;}
- bool librarySized;
+ bool librarySized;Rect? entryPreviousBounds;WindowState entryPreviousState;
+ void CompactEntry(){if(entryPreviousBounds!=null)return;if(fullscreen)ToggleFullscreen();if(librarySized){entryPreviousBounds=WindowState==WindowState.Normal?new Rect(Left,Top,Width,Height):RestoreBounds;entryPreviousState=WindowState;}WindowState=WindowState.Normal;librarySized=false;MinWidth=520;MinHeight=400;Width=600;Height=470;var work=System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(this).Handle).WorkingArea;var matrix=PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice??System.Windows.Media.Matrix.Identity;var origin=matrix.Transform(new Point(work.Left,work.Top));var size=matrix.Transform(new Point(work.Width,work.Height));Left=origin.X+(size.X-Width)/2;Top=origin.Y+(size.Y-Height)/2;}
  void ExpandLibrary()
  {
+  if(entryPreviousBounds is Rect saved){entryPreviousBounds=null;MinWidth=Math.Min(900,saved.Width);MinHeight=Math.Min(580,saved.Height);Left=saved.Left;Top=saved.Top;Width=saved.Width;Height=saved.Height;WindowState=entryPreviousState;librarySized=true;return;}
   if(librarySized||fullscreen)return;librarySized=true;
   var screen=System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(this).Handle).WorkingArea;
   var transform=PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice??System.Windows.Media.Matrix.Identity;
@@ -269,7 +271,7 @@ public partial class MainWindow : Window
    }
    case "login":
    {
-    await auth.Login(d["interactive"]?.GetValue<bool>()??true);ExpandLibrary();return State();
+    await auth.Login(d["interactive"]?.GetValue<bool>()??true);return State();
    }
    case "expand":
    {
@@ -281,7 +283,7 @@ public partial class MainWindow : Window
    }
    case "window":
    {
-    switch(d.Str("command")){case "close":Close();break;case "minimize":WindowState=WindowState.Minimized;break;case "fullscreen":ToggleFullscreen();break;case "maximize":if(fullscreen)ToggleFullscreen();WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});break;case "drag":if((GetAsyncKeyState(0x01)&0x8000)!=0){ReleaseCapture();SendMessage(new WindowInteropHelper(this).Handle,0x00A1,2,0);}break;}return null;
+    switch(d.Str("command")){case "compact":CompactEntry();break;case "close":Close();break;case "minimize":WindowState=WindowState.Minimized;break;case "fullscreen":ToggleFullscreen();break;case "maximize":if(fullscreen)ToggleFullscreen();WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});break;case "drag":if((GetAsyncKeyState(0x01)&0x8000)!=0){ReleaseCapture();SendMessage(new WindowInteropHelper(this).Handle,0x00A1,2,0);}break;}return null;
    }
    case "select":
    {
