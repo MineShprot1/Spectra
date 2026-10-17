@@ -44,6 +44,7 @@ public sealed partial class CatalogService
  }
  public async Task<object> PackContents(string source,string projectId,string versionId)
  {
+  if(source is "ftb" or "technic")return await ExternalContents(source,projectId,versionId);
   if(source is not ("modrinth" or "curseforge")||!Regex.IsMatch(projectId,@"\A[A-Za-z0-9_-]{1,100}\z")||!Regex.IsMatch(versionId,@"\A[A-Za-z0-9_-]{1,100}\z"))throw new IOException("Неверный выпуск модпака");
   var key=source+":"+projectId+":"+versionId;await contentsGate.WaitAsync();try{
    if(contentsCache.TryGetValue(key,out var cached))return cached;

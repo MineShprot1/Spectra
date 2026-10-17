@@ -44,6 +44,8 @@ jobs:
         run: dotnet run --project tests/Workspace.Tests.csproj -c Release
       - name: Party TCP bridge tests
         run: dotnet run --project tests/SocialNative.Tests.csproj -c Release
+      - name: External catalogue installation tests
+        run: dotnet run --project tests/catalog/Spectra.Catalog.Tests.csproj -c Release
       - name: Core tests
         run: dotnet run --project tests/Spectra.Tests.csproj -c Release
       - name: Mark source commit

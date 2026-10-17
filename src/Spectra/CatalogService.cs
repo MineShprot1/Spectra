@@ -13,11 +13,13 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
  readonly Dictionary<string,(long Size,long Ticks,string Hash)> installedHashes=new();
  readonly Dictionary<string,List<InstallFile>> knownVersions=new();
  static string Q(string x)=>Uri.EscapeDataString(x);
- public async Task<object> Search(string query,string kind,string? instanceId,int offset)
+ public async Task<object> Search(string query,string kind,string? instanceId,int offset,string[]? filters=null)
  {
+  var tags=ValidateFilters(kind,filters);offset=Math.Clamp(offset,0,10000);
   var i=string.IsNullOrEmpty(instanceId)?null:store.Get(instanceId);
   var facets=new List<string[]>{new[]{"project_type:"+(kind=="mods"?"mod":kind=="shaders"?"shader":kind=="resources"?"resourcepack":"modpack")}};
   if(i!=null){facets.Add(new[]{"versions:"+i.Version});if(kind=="mods"&&i.Loader!="vanilla")facets.Add(new[]{"categories:"+i.Loader});}
+  foreach(var tag in tags)facets.Add(new[]{"categories:"+tag});
   var warnings=new List<string>();var results=new List<CatalogItem>();
   try{var n=await Net.Get("https://api.modrinth.com/v2/search?query="+Q(query)+"&limit=24&offset="+offset+"&index=downloads&facets="+Q(JsonSerializer.Serialize(facets)));results.AddRange(n["hits"]!.AsArray().Select(x=>new CatalogItem("modrinth",x.Str("project_id"),x.Str("title"),x.Str("description"),x.Str("icon_url"),x?["downloads"]?.GetValue<long>()??0)));}catch(Exception){warnings.Add("Modrinth сейчас недоступен");}
   if(string.IsNullOrWhiteSpace(store.Config.CurseForgeKey))warnings.Add("CurseForge: добавьте API-ключ в настройках");
@@ -26,8 +28,13 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
    var classId=kind switch{"mods"=>6,"resources"=>12,"shaders"=>6552,_=>4471};
    var url=$"https://api.curseforge.com/v1/mods/search?gameId=432&classId={classId}&pageSize=24&index={offset}&sortField=2&sortOrder=desc&searchFilter="+Q(query);
    if(i!=null){url+="&gameVersion="+Q(i.Version);if(kind=="mods")url+="&modLoaderType="+LoaderNumber(i.Loader);}
-   var n=await Curse(url);results.AddRange(n["data"]!.AsArray().Select(x=>new CatalogItem("curseforge",x.Str("id"),x.Str("name"),x.Str("summary"),x?["logo"].Str("thumbnailUrl")??"",(long)(x?["downloadCount"]?.GetValue<double>()??0))));
+   long[] categoryIds=[];
+   if(tags.Length>0){var categories=(await Curse("https://api.curseforge.com/v1/categories?gameId=432&classId="+classId))["data"]!.AsArray();categoryIds=tags.Select(tag=>categories.FirstOrDefault(c=>c.Str("slug")==tag||c.Str("name").Replace(" ","-").Equals(tag,StringComparison.OrdinalIgnoreCase))?["id"]?.GetValue<long>()??0).ToArray();}
+   if(categoryIds.Contains(0))warnings.Add("CurseForge: для выбранного фильтра нет точного соответствия, показаны подходящие результаты Modrinth");
+   else {if(categoryIds.Length>0)url+="&categoryIds="+Q(JsonSerializer.Serialize(categoryIds));
+   var n=await Curse(url);results.AddRange(n["data"]!.AsArray().Where(x=>categoryIds.All(id=>x?["categories"]?.AsArray().Any(c=>c?["id"]?.GetValue<long>()==id)==true)).Select(x=>new CatalogItem("curseforge",x.Str("id"),x.Str("name"),x.Str("summary"),x?["logo"].Str("thumbnailUrl")??"",(long)(x?["downloadCount"]?.GetValue<double>()??0))));}
   }catch(Exception){warnings.Add("CurseForge недоступен или ключ не принят");}
+  if(kind=="modpacks")foreach(var source in new[]{"ftb","technic"})try{results.AddRange(await ExternalSearch(source,query,offset));}catch(Exception e){warnings.Add(source.ToUpperInvariant()+": "+e.Message);}
   if(kind=="mods")results=(await Task.WhenAll(results.Select(async item=>{try{return item with {Side=await Side(item.Source,item.Id)};}catch{return item;}}))).ToList();
   // Counts belong to different services, preserve source attribution.
   return new{items=results.OrderByDescending(x=>x.Downloads),warnings,nextOffset=offset+24};
@@ -37,6 +44,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
  public async Task<object> Details(string source,string id,string kind,string instanceId)
  {
   if(!System.Text.RegularExpressions.Regex.IsMatch(id,@"\A[A-Za-z0-9_-]{1,100}\z"))throw new IOException("Неверный проект");if(kind is not ("mods" or "shaders" or "resources" or "modpacks"))throw new IOException("Неизвестная категория");
+  if(source is "ftb" or "technic"){if(kind!="modpacks")throw new IOException("Источник поддерживает только модпаки");return await ExternalDetails(source,id);}
   var instance=string.IsNullOrEmpty(instanceId)?null:store.Get(instanceId);
   if(source=="modrinth"){
    var projectTask=Net.Get("https://api.modrinth.com/v2/project/"+Q(id));var versionsUrl="https://api.modrinth.com/v2/project/"+Q(id)+"/version";
@@ -163,6 +171,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
  }
  public async Task<Instance> InstallPack(string source,string id,string pinnedVersion="")
  {
+  if(source is "ftb" or "technic")return await InstallExternalPack(source,id,pinnedVersion);
   string url,filename;string? hash;string algorithm;JsonNode? project=null;string packVersion="";
   if(source=="modrinth")
   {
