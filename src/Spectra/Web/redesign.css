@@ -24,3 +24,5 @@ body .instance-card .card-actions{display:flex;flex-direction:column;align-items
 body.entry-mode{background:var(--theme-bg)!important}
 
 .profile-showcase .panel[hidden]{display:none!important}
+
+body #minecraftAppearance .cape-tile{grid-template-columns:56px minmax(0,1fr) auto}body #minecraftAppearance .cape-tile .cape-preview{width:56px!important;height:40px!important;display:flex;align-items:center;justify-content:center}body #minecraftAppearance .cape-preview canvas.cape-pair{display:block;width:100%!important;height:auto!important;max-height:40px;aspect-ratio:23/16;object-fit:contain;image-rendering:pixelated}

@@ -42,6 +42,8 @@ jobs:
         run: dotnet build src/Spectra/Spectra.csproj -c Release --no-restore
       - name: Workspace feature tests
         run: dotnet run --project tests/Workspace.Tests.csproj -c Release
+      - name: Party TCP bridge tests
+        run: dotnet run --project tests/SocialNative.Tests.csproj -c Release
       - name: Core tests
         run: dotnet run --project tests/Spectra.Tests.csproj -c Release
       - name: Mark source commit

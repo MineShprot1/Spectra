@@ -79,6 +79,7 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
    try{return await Send(endpoint,path,token,data);}catch(FriendsSessionExpired){ClearSession();throw new IOException("Сессия Spectra истекла. Пройдите верификацию через Google в профиле.");}
   }finally{gate.Release();}
  }
+ public async Task<JsonNode> SocialCall(string path,object? data=null){string endpoint,bearer,owner;await gate.WaitAsync();try{LoadSession();endpoint=ValidateEndpoint(store.Config.FriendsEndpoint);bearer=token;owner=scope;if(bearer==""||networkAccount==null)throw new IOException("Подключите Spectra Network");}finally{gate.Release();}JsonNode result;try{result=await Send(endpoint,path,bearer,data);}catch(FriendsSessionExpired){await gate.WaitAsync();try{LoadSession();if(scope==owner&&token==bearer)ClearSession();}finally{gate.Release();}throw new IOException("Сессия Spectra истекла. Повторите верификацию через Google.");}LoadSession();if(scope!=owner)throw new IOException("Аккаунт изменился");return result;}
  async Task<JsonNode> Send(string endpoint,string path,string bearer,object? data)
  {
   using var request=new HttpRequestMessage(data==null?HttpMethod.Get:HttpMethod.Post,endpoint+path);if(bearer!="")request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",bearer);
@@ -86,13 +87,13 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
   using var response=await http.SendAsync(request);var raw=await response.Content.ReadAsStringAsync();if(raw.Length>524288)throw new IOException("Слишком большой ответ сети Spectra");
   JsonNode? result;try{result=JsonNode.Parse(raw);}catch{throw new IOException("Сервер сети Spectra вернул неверный ответ");}
   if(response.StatusCode==HttpStatusCode.Unauthorized)throw new FriendsSessionExpired();
-  if(!response.IsSuccessStatusCode)throw new IOException(result.Str("error") is {Length:>0} error?error:"Сеть Spectra недоступна");return result??new JsonObject();
+  if(!response.IsSuccessStatusCode)throw new FriendsRequestException((int)response.StatusCode,result.Str("error") is {Length:>0} error?error:"Сеть Spectra недоступна");return result??new JsonObject();
  }
  public async Task Heartbeat(){LoadSession();if(token==""||networkAccount?["spectraVerified"]?.GetValue<bool>()!=true||store.Config.FriendsEndpoint=="")return;if(game.Running.IsEmpty||!game.Activities.Values.Any(a=>a.GameState is "world" or "lan"))LanAddress="";var shared="";LastSharingError="";
   if(!store.Config.HideOnlineStatus&&store.Config.ShareGameActivity&&!game.Running.IsEmpty&&PackPublisher!=null&&game.Activities.Values.Any(x=>x.Loader!="vanilla")){try{shared=await PackPublisher();}catch(Exception e) when(e is IOException or HttpRequestException or TaskCanceledException){LastSharingError=e.Message;}}
   // Re-read privacy after asynchronous uploads so a late heartbeat cannot undo a privacy change.
   var visible=store.Config.ShareGameActivity&&!store.Config.HideOnlineStatus;var data=JsonSerializer.SerializeToNode(game.FriendPresence(visible,LanAddress),Store.Json)!.AsObject();if(visible){var stats=game.Playtime.Snapshot();data["activity"]=JsonSerializer.SerializeToNode(new{totalSeconds=stats.TotalSeconds,top=stats.Items.Where(e=>e.Seconds>0).Take(3)},Store.Json);}
-  data["online"]=!store.Config.HideOnlineStatus;data["sharedPack"]=visible&&!game.Running.IsEmpty?shared:"";await Call("/presence",data);
+  if(visible&&game.Running.IsEmpty&&BedrockService.IsRunning()){data["playing"]=true;data["gameState"]="menu";data["version"]="Bedrock";data["loader"]="bedrock";data["pack"]="Minecraft Bedrock";}data["online"]=!store.Config.HideOnlineStatus;data["sharedPack"]=visible&&!game.Running.IsEmpty?shared:"";await Call("/presence",data);
  }
  public async Task Upload(string path,string file,string expected,long size)
  {
@@ -116,3 +117,5 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
   var presence=friend["presence"]??throw new IOException("Нет данных об игре");if(presence["playing"]?.GetValue<bool>()!=true)throw new IOException("Друг не запустил Minecraft");if(requireJoinTarget&&(presence.Str("targetKind") is not ("servers" or "lan")||presence.Str("target")==""))throw new IOException("Друг не поделился адресом подключения");return presence;
  }
 }
+
+public sealed class FriendsRequestException(int status,string message):IOException(message){public int Status {get;}=status;}

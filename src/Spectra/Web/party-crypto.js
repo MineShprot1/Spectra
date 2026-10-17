@@ -1,0 +1,10 @@
+'use strict';
+// Uses libsodium crypto_box and Ed25519; this is NOT Signal/Double Ratchet.
+(function(root){
+ function create(sodium,account,seed,counter=0){const s=sodium,b64=x=>s.to_base64(x,s.base64_variants.ORIGINAL),bytes=x=>s.from_base64(x,s.base64_variants.ORIGINAL);const secret=seed?bytes(seed):s.randombytes_buf(32);if(secret.length!==32)throw Error('Invalid identity seed');const pair=s.crypto_sign_seed_keypair(secret),publicKey=b64(pair.publicKey),curvePrivate=s.crypto_sign_ed25519_sk_to_curve25519(pair.privateKey);const fingerprint=key=>s.to_hex(s.crypto_generichash(32,'Spectra Network identity v1\0'+key));
+ function encrypt(recipient,key,body,{group='',kind='chat',revision=0}={}){const header={v:1,id:s.to_hex(s.randombytes_buf(16)),sender:account,recipient,group,revision,kind,counter:++counter,created:Math.floor(Date.now()/1000)},nonce=b64(s.randombytes_buf(s.crypto_box_NONCEBYTES));const ciphertext=b64(s.crypto_box_easy(JSON.stringify({header,body}),bytes(nonce),s.crypto_sign_ed25519_pk_to_curve25519(bytes(key)),curvePrivate));const signature=b64(s.crypto_sign_detached(JSON.stringify({header,nonce,ciphertext}),pair.privateKey));return {header,nonce,ciphertext,signature,senderKey:publicKey};}
+ function decrypt(e,key){if(e.senderKey!==key||e.header?.recipient!==account||e.header?.v!==1)throw Error('Ключ или получатель не совпадает');if(!s.crypto_sign_verify_detached(bytes(e.signature),JSON.stringify({header:e.header,nonce:e.nonce,ciphertext:e.ciphertext}),bytes(key)))throw Error('Подпись сообщения неверна');const plain=s.crypto_box_open_easy(bytes(e.ciphertext),bytes(e.nonce),s.crypto_sign_ed25519_pk_to_curve25519(bytes(key)),curvePrivate,'text');const message=JSON.parse(plain);if(JSON.stringify(message.header)!==JSON.stringify(e.header))throw Error('Заголовок сообщения изменён');return message.body;}
+ return{seed:b64(secret),publicKey,fingerprint,encrypt,decrypt,destroy(){s.memzero(secret);s.memzero(pair.privateKey);s.memzero(curvePrivate);}};
+ }
+ root.SpectraChatCrypto={create};if(typeof module!=='undefined')module.exports={create};
+})(globalThis);

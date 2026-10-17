@@ -1,0 +1,8 @@
+using System.Collections.Concurrent;
+namespace Spectra;
+public class GameService {public record Activity(int LanPort,string Version="1.21",string Loader="fabric",string LoaderVersion="0.16",string Pack="LAN pack");public ConcurrentDictionary<string,object> Running=new();public ConcurrentDictionary<string,Activity> Activities=new();}
+public record GameSettings;
+public record Instance {public string Id{get;set;}=Guid.NewGuid().ToString("N");public string Name{get;set;}="";public string Version{get;set;}="";public string Loader{get;set;}="vanilla";public string LoaderVersion{get;set;}="";public DateTime? CreatedAt{get;set;}public GameSettings Settings{get;set;}=new();}
+public class Configuration {public bool ShareGameActivity=true;public bool HideOnlineStatus;public GameSettings Defaults=new();public List<Instance> Instances=new();}
+public class Store {public string Root=Path.Combine(Path.GetTempPath(),"spectra-packs-test-"+Guid.NewGuid().ToString("N"));public Configuration Config=new();public string Folder(Instance instance){var path=Path.Combine(Root,"instances",instance.Id,".minecraft");Directory.CreateDirectory(path);return path;}public static string SafePath(string root,string name){var path=Path.GetFullPath(Path.Combine(root,name));if(!path.StartsWith(Path.GetFullPath(root)+Path.DirectorySeparatorChar,StringComparison.Ordinal))throw new IOException("Unsafe path");return path;}public void Save(){}}
+public static class Net {public static async Task<string> Hash(string path,string algorithm){await using var stream=File.OpenRead(path);return Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(stream)).ToLowerInvariant();}}
