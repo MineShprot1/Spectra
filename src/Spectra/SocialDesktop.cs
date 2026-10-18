@@ -33,12 +33,12 @@ public sealed class SocialDesktop:IDisposable
  {
   if(popup!=null||queue.Count==0||disposed)return;var n=queue.Dequeue();
   var font=new FontFamily("Consolas");var fontPath=Path.Combine(AppContext.BaseDirectory,"Web","assets","minecraft.ttf");
-  try{if(File.Exists(fontPath))font=Fonts.GetFontFamilies(new Uri(fontPath)).FirstOrDefault()??font;}catch{}
+  try{if(File.Exists(fontPath))font=new FontFamily(new Uri(Path.GetDirectoryName(fontPath)!+Path.DirectorySeparatorChar),"./#Minecraft Rus");}catch{}
   var grid=new Grid{Margin=new Thickness(18,13,18,16)};for(int i=0;i<4;i++)grid.RowDefinitions.Add(new(){Height=GridLength.Auto});
   var brand=new TextBlock{Text="■ SPECTRA NETWORK",Foreground=Ink(153,197,123),FontSize=11,FontFamily=font,Margin=new Thickness(0,5,32,14)};grid.Children.Add(brand);
   var close=PixelButton("×");close.HorizontalAlignment=HorizontalAlignment.Right;close.ToolTip="Закрыть уведомление";grid.Children.Add(close);
   var title=new TextBlock{Text=n.Title,Foreground=Brushes.White,FontFamily=font,FontSize=16,LineHeight=23,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,9)};Grid.SetRow(title,1);grid.Children.Add(title);
-  var text=new TextBlock{Text=n.Text,Foreground=Ink(190,201,214),FontSize=13,LineHeight=19,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,16)};Grid.SetRow(text,2);grid.Children.Add(text);
+  var text=new TextBlock{Text=n.Text,Foreground=Ink(190,201,214),FontFamily=font,FontSize=13,LineHeight=19,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,16)};Grid.SetRow(text,2);grid.Children.Add(text);
   var link=PixelButton("Открыть в Spectra  →",true);link.FontFamily=font;link.HorizontalAlignment=HorizontalAlignment.Right;Grid.SetRow(link,3);grid.Children.Add(link);
   var root=new Grid{Background=Ink(19,25,34)};root.RowDefinitions.Add(new(){Height=new GridLength(3)});root.RowDefinitions.Add(new(){Height=GridLength.Auto});root.RowDefinitions.Add(new(){Height=new GridLength(3)});
   root.Children.Add(new Border{Background=Ink(153,197,123)});Grid.SetRow(grid,1);root.Children.Add(grid);var lifetime=new Border{Background=Ink(95,140,85),RenderTransformOrigin=new Point(0,0),RenderTransform=new ScaleTransform(1,1)};Grid.SetRow(lifetime,2);root.Children.Add(lifetime);
