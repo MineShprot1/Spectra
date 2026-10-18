@@ -25,7 +25,7 @@ public sealed class ActivityLog(string firstWorldHint="")
    if(connecting.Success){var address=Address(connecting.Groups["host"].Value,connecting.Groups["port"].Value);if(address!="")next=new("connecting",address);}
    else if((server||client)&&message.StartsWith("Starting integrated minecraft server version ",StringComparison.Ordinal)){next=new("world","",hint);hint="";}
    else if((server||client)&&(state.Mode is "world" or "lan")){
-    var opened=client?Lan.Match(message):Match.Empty;var prepared=Prepared.Match(message);var saved=Saved.Match(message);
+    var opened=(client||server)?Lan.Match(message):Match.Empty;var prepared=Prepared.Match(message);var saved=Saved.Match(message);
     if(opened.Success&&int.TryParse(opened.Groups["port"].Value,out var port)&&port is >0 and <=65535)next=state with{Mode="lan",LanPort=port};
     else if(prepared.Success)next=state with{World=prepared.Groups["name"].Value};
     else if(saved.Success)next=state with{World=saved.Groups["name"].Value};

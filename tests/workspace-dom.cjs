@@ -41,5 +41,8 @@ const pause=ms=>new Promise(r=>setTimeout(r,ms)),calls=[];
  await w.eval("catalogModal('resources','sample-1')");assert.equal(d.querySelectorAll('[data-catalog-filter]').length,3);d.querySelector('[data-catalog-filter=resolutions]').value='16x';d.querySelector('[data-catalog-filter=resolutions]').dispatchEvent(new w.Event('change'));await pause(15);assert(calls.findLast(c=>c.action==='search').data.filters.includes('16x'));d.querySelector('#catalogFilterReset').click();await pause(15);assert.equal(calls.findLast(c=>c.action==='search').data.filters.length,0);
  await w.eval("catalogModal('shaders','sample-1')");assert.equal(d.querySelectorAll('[data-catalog-filter]').length,3);assert(d.querySelector('[data-catalog-filter="performance impact"]').textContent.includes('Суперкомпьютер'));d.querySelector('[data-catalog-filter="performance impact"]').value='potato';d.querySelector('[data-catalog-filter="performance impact"]').dispatchEvent(new w.Event('change'));await pause(15);assert(calls.findLast(c=>c.action==='search').data.filters.includes('potato'));
  console.log('PASS DOM: resource category/resolution/features and shader category/features/performance filters, reset and API payloads');
+ w.eval("state.startWithWindows=true;renderSettings()");assert(d.querySelector('#startupWindows').checked);d.querySelector('#startupWindows').click();await pause(20);assert.equal(calls.findLast(c=>c.action==='startupWindows').data.enabled,false);
+ console.log('PASS DOM: Windows startup preference control sends explicit disable request');
+
 closed=true;dom.window.close();
 })().catch(error=>{closed=true;dom.window.close();console.error(error);process.exitCode=1});

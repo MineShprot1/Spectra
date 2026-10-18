@@ -66,6 +66,7 @@ public record Configuration
  public bool HideOnlineStatus {get;set;}
  public string AppliedInstallerLanguage {get;set;}="";
  public string BedrockSkinFolder {get;set;}=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Downloads");
+ public bool StartWithWindows {get;set;}=true;
  public bool LauncherFullscreen {get;set;}
  public List<LauncherAccount> Accounts {get;set;}=[];
  public string ActiveAccountId {get;set;}="";
