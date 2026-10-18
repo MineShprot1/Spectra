@@ -4,10 +4,12 @@ const dom=new JSDOM(fs.readFileSync(path.join(root,'index.html'),'utf8'),{url:'h
 for(const name of ['list-renderer','skin-preview','locales','appearance','catalog-filters','app','friends','project-pages','bedrock','content','shell-polish'])vm.runInContext(fs.readFileSync(path.join(root,name+'.js'),'utf8'),dom.getInternalVMContext(),{filename:name+'.js'});
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{await pause(40);w.eval('openShell()');
- const cancelled=w.eval("offerSourceUpdate('0.20.3')");assert(d.querySelector('#modal').open);d.querySelector('#updateCancel').click();assert.equal(await cancelled,false);
+ const cancelled=w.eval("offerSourceUpdate('0.20.3')");assert(d.querySelector('#modal').open);assert.equal(d.querySelector('#updateCancel'),null);d.querySelector('.modal-close').click();assert.equal(await cancelled,false);
  const accepted=w.eval("offerSourceUpdate('0.20.3')");d.querySelector('#updateAccept').click();assert.equal(await accepted,true);
  const dismissed=w.eval("offerSourceUpdate('0.20.3')");d.querySelector('#modal').close();assert.equal(await dismissed,false);
- console.log('PASS DOM: update confirmation accepts, cancels and dismisses without automatic installation');
+ w.eval("registerSourceUpdate({available:true,version:'test',commit:'a'.repeat(40)})");assert(!d.querySelector('#modal').open,'startup update registration stays silent');assert(!d.querySelector('#footerUpdate').hidden);
+ w.eval("onMessage({type:'sourceUpdateAvailable',update:{available:true,version:'test',commit:'b'.repeat(40)}})");assert(d.querySelector('#modal').open,'runtime update event opens the offer');assert.equal(d.querySelector('#updateCancel'),null);d.querySelector('.modal-close').click();
+ console.log('PASS DOM: silent startup registration, runtime update offer, acceptance and close without a Cancel button');
 
  for(const position of ['left','bottom','right','top']){w.eval(`SpectraAppearance.apply({theme:'steam',language:'en',navigationPosition:'${position}'})`);assert.equal(d.body.dataset.navigation,position);assert.equal(d.querySelector('#navigation [data-page=discover] .nav-label').textContent,'DISCOVER');assert(d.querySelector('#profileTab .nav-icon'));w.eval('updateState(state)');assert(d.querySelector('#profileTab .nav-icon'));}
  w.mockBedrock={installed:[],imported:[],available:[{id:'online:gdk:test',version:'1.21.120',packageVersion:'1.21.12000.0',name:'Microsoft.MinecraftUWP',format:'GDK'},{id:'legacy',version:'0.14.0',name:'MinecraftUWP',legacy:true},{id:'preview',version:'1.30.0',name:'WindowsBeta',preview:true}]};

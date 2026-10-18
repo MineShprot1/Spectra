@@ -76,6 +76,16 @@ public partial class MainWindow : Window
  readonly InstanceServer servers;
  readonly CrashAssistant crashAssistant;
  readonly DispatcherTimer gameStatusTimer=new(){Interval=TimeSpan.FromSeconds(2)};
+ readonly DispatcherTimer updateWatchTimer=new(){Interval=TimeSpan.FromMinutes(2)};
+ readonly UpdateNoticeTracker updateNotices=new();bool updateWatchBusy;
+ async Task<object> CheckSourceUpdates(bool announce)
+ {
+  var result=await SourceUpdater.Check();var value=JsonSerializer.SerializeToNode(result,Store.Json)!;
+  var fresh=updateNotices.Observe(value.Str("commit"),value["available"]?.GetValue<bool>()==true);
+  if(announce&&fresh){if(!IsVisible||WindowState==WindowState.Minimized)socialDesktop.Notify("Доступно обновление Spectra",value.Str("version"),new JsonObject{["type"]="sourceUpdate",["update"]=value.DeepClone()});else Emit(new{type="sourceUpdateAvailable",update=value});}
+  return result;
+ }
+ async Task PollSourceUpdates(){if(updateWatchBusy||Browser.CoreWebView2==null)return;updateWatchBusy=true;try{await CheckSourceUpdates(true);}catch{ /* A transient update check must not interrupt the launcher. */ }finally{updateWatchBusy=false;}}
  readonly DispatcherTimer friendsTimer=new(){Interval=TimeSpan.FromSeconds(10)};
  bool sendingPresence;
  readonly InstanceArchive archives;
@@ -84,7 +94,7 @@ public partial class MainWindow : Window
  bool backgroundPending=App.BackgroundLaunch;
  public MainWindow()
  {
-  InitializeComponent();if(backgroundPending){Opacity=0;ShowInTaskbar=false;ShowActivated=false;}try{WindowsStartup.Set(store.Config.StartWithWindows);}catch{}logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>{ApplyWindowsCorners();HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);};StateChanged+=(_,_)=>{ApplyWindowsCorners();if(Browser.CoreWebView2!=null)Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});};auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);servers=new(store,game,Emit);crashAssistant=new(store,game);bedrock=new(store);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);gameStatusTimer.Tick+=(_,_)=>Emit(new{type="gameStatus",running=game.Running.Keys.ToArray(),runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),bedrockRunning=ObserveBedrockTime(),playtime=game.Playtime.Snapshot()});gameStatusTimer.Start();Closed+=(_,_)=>{gameStatusTimer.Stop();game.Playtime.Dispose();};socialVault=new(store);partyTunnel=new(game,Emit);partyPacks=new(store,game);socialDesktop=new(this,action=>{ExpandLibrary();Emit(new{type="socialNavigate",action});});Closed+=(_,_)=>{partyTunnel.Dispose();partyPacks.Dispose();socialDesktop.Dispose();};Loaded+=async(_,_)=>{await Initialize();if(backgroundPending){Hide();Opacity=1;ShowInTaskbar=true;ShowActivated=true;}};
+  InitializeComponent();if(backgroundPending){Opacity=0;ShowInTaskbar=false;ShowActivated=false;}try{WindowsStartup.Set(store.Config.StartWithWindows);}catch{}logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>{ApplyWindowsCorners();HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);};StateChanged+=(_,_)=>{ApplyWindowsCorners();if(Browser.CoreWebView2!=null)Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});};auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);servers=new(store,game,Emit);crashAssistant=new(store,game);bedrock=new(store);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);gameStatusTimer.Tick+=(_,_)=>Emit(new{type="gameStatus",running=game.Running.Keys.ToArray(),runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),bedrockRunning=ObserveBedrockTime(),playtime=game.Playtime.Snapshot()});gameStatusTimer.Start();Closed+=(_,_)=>{gameStatusTimer.Stop();game.Playtime.Dispose();};socialVault=new(store);partyTunnel=new(game,Emit);partyPacks=new(store,game);socialDesktop=new(this,action=>{ExpandLibrary();Emit(action.Str("type")=="sourceUpdate"?new{type="sourceUpdateAvailable",update=action["update"]}: (object)new{type="socialNavigate",action});});Closed+=(_,_)=>{partyTunnel.Dispose();partyPacks.Dispose();socialDesktop.Dispose();};updateWatchTimer.Tick+=async(_,_)=>await PollSourceUpdates();Closed+=(_,_)=>updateWatchTimer.Stop();Loaded+=async(_,_)=>{await Initialize();updateWatchTimer.Start();if(backgroundPending){Hide();Opacity=1;ShowInTaskbar=true;ShowActivated=true;}};
  }
  string socialActiveScope="";
  string SocialScope(){var account=friends.Account;if(account==null)throw new IOException("Подключите Spectra Network");var scope=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(store.Config.FriendsEndpoint+"\n"+account.Str("id")))).ToLowerInvariant();if(socialActiveScope!=scope){partyTunnel.DropAll();partyPacks.Reset();socialDesktop.Clear();socialActiveScope=scope;}return scope;}
@@ -283,7 +293,7 @@ public partial class MainWindow : Window
    }
    case "bootstrap":
    {
-    return await SourceUpdater.Check();
+    return await CheckSourceUpdates(false);
    }
    case "updateSource":
    {
