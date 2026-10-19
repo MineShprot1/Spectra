@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 namespace Spectra;
-public sealed class ContentService(Store store,GameService game,Authentication auth)
+public sealed class ContentService(Store store,GameService game,Authentication auth,LauncherLocalization? localization=null)
 {
  public record ContentItem(string Id,string Name,string Kind,string File,bool Installed=false);
  public record ContentSource(string Id,string Name,string Url);
@@ -106,7 +106,7 @@ public sealed class ContentService(Store store,GameService game,Authentication a
   string edition=data.Str("edition"),kind=data.Str("kind");
   if(edition is not ("java" or "bedrock")||kind is not ("skins" or "worlds" or "addons" or "resources"))throw new IOException("Неизвестная категория");
   var filter=kind=="skins"?"PNG|*.png":edition=="java"?"Карта ZIP|*.zip":kind=="worlds"?"Bedrock World|*.mcworld":kind=="addons"?"Bedrock Addon|*.mcaddon;*.mcpack":"Bedrock Resource Pack|*.mcpack";
-  var picker=new Microsoft.Win32.OpenFileDialog{Filter=filter,Title="Выберите скачанный файл"};
+  var picker=new Microsoft.Win32.OpenFileDialog{Filter=localization?.Filter(filter)??filter,Title=localization?.Text("Выберите скачанный файл")??"Выберите скачанный файл"};
   if(picker.ShowDialog(owner)!=true)return new{cancelled=true};
   return await InstallFile(picker.FileName,edition,kind,data.Str("instanceId"),data.Str("version"),data.Str("variant"));
  }

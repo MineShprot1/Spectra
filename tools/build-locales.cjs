@@ -1,0 +1,6 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const dir=path.resolve(__dirname,'../src/Spectra/Web/i18n'),manifest=JSON.parse(fs.readFileSync(path.join(dir,'manifest.json'),'utf8')),en=JSON.parse(fs.readFileSync(path.join(dir,'en.json'),'utf8')),keys=Object.keys(en).sort(),parameters=s=>[...s.matchAll(/\{\d+\}/g)].map(m=>m[0]).sort();
+assert.equal(keys.length,manifest.keys,'manifest key count');
+for(const language of Object.keys(manifest.languages).filter(k=>k!=='ru')){const data=JSON.parse(fs.readFileSync(path.join(dir,language+'.json'),'utf8'));assert.deepEqual(Object.keys(data).sort(),keys,language+' missing/extra strings');for(const key of keys){assert.equal(typeof data[key],'string');assert(data[key].trim(),language+': '+key);assert(!/⁇|<unk>/.test(data[key]),language+': invalid translation '+key);assert.deepEqual(parameters(data[key]),parameters(key),language+': '+key);}}
+const script='globalThis.SpectraEnglish='+JSON.stringify(en)+';\n';if(process.argv.includes('--check'))assert.equal(fs.readFileSync(path.join(dir,'en.js'),'utf8'),script,'Run npm run build:locales after editing en.json');else fs.writeFileSync(path.join(dir,'en.js'),script);
+console.log(Object.keys(manifest.languages).length+' languages, '+keys.length+' strings per catalog; placeholders valid');

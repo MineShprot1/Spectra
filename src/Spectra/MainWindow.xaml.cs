@@ -66,6 +66,7 @@ public partial class MainWindow : Window
   if(batch.Count>0)Browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"logBatch\",\"items\":["+string.Join(",",batch)+"]}");
  }
  readonly Store store=new();
+ readonly LauncherLocalization localization;
  readonly Authentication auth;
  readonly GameService game;
  readonly CatalogService catalog;
@@ -94,7 +95,7 @@ public partial class MainWindow : Window
  bool backgroundPending=App.BackgroundLaunch;
  public MainWindow()
  {
-  InitializeComponent();if(backgroundPending){Opacity=0;ShowInTaskbar=false;ShowActivated=false;}try{WindowsStartup.Set(store.Config.StartWithWindows);}catch{}logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>{ApplyWindowsCorners();HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);};StateChanged+=(_,_)=>{ApplyWindowsCorners();if(Browser.CoreWebView2!=null)Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});};auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);servers=new(store,game,Emit);crashAssistant=new(store,game);bedrock=new(store);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);gameStatusTimer.Tick+=(_,_)=>Emit(new{type="gameStatus",running=game.Running.Keys.ToArray(),runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),bedrockRunning=ObserveBedrockTime(),playtime=game.Playtime.Snapshot()});gameStatusTimer.Start();Closed+=(_,_)=>{gameStatusTimer.Stop();game.Playtime.Dispose();};socialVault=new(store);partyTunnel=new(game,Emit);partyPacks=new(store,game);socialDesktop=new(this,action=>{ExpandLibrary();Emit(action.Str("type")=="sourceUpdate"?new{type="sourceUpdateAvailable",update=action["update"]}: (object)new{type="socialNavigate",action});});Closed+=(_,_)=>{partyTunnel.Dispose();partyPacks.Dispose();socialDesktop.Dispose();};updateWatchTimer.Tick+=async(_,_)=>await PollSourceUpdates();Closed+=(_,_)=>updateWatchTimer.Stop();Loaded+=async(_,_)=>{await Initialize();updateWatchTimer.Start();if(backgroundPending){Hide();Opacity=1;ShowInTaskbar=true;ShowActivated=true;}};
+  localization=new(()=>{try{var language=JsonNode.Parse(store.Config.AppearanceJson).Str("language");return LauncherLocalization.Languages.Contains(language)?language:"ru";}catch{return "ru";}});InitializeComponent();if(backgroundPending){Opacity=0;ShowInTaskbar=false;ShowActivated=false;}try{WindowsStartup.Set(store.Config.StartWithWindows);}catch{}logTimer.Tick+=(_,_)=>FlushLogs();logTimer.Start();Closed+=(_,_)=>logTimer.Stop();SourceInitialized+=(_,_)=>{ApplyWindowsCorners();HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);};StateChanged+=(_,_)=>{ApplyWindowsCorners();if(Browser.CoreWebView2!=null)Emit(new{type="windowState",maximized=WindowState==WindowState.Maximized});};auth=new(store,Emit);game=new(store,auth,Emit);catalog=new(store,game,Emit);servers=new(store,game,Emit);crashAssistant=new(store,game);bedrock=new(store);friends=new(store,auth,game);friendPacks=new(store,game,friends,Emit);friends.PackPublisher=friendPacks.Publish;friendsTimer.Tick+=(_,_)=>RefreshPresence();friendsTimer.Start();Closed+=(_,_)=>friendsTimer.Stop();archives=new(store,game,Emit);gameStatusTimer.Tick+=(_,_)=>Emit(new{type="gameStatus",running=game.Running.Keys.ToArray(),runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),bedrockRunning=ObserveBedrockTime(),playtime=game.Playtime.Snapshot()});gameStatusTimer.Start();Closed+=(_,_)=>{gameStatusTimer.Stop();game.Playtime.Dispose();};socialVault=new(store);partyTunnel=new(game,Emit);partyPacks=new(store,game);socialDesktop=new(this,action=>{ExpandLibrary();Emit(action.Str("type")=="sourceUpdate"?new{type="sourceUpdateAvailable",update=action["update"]}: (object)new{type="socialNavigate",action});},localization.Text);Closed+=(_,_)=>{partyTunnel.Dispose();partyPacks.Dispose();socialDesktop.Dispose();};updateWatchTimer.Tick+=async(_,_)=>await PollSourceUpdates();Closed+=(_,_)=>updateWatchTimer.Stop();Loaded+=async(_,_)=>{await Initialize();updateWatchTimer.Start();if(backgroundPending){Hide();Opacity=1;ShowInTaskbar=true;ShowActivated=true;}};
  }
  string socialActiveScope="";
  string SocialScope(){var account=friends.Account;if(account==null)throw new IOException("Подключите Spectra Network");var scope=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(store.Config.FriendsEndpoint+"\n"+account.Str("id")))).ToLowerInvariant();if(socialActiveScope!=scope){partyTunnel.DropAll();partyPacks.Reset();socialDesktop.Clear();socialActiveScope=scope;}return scope;}
@@ -130,13 +131,14 @@ public partial class MainWindow : Window
    if(store.Config.LauncherFullscreen&&!backgroundPending)ToggleFullscreen();
    Browser.ZoomFactor=Math.Clamp(store.Config.InterfaceScale,0.65,1.5);core.Navigate("https://app.spectra.local/index.html");
   }
-  catch(Exception ex){if(backgroundPending){socialDesktop.Dispose();Close();return;}MessageBox.Show("Для Spectra нужен Microsoft Edge WebView2 Runtime.\n"+ex.Message,"Spectra");Close();}
+  catch(Exception ex){if(backgroundPending){socialDesktop.Dispose();Close();return;}MessageBox.Show(localization.Text("Для Spectra нужен Microsoft Edge WebView2 Runtime.")+"\n"+localization.Text(ex.Message),"Spectra");Close();}
  }
  void Emit(object data)
  {
   var json=JsonSerializer.Serialize(data,Store.Json);
   var kind=data.GetType().GetProperty("type")?.GetValue(data)?.ToString();
   if(kind=="log"){logQueue.Enqueue(json);while(logQueue.Count>5000)logQueue.TryDequeue(out _);return;}
+  if(kind is "progress" or "auth" or "networkError"){var packet=JsonNode.Parse(json)!;if(packet["message"] is JsonValue message&&message.TryGetValue<string>(out var source))packet["message"]=localization.Text(source);json=packet.ToJsonString(Store.Json);}
   Dispatcher.InvokeAsync(()=>
   {
    if(Browser.CoreWebView2==null)return;
@@ -165,7 +167,7 @@ public partial class MainWindow : Window
    if(action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launchMany" or "launch" or "launchTarget" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
    Emit(new{type="reply",id=requestId,ok=true,result});
   }
-  catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=ex.Message,status=ex is FriendsRequestException requestError?requestError.Status:0});}
+  catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=localization.Text(ex.Message),status=ex is FriendsRequestException requestError?requestError.Status:0});}
   finally{Net.ProgressSink.Value=null;if(mutating)libraryMutation.Release();activeRequests.Remove(requestId);}
  }
  object State()=>new{startWithWindows=store.Config.StartWithWindows,backgroundLaunch=backgroundPending,playtime=game.Playtime.Snapshot(),accounts=store.Config.Accounts.Select(a=>new{a.Id,a.Name,a.Offline,a.OwnerId,a.ElyName,skin=a.Profile?["skins"]?.AsArray().FirstOrDefault().Str("url")??""}),activeAccountId=store.Config.ActiveAccountId,friendsOwnerId=store.Config.FriendsOwnerId,offline=auth.IsOffline,interfaceScale=store.Config.InterfaceScale,multiClients=store.Config.MultiClients,multiClientCount=store.Config.MultiClientCount,geminiConfigured=crashAssistant.Configured,lastExits=game.LastExits,bedrockRunning=BedrockService.IsRunning(),launcherFullscreen=fullscreen,bedrockSkinFolder=store.Config.BedrockSkinFolder,networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,hideOnlineStatus=store.Config.HideOnlineStatus,friendsSharingError=friends.LastSharingError,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit.txt")).Trim():"",updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),selection=new{edition=store.Config.SelectedEdition,bedrockId=store.Config.SelectedBedrock,bedrockLabel=store.Config.SelectedBedrockLabel,version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
@@ -280,7 +282,7 @@ public partial class MainWindow : Window
    }
    case "importFont":
    {
-    var fontPicker=new Microsoft.Win32.OpenFileDialog{Filter="Шрифты|*.ttf;*.otf;*.woff;*.woff2",Title="Выберите шрифт"};if(fontPicker.ShowDialog(this)!=true)return null;
+    var fontPicker=new Microsoft.Win32.OpenFileDialog{Filter=localization.Filter("Шрифты|*.ttf;*.otf;*.woff;*.woff2"),Title=localization.Text("Выберите шрифт")};if(fontPicker.ShowDialog(this)!=true)return null;
     if(new FileInfo(fontPicker.FileName).Length>10*1024*1024)throw new IOException("Шрифт должен быть не больше 10 МиБ");
     var fontBytes=await File.ReadAllBytesAsync(fontPicker.FileName);if(fontBytes.Length<12||fontBytes.Length>10*1024*1024)throw new IOException("Шрифт должен быть не больше 10 МиБ");
     var signature=Convert.ToHexString(fontBytes.AsSpan(0,4));if(signature is not ("00010000" or "4F54544F" or "774F4646" or "774F4632"))throw new IOException("Неподдерживаемый формат шрифта");
@@ -290,7 +292,7 @@ public partial class MainWindow : Window
    case "appearance":
    {
     var appearance=d.ToJsonString();if(appearance.Length>131072)throw new IOException("Тема слишком большая");
-    store.Config.AppearanceJson=appearance;store.Save();return State();
+    store.Config.AppearanceJson=appearance;store.Save();socialDesktop.RefreshLanguage();return State();
    }
    case "bootstrap":
    {
@@ -424,7 +426,7 @@ public partial class MainWindow : Window
     var library=new LibraryActions(store,game);
     if(d.Str("operation")=="rename")library.RenameWorld(d.Str("instanceId"),d.Str("path"),d.Str("name"));
     else if(d.Str("operation")=="delete")library.DeleteWorld(d.Str("instanceId"),d.Str("path"));
-    else if(d.Str("operation")=="import"){using var worldPicker=new System.Windows.Forms.FolderBrowserDialog{Description="Папка мира с level.dat"};if(worldPicker.ShowDialog()==System.Windows.Forms.DialogResult.OK)await Task.Run(()=>library.ImportWorld(d.Str("instanceId"),worldPicker.SelectedPath));}return null;
+    else if(d.Str("operation")=="import"){using var worldPicker=new System.Windows.Forms.FolderBrowserDialog{Description=localization.Text("Папка мира с level.dat")};if(worldPicker.ShowDialog()==System.Windows.Forms.DialogResult.OK)await Task.Run(()=>library.ImportWorld(d.Str("instanceId"),worldPicker.SelectedPath));}return null;
    }
    case "renameScreenshot":
    {
@@ -458,15 +460,15 @@ public partial class MainWindow : Window
    }
    case "pickImage":
    {
-    var img=new Microsoft.Win32.OpenFileDialog{Filter="Изображения|*.png;*.jpg;*.jpeg;*.webp"};if(img.ShowDialog()!=true)return null;
+    var img=new Microsoft.Win32.OpenFileDialog{Filter=localization.Filter("Изображения|*.png;*.jpg;*.jpeg;*.webp")};if(img.ShowDialog()!=true)return null;
     if(new FileInfo(img.FileName).Length>20*1024*1024)throw new IOException("Изображение больше 20 МБ");var asset=Path.Combine(store.Root,"artwork",Guid.NewGuid()+Path.GetExtension(img.FileName));Directory.CreateDirectory(Path.GetDirectoryName(asset)!);File.Copy(img.FileName,asset);return game.Asset(asset);
    }
    case "contentSearch":return await new ContentCatalog(store).Search(d);
-   case "contentDownload":return await new ContentCatalog(store).Download(d,new ContentService(store,game,auth));
+   case "contentDownload":return await new ContentCatalog(store).Download(d,new ContentService(store,game,auth,localization));
    case "contentSources":return ContentService.Sources(d.Str("edition"),d.Str("kind"),d.Str("query"));
-   case "contentImport":return await new ContentService(store,game,auth).Import(d,this);
-   case "bedrockContent":return new ContentService(store,game,auth).BedrockItems();
-   case "bedrockContentDelete":new ContentService(store,game,auth).DeleteBedrock(d.Str("id"));return null;
+   case "contentImport":return await new ContentService(store,game,auth,localization).Import(d,this);
+   case "bedrockContent":return new ContentService(store,game,auth,localization).BedrockItems();
+   case "bedrockContentDelete":new ContentService(store,game,auth,localization).DeleteBedrock(d.Str("id"));return null;
    case "bedrockSkinFolder":using(var folder=new System.Windows.Forms.FolderBrowserDialog()){if(folder.ShowDialog()==System.Windows.Forms.DialogResult.OK){store.Config.BedrockSkinFolder=folder.SelectedPath;store.Save();}}return State();
    case "bedrockVersions":return await bedrock.Versions(d["refresh"]?.GetValue<bool>()??false);
    case "bedrockImport":
@@ -515,7 +517,7 @@ public partial class MainWindow : Window
    }
    case "importPack":
    {
-    var pack=new Microsoft.Win32.OpenFileDialog{Filter="Модпаки|*.mrpack;*.zip"};if(pack.ShowDialog()==true){if(pack.FileName.EndsWith(".mrpack",StringComparison.OrdinalIgnoreCase))await catalog.ImportMrpack(pack.FileName);else await catalog.ImportCursePack(pack.FileName);}return State();
+    var pack=new Microsoft.Win32.OpenFileDialog{Filter=localization.Filter("Модпаки|*.mrpack;*.zip")};if(pack.ShowDialog()==true){if(pack.FileName.EndsWith(".mrpack",StringComparison.OrdinalIgnoreCase))await catalog.ImportMrpack(pack.FileName);else await catalog.ImportCursePack(pack.FileName);}return State();
    }
    case "profileAction":
    {
