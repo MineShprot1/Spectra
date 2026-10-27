@@ -102,5 +102,5 @@ const SpectraAppearance=(()=>{
  try{apply(JSON.parse(localStorage.getItem('spectraAppearance')||'{}'));}catch{apply(config);autoSave();}
  // Ctrl+Shift+F12 recovers the default theme even if custom CSS hides settings.
  document.addEventListener('keydown',e=>{if(e.ctrlKey&&e.shiftKey&&e.key==='F12'){apply({gradientPresets:config.gradientPresets,language:'ru',theme:'dark',colors:['#183950','#40316b'],angle:135,css:''});run(save);}});
- return{apply,mount,validate,hydrate,addPreset,selectPreset,removePreset,gradientCss,language:()=>config.language,text,translateText,navigation};
+ return{apply,mount,validate,hydrate,addPreset,selectPreset,removePreset,gradientCss,language:()=>config.language,text,translateText,navigation,setTheme(theme){if(!Object.hasOwn(palettes,theme))return false;config.theme=theme;apply(config);return true;},themeConfig:()=>structuredClone(config),save};
 })();

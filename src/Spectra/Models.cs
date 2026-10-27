@@ -29,8 +29,20 @@ public record Instance
  public string PackSource {get;set;}="";
  public string PackId {get;set;}="";
  public string PackVersion {get;set;}="";
+ public List<PendingPackFile> PendingManualFiles {get;set;}=[];
  public DateTime? CreatedAt {get;set;}
  public DateTime? LastPlayed { get; set; }
+}
+public record PendingPackFile
+{
+ public string ProjectId {get;set;}="";
+ public string FileId {get;set;}="";
+ public string Name {get;set;}="";
+ public string Folder {get;set;}="mods";
+ public string Hash {get;set;}="";
+ public string PageUrl {get;set;}="";
+ public string Kind {get;set;}="mods";
+ public string Version {get;set;}="";
 }
 public record SavedSkin
 {

@@ -156,15 +156,15 @@ public partial class MainWindow : Window
   try
   {
    var message=JsonNode.Parse(e.WebMessageAsJson)!;requestId=message.Str("id");if(!activeRequests.Add(requestId))return;
-   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launchMany" or "launch" or "launchTarget" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
-   if(action is "contentDownload" or "contentImport" or "bedrockContentDelete" or "installVersion" or "deleteVersion" or "launchMany" or "launch" or "launchTarget" or "joinFriend" or "install" or "installPack" or "installFriendPack" or "importPack" or "importInstance" or "dropPack" or "exportInstance" or "saveInstance" or "deleteInstance" or "enableFiles" or "toggle" or "serverAction" or "worldAction"){await libraryMutation.WaitAsync();mutating=true;}
+   var action=message.Str("action");var d=message["data"]??new JsonObject();transfer=action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launchMany" or "launch" or "launchTarget" or "install" or "installManual" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend";Net.ProgressSink.Value=Emit;object? result;
+   if(action is "contentDownload" or "contentImport" or "bedrockContentDelete" or "installVersion" or "deleteVersion" or "launchMany" or "launch" or "launchTarget" or "joinFriend" or "install" or "installManual" or "installPack" or "installFriendPack" or "importPack" or "importInstance" or "dropPack" or "exportInstance" or "saveInstance" or "deleteInstance" or "enableFiles" or "toggle" or "serverAction" or "worldAction"){await libraryMutation.WaitAsync();mutating=true;}
    if(action=="dropPack")
    {
     transfer=true;var files=e.AdditionalObjects.OfType<CoreWebView2File>().ToArray();if(files.Length!=1||!files[0].Path.EndsWith(".zip",StringComparison.OrdinalIgnoreCase))throw new IOException("Перенесите один ZIP-архив сборки");
     await Task.Run(()=>archives.Import(files[0].Path));result=State();Emit(new{type="transferComplete"});
    }
    else result=await Handle(action,d);
-   if(action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launchMany" or "launch" or "launchTarget" or "install" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
+   if(action is "contentDownload" or "contentImport" or "installVersion" or "packContents" or "bedrockLaunch" or "bedrockDownload" or "launchMany" or "launch" or "launchTarget" or "install" or "installManual" or "installPack" or "importPack" or "importInstance" or "exportInstance" or "installFriendPack" or "joinFriend")Emit(new{type="transferComplete"});
    Emit(new{type="reply",id=requestId,ok=true,result});
   }
   catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=localization.Text(ex.Message),status=ex is FriendsRequestException requestError?requestError.Status:0});}
@@ -499,11 +499,17 @@ public partial class MainWindow : Window
    }
    case "install":
    {
-    await catalog.Install(d.Str("source"),d.Str("projectId"),d.Str("kind"),d.Str("instanceId"));return null;
+    return await catalog.Install(d.Str("source"),d.Str("projectId"),d.Str("kind"),d.Str("instanceId"));
    }
+   case "manualStatus":return await catalog.ManualStatus(d.Str("planId"),d["names"]?.Deserialize<string[]>(Store.Json)??[]);
+   case "installManual":
+   {
+    var result=await catalog.Install("","",d.Str("kind"),d.Str("instanceId"),d.Str("planId"),d["names"]?.Deserialize<string[]>(Store.Json)??[]);return result.GetType().GetProperty("status")?.GetValue(result)?.ToString()=="installed"?State():result;
+   }
+   case "packManualPlan":return catalog.PackManualPlan(d.Str("instanceId"));
    case "installPack":
    {
-    await catalog.InstallPack(d.Str("source"),d.Str("projectId"),d.Str("versionId"));return State();
+    var pack=await catalog.InstallPack(d.Str("source"),d.Str("projectId"),d.Str("versionId"));return pack.GetType().GetProperty("status")?.GetValue(pack)?.ToString()=="manualPackArchive"?pack:State();
    }
    case "importInstance":
    {

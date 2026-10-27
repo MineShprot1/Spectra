@@ -60,33 +60,50 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
   }
   throw new IOException("Неизвестный источник");
  }
- sealed record InstallFile(string Name,string Url,string Hash,string Algorithm,string Side="unknown");
- public async Task Install(string source,string projectId,string kind,string instanceId)
+ sealed record InstallFile(string Name,string Url,string Hash,string Algorithm,string Side="unknown",string ProjectId="",string FileId="",string PageUrl="",string DisplayName="",string TargetFolder="");
+ sealed record ManualPlan(string Source,string ProjectId,string Kind,string InstanceId,List<InstallFile> Files);
+ readonly System.Collections.Concurrent.ConcurrentDictionary<string,ManualPlan> manualPlans=new();
+ readonly System.Collections.Concurrent.ConcurrentDictionary<string,(long Size,long Ticks,string Hash)> manualHashes=new();
+ static InstallFile CurseFile(JsonNode f,string projectUrl="",string displayName="")=>new(f.Str("fileName"),f.Str("downloadUrl"),f["hashes"]?.AsArray().FirstOrDefault(x=>x?["algo"]?.GetValue<int>()==1).Str("value")??"","SHA1",ProjectId:f.Str("modId"),FileId:f.Str("id"),PageUrl:projectUrl==""?"":projectUrl.TrimEnd('/')+"/files/"+f.Str("id"),DisplayName:displayName);
+ public async Task<object> Install(string source,string projectId,string kind,string instanceId,string planId="",string[]? selectedNames=null)
  {
   await installation.WaitAsync();string stage="";var committed=new List<string>();var restored=new List<(string Original,string Backup)>();
   try{
-   if(kind is not ("mods" or "shaders" or "resources"))throw new IOException("Неизвестный тип дополнения");var i=store.Get(instanceId);if(game.Running.ContainsKey(i.Id))throw new IOException("Закройте игру перед установкой дополнений");
-   knownVersions.Clear();var root=store.Folder(i);var folder=Path.Combine(root,GameService.KindFolder(kind));var plan=new List<InstallFile>();var visited=new HashSet<string>();var projects=new Dictionary<string,string>();await ResolveProject(source,projectId,kind,i,folder,visited,projects,plan);
-   stage=Path.Combine(store.Root,"downloads","dependencies-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(stage);var ready=new List<(InstallFile File,string? Existing)>();
-   foreach(var file in plan.DistinctBy(f=>f.Name,StringComparer.OrdinalIgnoreCase)){var existing=await Existing(folder,file);ready.Add((file,existing));if(existing==null){if(!Uri.TryCreate(file.Url,UriKind.Absolute,out var download)||download.Scheme!="https")throw new IOException("Автор файла запретил загрузку через сторонние лаунчеры: "+file.Name);emit(new{type="progress",instanceId=i.Id,message="Загрузка мода или библиотеки: "+file.Name,percent=0});await Net.Download(file.Url,Store.SafePath(stage,file.Name),file.Hash,file.Algorithm);}}
-   var outdated=new HashSet<string>(StringComparer.OrdinalIgnoreCase);foreach(var old in knownVersions.Values.SelectMany(x=>x).Where(f=>f.Hash!=""&&!plan.Any(p=>p.Algorithm==f.Algorithm&&p.Hash==f.Hash))){var path=await Existing(folder,old);if(path!=null&&!ready.Any(x=>x.Existing==path))outdated.Add(path);}
-   if(game.Running.ContainsKey(i.Id))throw new IOException("Закройте игру перед установкой дополнений");Directory.CreateDirectory(folder);
+   if(kind is not ("mods" or "shaders" or "resources" or "pack"))throw new IOException("Неизвестный тип дополнения");var i=store.Get(instanceId);if(game.Running.ContainsKey(i.Id))throw new IOException("Закройте игру перед установкой дополнений");
+   knownVersions.Clear();var root=store.Folder(i);var folder=kind=="pack"?root:Path.Combine(root,GameService.KindFolder(kind));List<InstallFile> plan;
+   if(planId!=""){
+    if(!manualPlans.TryGetValue(planId,out var pending)||pending.InstanceId!=instanceId||pending.Kind!=kind)throw new IOException("Срок ожидания ручной загрузки истёк. Повторите установку.");
+    var selected=(selectedNames??[]).ToHashSet(StringComparer.OrdinalIgnoreCase);if(selected.Count>pending.Files.Count)throw new IOException("Неверный список файлов");
+    var blocked=pending.Files.Where(f=>f.Url=="").ToArray();foreach(var name in selected)if(!blocked.Any(f=>FileKey(f).Equals(name,StringComparison.OrdinalIgnoreCase)))throw new IOException("Файл не относится к этой установке");
+    plan=pending.Files.Where(f=>f.Url!=""||selected.Contains(FileKey(f))).ToList();
+   }else{
+    plan=[];var visited=new HashSet<string>();var projects=new Dictionary<string,string>();await ResolveProject(source,projectId,kind,i,folder,visited,projects,plan);
+    var blocked=plan.Where(f=>f.Url=="").ToArray();if(blocked.Length>0){var key=Guid.NewGuid().ToString("N");manualPlans[key]=new ManualPlan(source,projectId,kind,instanceId,plan);if(manualPlans.Count>30)manualPlans.TryRemove(manualPlans.Keys.First(),out _);return new{status="manualDownload",planId=key,items=blocked.Select(f=>new{name=f.DisplayName!=""?f.DisplayName:f.Name,file=f.Name,kind,version=i.Version,source="curseforge",url=f.PageUrl,required=true}).ToArray(),message="Некоторые файлы нельзя скачать автоматически: это ограничение правообладателя. Выберите файлы для ручной загрузки или продолжите без них."};}
+   }
+   stage=Path.Combine(store.Root,"downloads","dependencies-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(stage);var ready=new List<(InstallFile File,string? Existing,string Folder)>();
+   var manual=plan.Where(f=>f.Url=="").ToDictionary(FileKey,StringComparer.OrdinalIgnoreCase);foreach(var file in plan.DistinctBy(FileKey,StringComparer.OrdinalIgnoreCase)){var targetFolder=file.TargetFolder==""?folder:Path.Combine(root,file.TargetFolder);var existing=await Existing(targetFolder,file);ready.Add((file,existing,targetFolder));if(existing==null){var destination=Store.SafePath(stage,FileKey(file));Directory.CreateDirectory(Path.GetDirectoryName(destination)!);if(manual.ContainsKey(FileKey(file))){var sourceFile=DownloadedManualFile(file);File.Copy(sourceFile,destination);if(file.Hash!=""&&!string.Equals(await Net.Hash(destination,file.Algorithm),file.Hash,StringComparison.OrdinalIgnoreCase))throw new IOException("Контрольная сумма скачанного файла не совпадает: "+file.Name);}else{if(!Uri.TryCreate(file.Url,UriKind.Absolute,out var download)||download.Scheme!="https")throw new IOException("Автор файла запретил загрузку через сторонние лаунчеры: "+file.Name);emit(new{type="progress",instanceId=i.Id,message="Загрузка мода или библиотеки: "+file.Name,percent=0});await Net.Download(file.Url,destination,file.Hash==""?null:file.Hash,file.Algorithm);}}}
+   var outdated=new HashSet<string>(StringComparer.OrdinalIgnoreCase);if(kind!="pack")foreach(var old in knownVersions.Values.SelectMany(x=>x).Where(f=>f.Hash!=""&&!plan.Any(p=>p.Algorithm==f.Algorithm&&p.Hash==f.Hash))){var path=await Existing(folder,old);if(path!=null&&!ready.Any(x=>x.Existing==path))outdated.Add(path);}
+   if(game.Running.ContainsKey(i.Id))throw new IOException("Закройте игру перед установкой дополнений");foreach(var target in ready.Select(x=>x.Folder).Distinct(StringComparer.OrdinalIgnoreCase))Directory.CreateDirectory(target);
    foreach(var old in outdated){var backup=Path.Combine(stage,"old-"+Guid.NewGuid().ToString("N"));File.Move(old,backup);restored.Add((old,backup));}
-   foreach(var item in ready){var dest=Store.SafePath(folder,item.File.Name);if(item.Existing==dest)continue;if(File.Exists(dest)){var backup=Store.SafePath(stage,"backup/"+item.File.Name);Directory.CreateDirectory(Path.GetDirectoryName(backup)!);File.Move(dest,backup);restored.Add((dest,backup));}
-    if(item.Existing!=null){File.Move(item.Existing,dest);restored.Add((item.Existing,dest));}else{File.Move(Store.SafePath(stage,item.File.Name),dest);committed.Add(dest);}}
-   if(kind=="mods"){foreach(var file in plan)i.ModSides[file.Name]=file.Side;store.Save();}
+   foreach(var item in ready){var dest=Store.SafePath(item.Folder,item.File.Name);if(item.Existing==dest)continue;if(File.Exists(dest)){var backup=Store.SafePath(stage,"backup/"+FileKey(item.File));Directory.CreateDirectory(Path.GetDirectoryName(backup)!);File.Move(dest,backup);restored.Add((dest,backup));}
+    if(item.Existing!=null){File.Move(item.Existing,dest);restored.Add((item.Existing,dest));}else{File.Move(Store.SafePath(stage,FileKey(item.File)),dest);committed.Add(dest);}}
+   if(kind=="mods"){foreach(var file in plan)i.ModSides[file.Name]=file.Side;store.Save();}else if(kind=="pack"){i.PendingManualFiles.Clear();store.Save();}
    emit(new{type="progress",instanceId=i.Id,message="Мод и обязательные зависимости установлены",percent=100});
+   if(planId!="")manualPlans.TryRemove(planId,out _);return new{status="installed",message="Дополнения установлены"};
   }catch{foreach(var path in committed)if(File.Exists(path))File.Delete(path);foreach(var item in restored.AsEnumerable().Reverse())if(File.Exists(item.Backup))File.Move(item.Backup,item.Original,true);throw;}
   finally{if(stage!=""&&Directory.Exists(stage))Directory.Delete(stage,true);installation.Release();}
  }
+ static string FileKey(InstallFile file)=>file.TargetFolder==""?file.Name:file.TargetFolder.Replace('\\','/')+"/"+file.Name;
+ static string DownloadedManualFile(InstallFile file){var downloads=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Downloads");if(!Directory.Exists(downloads))throw new IOException("Папка загрузок не найдена");var path=Directory.EnumerateFiles(downloads).FirstOrDefault(p=>Path.GetFileName(p).Equals(file.Name,StringComparison.OrdinalIgnoreCase));if(path==null)throw new IOException("Дождитесь загрузки файла: "+file.Name);if(new FileInfo(path).Length>1024L*1024*1024)throw new IOException("Файл слишком большой: "+file.Name);return path;}
+ public async Task<object> ManualStatus(string planId,string[] names){if(!manualPlans.TryGetValue(planId,out var plan))throw new IOException("Срок ожидания загрузки истёк");var selected=(names??[]).ToHashSet(StringComparer.OrdinalIgnoreCase);var blocked=plan.Files.Where(f=>f.Url=="").ToArray();if(selected.Any(name=>!blocked.Any(f=>FileKey(f).Equals(name,StringComparison.OrdinalIgnoreCase))))throw new IOException("Неверный список файлов");var rows=new List<object>();foreach(var file in blocked.Where(f=>selected.Contains(FileKey(f)))){var ready=false;var found=false;try{var path=DownloadedManualFile(file);found=true;var info=new FileInfo(path);if(file.Hash=="")ready=true;else{var key=Path.GetFullPath(path);if(!manualHashes.TryGetValue(key,out var cached)||cached.Size!=info.Length||cached.Ticks!=info.LastWriteTimeUtc.Ticks){var hash=await Net.Hash(path,file.Algorithm);manualHashes[key]=(info.Length,info.LastWriteTimeUtc.Ticks,hash);cached=(info.Length,info.LastWriteTimeUtc.Ticks,hash);}ready=string.Equals(cached.Hash,file.Hash,StringComparison.OrdinalIgnoreCase);}}catch(Exception e) when(e is IOException or UnauthorizedAccessException){}rows.Add(new{name=FileKey(file),ready,found});}var readyAll=rows.Count==selected.Count&&rows.All(row=>(bool)row.GetType().GetProperty("ready")!.GetValue(row)!);return new{items=rows,ready=readyAll};}
+ public object? PackManualPlan(string instanceId){var instance=store.Get(instanceId);if(instance.PendingManualFiles.Count==0)return null;var files=instance.PendingManualFiles.Select(f=>new InstallFile(f.Name,"",f.Hash,"SHA1",ProjectId:f.ProjectId,FileId:f.FileId,PageUrl:f.PageUrl,DisplayName:f.Name,TargetFolder:f.Folder)).ToList();var planId=Guid.NewGuid().ToString("N");manualPlans[planId]=new ManualPlan("curseforge",instance.PackId,"pack",instanceId,files);return new{status="manualDownload",planId,items=files.Select(f=>new{name=f.DisplayName,file=FileKey(f),kind=instance.PendingManualFiles.First(x=>x.Name==f.Name&&x.Folder==f.TargetFolder).Kind,version=instance.PendingManualFiles.First(x=>x.Name==f.Name&&x.Folder==f.TargetFolder).Version,source="curseforge",url=f.PageUrl,required=true}).ToArray(),message="Авторы запретили прямую загрузку части файлов этой сборки. Выберите, что скачать вручную; остальные файлы останутся в сборке."};}
  async Task<string?> Existing(string folder,InstallFile file)
  {
   if(!Directory.Exists(folder))return null;var candidates=Directory.EnumerateFiles(folder).Where(p=>p.EndsWith(".jar",StringComparison.OrdinalIgnoreCase)||p.EndsWith(".zip",StringComparison.OrdinalIgnoreCase)||p.EndsWith(".disabled",StringComparison.OrdinalIgnoreCase)).OrderBy(p=>p.EndsWith(".disabled",StringComparison.OrdinalIgnoreCase));
   foreach(var p in candidates){var info=new FileInfo(p);var key=file.Algorithm+":"+p;string value;if(installedHashes.TryGetValue(key,out var cached)&&cached.Size==info.Length&&cached.Ticks==info.LastWriteTimeUtc.Ticks)value=cached.Hash;else{value=await Net.Hash(p,file.Algorithm);installedHashes[key]=(info.Length,info.LastWriteTimeUtc.Ticks,value);}if(value==file.Hash.ToLowerInvariant())return p;}return null;
  }
- static InstallFile ModrinthFile(JsonNode v){var f=v["files"]?.AsArray().FirstOrDefault(x=>x?["primary"]?.GetValue<bool>()==true)??v["files"]?[0]??throw new IOException("У версии нет файла");return new(f.Str("filename"),f.Str("url"),f["hashes"].Str("sha512"),"SHA512");}
- static InstallFile CurseFile(JsonNode f)=>new(f.Str("fileName"),f.Str("downloadUrl"),f["hashes"]?.AsArray().FirstOrDefault(x=>x?["algo"]?.GetValue<int>()==1).Str("value")??"","SHA1");
- static void AddFile(List<InstallFile> plan,InstallFile file){if(file.Name!=Path.GetFileName(file.Name)||file.Name.IndexOfAny(Path.GetInvalidFileNameChars())>=0||file.Hash=="")throw new IOException("Неверный файл или автор запретил загрузку через сторонний лаунчер");if(plan.Any(f=>f.Name.Equals(file.Name,StringComparison.OrdinalIgnoreCase)&&f.Hash!=file.Hash))throw new IOException("Конфликт файлов зависимостей: "+file.Name);plan.Add(file);}
+ static InstallFile ModrinthFile(JsonNode v){var f=v["files"]?.AsArray().FirstOrDefault(x=>x?["primary"]?.GetValue<bool>()==true)??v["files"]?[0]??throw new IOException("У версии нет файла");return new(f.Str("filename"),f.Str("url"),f["hashes"].Str("sha512"),"SHA512",ProjectId:v.Str("project_id"),FileId:v.Str("id"),DisplayName:f.Str("filename"));}
+ static void AddFile(List<InstallFile> plan,InstallFile file){if(file.Name==""||file.Name!=Path.GetFileName(file.Name)||file.Name.IndexOfAny(Path.GetInvalidFileNameChars())>=0||file.Hash=="")throw new IOException("Файл нельзя безопасно проверить по контрольной сумме: "+file.Name);if(plan.Any(f=>f.Name.Equals(file.Name,StringComparison.OrdinalIgnoreCase)&&f.Hash!=file.Hash))throw new IOException("Конфликт файлов зависимостей: "+file.Name);plan.Add(file);}
  async Task ResolveProject(string source,string id,string kind,Instance i,string folder,HashSet<string> visited,Dictionary<string,string> projects,List<InstallFile> plan)
  {
   if(!visited.Add(source+":"+id))return;if(visited.Count>100)throw new IOException("Слишком много зависимостей");
@@ -97,10 +114,10 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
    knownVersions[v.Str("project_id")]=versions.Where(x=>x!=null).Select(x=>ModrinthFile(x!)).ToList();await ResolveModrinth(v,kind,i,folder,visited,projects,plan);
   }else if(source=="curseforge"){
    var url=$"https://api.curseforge.com/v1/mods/{Q(id)}/files?gameVersion={Q(i.Version)}";if(kind=="mods")url+="&modLoaderType="+LoaderNumber(i.Loader);
-   var files=(await Curse(url))["data"]!.AsArray().OrderByDescending(x=>x.Str("fileDate")).ToList();var f=files.FirstOrDefault()??throw new IOException("Нет совместимого файла: "+id);
-   foreach(var candidate in files){if(candidate!=null&&await Existing(folder,CurseFile(candidate))!=null){f=candidate;break;}}
-   knownVersions["curseforge:"+id]=files.Where(x=>x!=null).Select(x=>CurseFile(x!)).ToList();
-   foreach(var dep in f["dependencies"]?.AsArray()??[])if(dep?["relationType"]?.GetValue<int>()==3)await ResolveProject(source,dep.Str("modId"),kind,i,folder,visited,projects,plan);AddFile(plan,CurseFile(f));
+   var files=(await Curse(url))["data"]!.AsArray().OrderByDescending(x=>x.Str("fileDate")).ToList();var f=files.FirstOrDefault()??throw new IOException("Нет совместимого файла: "+id);if(f.Str("modId")!=id)throw new IOException("CurseForge вернул файл другого проекта");var compatible=f["gameVersions"]?.AsArray().Select(x=>x?.ToString()??"").ToArray()??[];if(compatible.Length>0&&!compatible.Contains(i.Version,StringComparer.OrdinalIgnoreCase))throw new IOException("Файл CurseForge несовместим с Minecraft "+i.Version);var project=(await Curse("https://api.curseforge.com/v1/mods/"+Q(id)))["data"]!;var page=project["links"].Str("websiteUrl");
+   foreach(var candidate in files){if(candidate!=null&&await Existing(folder,CurseFile(candidate,page,project.Str("name")))!=null){f=candidate;break;}}
+   knownVersions["curseforge:"+id]=files.Where(x=>x!=null).Select(x=>CurseFile(x!,page,project.Str("name"))).ToList();
+   foreach(var dep in f["dependencies"]?.AsArray()??[])if(dep?["relationType"]?.GetValue<int>()==3)await ResolveProject(source,dep.Str("modId"),kind,i,folder,visited,projects,plan);AddFile(plan,CurseFile(f,page,project.Str("name")));
   }else throw new IOException("Неизвестный источник");
  }
  async Task ResolveModrinth(JsonNode v,string kind,Instance i,string folder,HashSet<string> visited,Dictionary<string,string> projects,List<InstallFile> plan)
@@ -154,10 +171,11 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
    foreach(var item in files)
    {
     var file=(await Curse("https://api.curseforge.com/v1/mods/"+Q(item.Str("projectID"))+"/files/"+Q(item.Str("fileID"))))["data"]!;
-    var download=file.Str("downloadUrl");if(string.IsNullOrWhiteSpace(download))throw new IOException("Автор файла запретил загрузку через сторонние лаунчеры: "+file.Str("fileName"));
-    var project=(await Curse("https://api.curseforge.com/v1/mods/"+Q(item.Str("projectID"))))["data"]!;var classId=project["classId"]?.GetValue<int>()??6;var folder=classId==12?"resourcepacks":classId==6552?"shaderpacks":"mods";
+    var projectId=item.Str("projectID");var fileId=file.Str("id");if(file.Str("modId")!=projectId||fileId!=item.Str("fileID"))throw new IOException("Файл CurseForge не совпадает с манифестом");var versions=file["gameVersions"]?.AsArray().Select(x=>x?.ToString()??"").ToArray()??[];if(versions.Length>0&&!versions.Contains(mc,StringComparer.OrdinalIgnoreCase))throw new IOException("Файл CurseForge несовместим с Minecraft "+mc);
+    var project=(await Curse("https://api.curseforge.com/v1/mods/"+Q(projectId)))["data"]!;var classId=project["classId"]?.GetValue<int>()??6;var folder=classId==12?"resourcepacks":classId==6552?"shaderpacks":"mods";var kind=classId==12?"resources":classId==6552?"shaders":classId==6?"mods":"";var filename=file.Str("fileName");if(kind==""||filename!=Path.GetFileName(filename)||filename.IndexOfAny(Path.GetInvalidFileNameChars())>=0)throw new IOException("Неподдерживаемый файл модпака CurseForge");
+    var download=file.Str("downloadUrl");if(string.IsNullOrWhiteSpace(download)){var page=project["links"].Str("websiteUrl").TrimEnd('/')+"/files/"+fileId;var blockedHash=file["hashes"]?.AsArray().FirstOrDefault(x=>x?["algo"]?.GetValue<int>()==1)?.Str("value")??"";if(blockedHash=="")throw new IOException("CurseForge не предоставил контрольную сумму для "+filename);instance.PendingManualFiles.Add(new PendingPackFile{ProjectId=projectId,FileId=fileId,Name=filename,Folder=folder,Hash=blockedHash,PageUrl=page,Kind=kind,Version=mc});continue;}
     emit(new{type="progress",instanceId=instance.Id,message=file.Str("fileName"),percent=0});var sha=file["hashes"]?.AsArray().FirstOrDefault(x=>x?["algo"]?.GetValue<int>()==1)?.Str("value");
-    await Net.Download(download,Store.SafePath(root,folder+"/"+file.Str("fileName")),sha);
+    await Net.Download(download,Store.SafePath(root,folder+"/"+filename),sha);
    }
    var overrides=n.Str("overrides");if(string.IsNullOrWhiteSpace(overrides))overrides="overrides";
    long expanded=0;foreach(var file in zip.Entries.Where(e=>e.FullName.StartsWith(overrides+"/")))
@@ -169,7 +187,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
   catch{if(instance!=null)Directory.Delete(Path.GetDirectoryName(store.Folder(instance))!,true);throw;}
   finally{installation.Release();}
  }
- public async Task<Instance> InstallPack(string source,string id,string pinnedVersion="")
+ public async Task<object> InstallPack(string source,string id,string pinnedVersion="")
  {
   if(source is "ftb" or "technic")return await InstallExternalPack(source,id,pinnedVersion);
   string url,filename;string? hash;string algorithm;JsonNode? project=null;string packVersion="";
@@ -183,7 +201,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
   {
    project=(await Curse("https://api.curseforge.com/v1/mods/"+Q(id)))["data"]!;
    var versions=(await Curse("https://api.curseforge.com/v1/mods/"+Q(id)+"/files"))["data"]!.AsArray();var file=(string.IsNullOrEmpty(pinnedVersion)?versions.OrderByDescending(x=>x.Str("fileDate")).FirstOrDefault():(await Curse("https://api.curseforge.com/v1/mods/"+Q(id)+"/files/"+Q(pinnedVersion)))["data"])??throw new IOException("Нет версии модпака");packVersion=file.Str("id");
-   url=file.Str("downloadUrl");if(string.IsNullOrWhiteSpace(url))throw new IOException("Автор запретил загрузку модпака через сторонние лаунчеры");filename=Guid.NewGuid()+".zip";hash=file["hashes"]?.AsArray().FirstOrDefault(x=>x?["algo"]?.GetValue<int>()==1)?.Str("value");algorithm="SHA1";
+   url=file.Str("downloadUrl");if(string.IsNullOrWhiteSpace(url))return new{status="manualPackArchive",url=project["links"].Str("websiteUrl"),message="Автор ограничил загрузку архива через сторонние лаунчеры. Скачайте модпак на CurseForge и импортируйте ZIP сюда; недоступные компоненты можно будет скачать отдельно."};filename=Guid.NewGuid()+".zip";hash=file["hashes"]?.AsArray().FirstOrDefault(x=>x?["algo"]?.GetValue<int>()==1)?.Str("value");algorithm="SHA1";
   }
   else throw new IOException("Неизвестный источник");
   var p=Path.Combine(store.Root,"downloads",filename);await Net.Download(url,p,hash,algorithm);
