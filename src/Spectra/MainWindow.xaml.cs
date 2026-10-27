@@ -506,7 +506,7 @@ public partial class MainWindow : Window
    {
     var result=await catalog.Install("","",d.Str("kind"),d.Str("instanceId"),d.Str("planId"),d["names"]?.Deserialize<string[]>(Store.Json)??[]);return result.GetType().GetProperty("status")?.GetValue(result)?.ToString()=="installed"?State():result;
    }
-   case "packManualPlan":return catalog.PackManualPlan(d.Str("instanceId"));
+   case "packManualPlan":return await catalog.PackManualPlan(d.Str("instanceId"));
    case "installPack":
    {
     var pack=await catalog.InstallPack(d.Str("source"),d.Str("projectId"),d.Str("versionId"));return pack.GetType().GetProperty("status")?.GetValue(pack)?.ToString()=="manualPackArchive"?pack:State();

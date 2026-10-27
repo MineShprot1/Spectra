@@ -41,6 +41,7 @@ public record PendingPackFile
  public string Folder {get;set;}="mods";
  public string Hash {get;set;}="";
  public string PageUrl {get;set;}="";
+ public string Icon {get;set;}="";
  public string Kind {get;set;}="mods";
  public string Version {get;set;}="";
 }

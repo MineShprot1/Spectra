@@ -240,7 +240,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   {
    using var zip=ZipFile.OpenRead(p);var entry=zip.GetEntry("fabric.mod.json")??zip.GetEntry("quilt.mod.json");
    if(entry!=null){using var reader=new StreamReader(entry.Open());var n=JsonNode.Parse(reader.ReadToEnd())!;if(n["quilt_loader"]!=null)n=n["quilt_loader"]!;label=n["metadata"].Str("name");if(label=="")label=n.Str("name");version=n.Str("version");game=n["depends"]?.Str("minecraft")??"";var iconName=n.Str("icon");if(iconName!=""&&zip.GetEntry(iconName) is {} image&&image.Length<2*1024*1024){using var stream=image.Open();using var ms=new MemoryStream();stream.CopyTo(ms);icon="data:image/png;base64,"+Convert.ToBase64String(ms.ToArray());}}
-  }catch(Exception ex) when(ex is IOException or JsonException or InvalidOperationException){}
+  }catch(Exception ex) when(ex is IOException or JsonException or InvalidOperationException or ArgumentException){}
   return new{side=kind=="mods"?store.Get(Path.GetFileName(Path.GetDirectoryName(root))!).ModSides.GetValueOrDefault(name,InstanceServer.ModSide(p)):"",name,label=string.IsNullOrEmpty(label)?name:label,version,game,icon,path=Path.GetRelativePath(root,p),enabled=!p.EndsWith(".disabled",StringComparison.OrdinalIgnoreCase),size=new System.IO.FileInfo(p).Length,modified=File.GetLastWriteTimeUtc(p),image=kind=="screenshots"?Asset(p):""};
  }
  public static string KindFolder(string kind)=>kind switch{"mods"=>"mods","shaders"=>"shaderpacks","resources"=>"resourcepacks","worlds"=>"saves","servers"=>"", "screenshots"=>"screenshots","logs"=>"logs",_=>throw new IOException("Неизвестная папка")};

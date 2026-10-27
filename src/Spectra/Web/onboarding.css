@@ -56,3 +56,4 @@ body.entry-mode #boot{box-sizing:border-box;min-width:0;min-height:0;height:calc
  .preview-hero h2{font-size:16px;margin:5px 0 1px}
  .preview-hero p{font-size:10px}
 }
+.manual-file-icon{display:grid;place-items:center;width:30px;height:30px;overflow:hidden;border-radius:7px}.manual-file-icon .manual-project-icon{display:block;width:30px;height:30px;object-fit:contain;border-radius:7px}.manual-file-icon .pixel-icon{width:22px;height:22px}
