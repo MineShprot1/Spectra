@@ -44,6 +44,7 @@ public sealed partial class BedrockService(Store store)
  }
  public async Task<object> Versions(bool refresh=false)
  {
+  CleanupIncompleteDownloads();
   var installed=await Bridge("list");var available=await Catalogue(refresh);var imported=new List<Package>();var folder=Path.Combine(store.Root,"bedrock","packages");
   if(Directory.Exists(folder))foreach(var path in Directory.EnumerateFiles(folder,"*.json")){var p=JsonSerializer.Deserialize<Package>(await File.ReadAllTextAsync(path),Store.Json);if(p!=null&&MinecraftIdentity(p.Name))imported.Add(p);}
   string warning="";try{updates??=await Net.Get("https://launchercontent.mojang.com/v2/bedrockPatchNotes.json");}catch{warning="Каталог Mojang недоступен; установленные и импортированные версии доступны.";}
@@ -59,8 +60,7 @@ public sealed partial class BedrockService(Store store)
   var app=manifest.Descendants().FirstOrDefault(e=>e.Name.LocalName=="Application")?.Attribute("Id")?.Value??"";if(app.Length==0)throw new IOException("Пакет не содержит приложение");
   if(!cache)return new Package("",name,version,"",app,name.Contains("Beta")||name.Contains("Preview"),parsed.Major==0||parsed.Major==1&&parsed.Minor<2,false);
   var hash=await Net.Hash(source,"SHA256");var folder=Path.Combine(store.Root,"bedrock","packages");Directory.CreateDirectory(folder);var destination=Path.Combine(folder,hash+ext);
-  if(!File.Exists(destination)){await using var input=File.OpenRead(source);await using var output=File.Create(destination+".part");await input.CopyToAsync(output);}
-  if(File.Exists(destination+".part"))File.Move(destination+".part",destination,true);
+  try{if(!File.Exists(destination)){await using(var input=File.OpenRead(source))await using(var output=File.Create(destination+".part"))await input.CopyToAsync(output);File.Move(destination+".part",destination,true);}}finally{if(File.Exists(destination+".part"))File.Delete(destination+".part");}
   var item=new Package("import:"+hash+ext,name,version,"",app,name.Contains("Beta")||name.Contains("Preview"),parsed.Major==0||parsed.Major==1&&parsed.Minor<2,false);await File.WriteAllTextAsync(Path.Combine(folder,hash+ext+".json"),JsonSerializer.Serialize(item,Store.Json));return item;
  }
  public async Task<object> Launch(string id,bool install=false,bool skipUpdate=false,bool replace=false,bool installOnly=false)
@@ -81,7 +81,7 @@ public sealed partial class BedrockService(Store store)
     if(selected==null){if(!install)throw new IOException("Подтвердите установку версии Bedrock");selected=await InstallRelease(id,current,replace);}
    }else if(id.StartsWith("import:",StringComparison.Ordinal)){
     var file=id[7..];if(!System.Text.RegularExpressions.Regex.IsMatch(file,@"\A[a-f0-9]{64}\.(appx|msix)\z"))throw new IOException("Неверный пакет Bedrock");var folder=Path.Combine(store.Root,"bedrock","packages");var item=JsonSerializer.Deserialize<Package>(await File.ReadAllTextAsync(Path.Combine(folder,file+".json")),Store.Json)??throw new IOException("Пакет не найден");var current=await Bridge("list");selected=current.FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);
-    if(selected==null){if(WouldReplace(item.Name,item.Version,current)&&!replace)throw new IOException("Этот пакет заменит установленную игру. Установка отменена; пакет сохранён отдельно.");if(!install)throw new IOException("Сначала установите выбранный пакет Bedrock");var path=Path.Combine(folder,file);if(await Net.Hash(path,"SHA256")!=file[..64])throw new IOException("Пакет Bedrock изменился");var manifest=replace?await ExtractPackage(path,item.Name,item.Version):"";selected=(replace?await ReplaceWithBackup(current,item.Name,()=>Bridge("register",manifest,item.Name,item.Version)):await Bridge("install",path,item.Name,item.Version)).FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);}
+    if(selected==null){if(WouldReplace(item.Name,item.Version,current)&&!replace)throw new IOException("Этот пакет заменит установленную игру. Установка отменена; пакет сохранён отдельно.");if(!install)throw new IOException("Сначала установите выбранный пакет Bedrock");var path=Path.Combine(folder,file);if(await Net.Hash(path,"SHA256")!=file[..64])throw new IOException("Пакет Bedrock изменился");selected=(replace?await RegisterWithCleanup(path,item.Name,item.Version,current):await Bridge("install",path,item.Name,item.Version)).FirstOrDefault(p=>p.Name==item.Name&&p.Version==item.Version);}
    }else selected=(await Bridge("list")).FirstOrDefault(p=>p.Id==id);
    if(selected==null)throw new IOException("Выбранная версия не установлена. Обновите список Bedrock.");
    if(installOnly)return new{status="installed",version=selected.Version,message="Версия установлена. Нажмите ИГРАТЬ для запуска."};

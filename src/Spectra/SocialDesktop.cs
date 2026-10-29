@@ -18,8 +18,22 @@ public sealed class SocialVault(Store store)
 public sealed class SocialDesktop:IDisposable
 {
  readonly Func<string,string> localize;readonly Window main;readonly Action<JsonNode> open;readonly System.Windows.Forms.NotifyIcon tray;readonly MediaPlayer sound=new();readonly Queue<(string Title,string Text,JsonNode Action)> queue=new();Window? popup;bool quitting,disposed;
- public SocialDesktop(Window main,Action<JsonNode> open,Func<string,string>? localize=null){this.localize=localize??(value=>value);this.main=main;this.open=open;var menu=new System.Windows.Forms.ContextMenuStrip();menu.Items.Add("Открыть Spectra",null,(_,_)=>Show());menu.Items.Add("Выйти полностью",null,(_,_)=>{quitting=true;Dispose();Application.Current.Shutdown();});tray=new(){Text=this.localize("Spectra · работает в фоне"),Icon=System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)??System.Drawing.SystemIcons.Application,Visible=true,ContextMenuStrip=menu};menu.Opening+=(_,_)=>RefreshLanguage();tray.DoubleClick+=(_,_)=>Show();main.Closing+=(_,e)=>{if(!quitting){e.Cancel=true;main.Hide();}};Application.Current.SessionEnding+=(_,_)=>quitting=true;}
- public void RefreshLanguage(){if(disposed)return;tray.Text=localize("Spectra · работает в фоне");var menu=tray.ContextMenuStrip;if(menu?.Items.Count>=2){menu.Items[0].Text=localize("Открыть Spectra");menu.Items[1].Text=localize("Выйти полностью");}}
+ readonly Func<string> appearance;
+ public SocialDesktop(Window main,Action<JsonNode> open,Func<string,string>? localize=null,Action<string>? onCommand=null,Func<string>? appearance=null){this.localize=localize??(value=>value);this.appearance=appearance??(()=>"{}");this.main=main;this.open=open;
+  var menu=new System.Windows.Forms.ContextMenuStrip{ShowImageMargin=false,Padding=new System.Windows.Forms.Padding(5),Font=new System.Drawing.Font("Segoe UI",10)};
+  void Item(string label,string command){var item=menu.Items.Add(label,null,(_,_)=>{if(command=="show")Show();else onCommand?.Invoke(command);});item.Tag=label;}
+  Item("Открыть Spectra","show");Item("Библиотека сборок","instances");Item("Версии Minecraft","versions");Item("Друзья и чат","friends");menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());Item("Запустить выбранную сборку","launch");Item("Открыть папку Spectra","folder");Item("Настройки","settings");Item("Переключить уведомления","mute");menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());var exit=menu.Items.Add("Выйти полностью",null,(_,_)=>{quitting=true;Dispose();Application.Current.Shutdown();});exit.Tag="Выйти полностью";
+  tray=new(){Text=this.localize("Spectra · работает в фоне"),Icon=System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)??System.Drawing.SystemIcons.Application,Visible=true,ContextMenuStrip=menu};menu.Opening+=(_,_)=>RefreshLanguage();tray.DoubleClick+=(_,_)=>Show();main.Closing+=(_,e)=>{if(!quitting){e.Cancel=true;main.Hide();}};Application.Current.SessionEnding+=(_,_)=>quitting=true;
+ }
+ public void RefreshLanguage(){if(disposed)return;tray.Text=localize("Spectra · работает в фоне");var menu=tray.ContextMenuStrip;if(menu==null)return;foreach(System.Windows.Forms.ToolStripItem item in menu.Items)if(item.Tag is string key)item.Text=localize(key);var config=JsonNode.Parse(appearance());var theme=config.Str("theme");bool light=theme=="light"||config?["themeModes"].Str(theme)=="light"||theme=="liquid"&&config.Str("liquidMode")!="dark"&&config?["themeModes"].Str(theme)!="dark";menu.Renderer=new System.Windows.Forms.ToolStripProfessionalRenderer(new TrayColors(light));menu.ForeColor=light?System.Drawing.Color.FromArgb(25,42,60):System.Drawing.Color.FromArgb(225,235,246);menu.BackColor=light?System.Drawing.Color.FromArgb(244,248,252):System.Drawing.Color.FromArgb(23,35,51);}
+ sealed class TrayColors(bool light):System.Windows.Forms.ProfessionalColorTable
+ {
+  System.Drawing.Color Panel=>light?System.Drawing.Color.FromArgb(244,248,252):System.Drawing.Color.FromArgb(23,35,51);
+  public override System.Drawing.Color ToolStripDropDownBackground=>Panel;
+  public override System.Drawing.Color ImageMarginGradientBegin=>Panel;public override System.Drawing.Color ImageMarginGradientMiddle=>Panel;public override System.Drawing.Color ImageMarginGradientEnd=>Panel;
+  public override System.Drawing.Color MenuItemSelected=>light?System.Drawing.Color.FromArgb(216,233,249):System.Drawing.Color.FromArgb(48,75,101);
+  public override System.Drawing.Color MenuItemBorder=>MenuItemSelected;public override System.Drawing.Color MenuBorder=>light?System.Drawing.Color.LightSteelBlue:System.Drawing.Color.FromArgb(67,87,111);
+ }
  public void Show(){main.Show();if(main.WindowState==WindowState.Minimized)main.WindowState=WindowState.Normal;main.Activate();}
  public void Notify(string title,string text,JsonNode action){if(disposed)return;if(queue.Count>=20)queue.Dequeue();queue.Enqueue((title[..Math.Min(title.Length,1000)],text[..Math.Min(text.Length,8000)],action.DeepClone()));Next();}
  static SolidColorBrush Ink(byte r,byte g,byte b)=>new(Color.FromRgb(r,g,b));
@@ -33,21 +47,21 @@ public sealed class SocialDesktop:IDisposable
  void Next()
  {
   if(popup!=null||queue.Count==0||disposed)return;var n=queue.Dequeue();
-  var titleText=n.Action["type"]?.ToString() is "chat" or "friend"?n.Title:localize(n.Title);var bodyText=n.Action["type"]?.ToString()=="chat"&&n.Action["systemMessage"]?.GetValue<bool>()!=true?n.Text:localize(n.Text);titleText=titleText[..Math.Min(titleText.Length,100)];bodyText=bodyText[..Math.Min(bodyText.Length,240)];
+  var titleText=n.Action["type"]?.ToString() is "chat" or "friend"?n.Title:localize(n.Title);var bodyText=n.Action["type"]?.ToString()=="chat"&&n.Action["systemMessage"]?.GetValue<bool>()!=true?n.Text:localize(n.Text);titleText=titleText[..Math.Min(titleText.Length,100)];bodyText=bodyText[..Math.Min(bodyText.Length,130)];
   var font=new FontFamily("Consolas");var fontPath=Path.Combine(AppContext.BaseDirectory,"Web","assets","minecraft.ttf");
   try{if(File.Exists(fontPath))font=new FontFamily(new Uri(Path.GetDirectoryName(fontPath)!+Path.DirectorySeparatorChar),"./#Minecraft Rus");}catch{}
-  var grid=new Grid{Margin=new Thickness(18,13,18,16)};for(int i=0;i<4;i++)grid.RowDefinitions.Add(new(){Height=GridLength.Auto});
-  var brand=new TextBlock{Text="■ SPECTRA NETWORK",Foreground=Ink(153,197,123),FontSize=11,FontFamily=font,Margin=new Thickness(0,5,32,14)};grid.Children.Add(brand);
+  var grid=new Grid{Margin=new Thickness(12,8,12,10)};for(int i=0;i<4;i++)grid.RowDefinitions.Add(new(){Height=GridLength.Auto});
+  var brand=new TextBlock{Text="■ SPECTRA NETWORK",Foreground=Ink(153,197,123),FontSize=11,FontFamily=font,Margin=new Thickness(0,2,28,7)};grid.Children.Add(brand);
   var close=PixelButton("×");close.HorizontalAlignment=HorizontalAlignment.Right;close.ToolTip=localize("Закрыть уведомление");grid.Children.Add(close);
-  var title=new TextBlock{Text=titleText,Foreground=Brushes.White,FontFamily=font,FontSize=16,LineHeight=23,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,9)};Grid.SetRow(title,1);grid.Children.Add(title);
-  var text=new TextBlock{Text=bodyText,Foreground=Ink(190,201,214),FontFamily=font,FontSize=13,LineHeight=19,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,16)};Grid.SetRow(text,2);grid.Children.Add(text);
+  var title=new TextBlock{Text=titleText,Foreground=Brushes.White,FontFamily=font,FontSize=13,LineHeight=18,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,9)};Grid.SetRow(title,1);grid.Children.Add(title);
+  var text=new TextBlock{Text=bodyText,Foreground=Ink(190,201,214),FontFamily=font,FontSize=11,LineHeight=16,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};Grid.SetRow(text,2);grid.Children.Add(text);
   var link=PixelButton(localize("Открыть в Spectra →"),true);link.FontFamily=font;link.HorizontalAlignment=HorizontalAlignment.Right;Grid.SetRow(link,3);grid.Children.Add(link);
   var root=new Grid{Background=Ink(19,25,34)};root.RowDefinitions.Add(new(){Height=new GridLength(3)});root.RowDefinitions.Add(new(){Height=GridLength.Auto});root.RowDefinitions.Add(new(){Height=new GridLength(3)});
   root.Children.Add(new Border{Background=Ink(153,197,123)});Grid.SetRow(grid,1);root.Children.Add(grid);var lifetime=new Border{Background=Ink(95,140,85),RenderTransformOrigin=new Point(0,0),RenderTransform=new ScaleTransform(1,1)};Grid.SetRow(lifetime,2);root.Children.Add(lifetime);
-  var border=new Border{Child=root,BorderBrush=Ink(82,98,116),BorderThickness=new Thickness(2),SnapsToDevicePixels=true};
-  var w=new Window{Width=Math.Min(390,SystemParameters.WorkArea.Width-24),SizeToContent=SizeToContent.Height,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowInTaskbar=false,ShowActivated=false,Topmost=true,Background=Ink(19,25,34),Content=border,Opacity=0,UseLayoutRounding=true};popup=w;
-  var timer=new DispatcherTimer{Interval=TimeSpan.FromSeconds(8)};bool closing=false;
-  void StartTimer(){if(closing)return;timer.Start();if(SystemParameters.ClientAreaAnimation)((ScaleTransform)lifetime.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty,new DoubleAnimation(1,0,TimeSpan.FromSeconds(8)));}
+  var border=new Border{Child=root,BorderBrush=Ink(82,98,116),BorderThickness=new Thickness(1),SnapsToDevicePixels=true};
+  var w=new Window{Width=Math.Min(320,SystemParameters.WorkArea.Width-24),SizeToContent=SizeToContent.Height,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowInTaskbar=false,ShowActivated=false,Topmost=true,Background=Ink(19,25,34),Content=border,Opacity=0,UseLayoutRounding=true};popup=w;
+  var timer=new DispatcherTimer{Interval=TimeSpan.FromSeconds(6)};bool closing=false;
+  void StartTimer(){if(closing)return;timer.Start();if(SystemParameters.ClientAreaAnimation)((ScaleTransform)lifetime.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty,new DoubleAnimation(1,0,TimeSpan.FromSeconds(6)));}
   void Dismiss(){if(closing)return;closing=true;timer.Stop();if(SystemParameters.ClientAreaAnimation){w.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(0,TimeSpan.FromMilliseconds(160)));var animation=new DoubleAnimation(w.Left+24,TimeSpan.FromMilliseconds(160));animation.Completed+=(_,_)=>w.Close();w.BeginAnimation(Window.LeftProperty,animation);}else w.Close();}
   void Open(){Show();open(n.Action);Dismiss();}
   close.Click+=(_,_)=>Dismiss();link.Click+=(_,_)=>Open();title.MouseLeftButtonUp+=(_,_)=>Open();text.MouseLeftButtonUp+=(_,_)=>Open();

@@ -69,6 +69,16 @@ public record MultiClientProfile
  public string Name {get;set;}="SpectraAccount1";
  public string ElyName {get;set;}="";
 }
+public record LauncherPreferences
+{
+ public bool OpenEditorOnLaunch {get;set;}=true;
+ public bool HideQuickLaunch {get;set;}
+ public bool Notifications {get;set;}=true;
+ public bool SystemNotifications {get;set;}=true;
+ public bool FriendGameNotifications {get;set;}=true;
+ public bool ChatNotifications {get;set;}=true;
+ public bool GroupNotifications {get;set;}=true;
+}
 public record Configuration
 {
  [JsonIgnore] public string CurseForgeKey { get; set; } = "";
@@ -86,6 +96,7 @@ public record Configuration
  public string FriendsOwnerId {get;set;}="";
  public int MultiClientCount {get;set;}=1;
  public List<MultiClientProfile> MultiClients {get;set;}=[];
+ public LauncherPreferences Preferences {get;set;}=new();
  public double InterfaceScale {get;set;}=1;
  public string AppearanceJson {get;set;}="{}";
  public GameSettings Defaults { get; set; } = new();
@@ -104,7 +115,7 @@ public sealed class Store
  public static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true, WriteIndented = true };
  public string Root { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Spectra");
  public Configuration Config { get; private set; }
- public Store() { Directory.CreateDirectory(Root); var p=Path.Combine(Root,"config.json"); Config=File.Exists(p)?JsonSerializer.Deserialize<Configuration>(File.ReadAllText(p),Json)??new():new();
+ public Store(string? root=null) { if(root!=null)Root=Path.GetFullPath(root);Directory.CreateDirectory(Root); var p=Path.Combine(Root,"config.json"); Config=File.Exists(p)?JsonSerializer.Deserialize<Configuration>(File.ReadAllText(p),Json)??new():new();
  foreach(var instance in Config.Instances){var directory=Path.Combine(Root,"instances",instance.Id);if(instance.CreatedAt==null&&Directory.Exists(directory))instance.CreatedAt=Directory.GetCreationTimeUtc(directory);}
  var secretPath=Path.Combine(Root,"connections.dat");if(File.Exists(secretPath)){var decrypted=ProtectedData.Unprotect(File.ReadAllBytes(secretPath),null,DataProtectionScope.CurrentUser);var secret=JsonSerializer.Deserialize<Dictionary<string,string>>(decrypted)!;Config.CurseForgeKey=secret.GetValueOrDefault("curseforge","");Config.CraftyKey=secret.GetValueOrDefault("crafty","");}
  if(!Config.FriendsEndpointInitialized){if(string.IsNullOrWhiteSpace(Config.FriendsEndpoint))Config.FriendsEndpoint="https://spectra-friends.spectrafriends.workers.dev";Config.FriendsEndpointInitialized=true;Save();}

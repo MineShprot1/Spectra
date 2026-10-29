@@ -16,6 +16,20 @@ public sealed partial class BedrockService
  List<Release>? releases;
  DateTime catalogueTime;
  string catalogueWarning="";
+ void CleanupIncompleteDownloads()
+ {
+  // Only abandoned temporary files, never saved packages, installed versions or user worlds.
+  foreach(var relative in new[]{"bedrock/downloads","bedrock/packages","bedrock/versions"}){
+   var directory=Store.SafePath(store.Root,relative);if(!Directory.Exists(directory))continue;
+   foreach(var entry in new DirectoryInfo(directory).EnumerateFileSystemInfos()){
+    if(entry.LastWriteTimeUtc>DateTime.UtcNow.AddDays(-1)||(entry.Attributes&FileAttributes.ReparsePoint)!=0)continue;
+    if(entry is FileInfo file&&file.Name.EndsWith(".part",StringComparison.OrdinalIgnoreCase))try{file.Delete();}catch(IOException){}catch(UnauthorizedAccessException){}
+    else if(entry is DirectoryInfo folder&&folder.Name.StartsWith(".extract-",StringComparison.Ordinal)&&System.Text.RegularExpressions.Regex.IsMatch(folder.Name,@"\A\.extract-[a-f0-9]{32}\z")){
+     var safe=Store.SafePath(directory,folder.Name);try{Directory.Delete(safe,true);}catch(IOException){}catch(UnauthorizedAccessException){}
+    }
+   }
+  }
+ }
  internal static string PackageVersion(string display){var v=Version.Parse(display);return v.Major==0?(v.Minor>=15?$"0.{v.Minor*100+v.Build}.{Math.Max(0,v.Revision)}.0":$"0.{v.Minor}{v.Build}.{Math.Max(0,v.Revision)}.0"):$"{v.Major}.{v.Minor}.{v.Build*100+Math.Max(0,v.Revision)}.0";}
  internal static string MicrosoftUrl(string value)
  {
@@ -31,7 +45,7 @@ public sealed partial class BedrockService
    var current=MicrosoftUrl(url);
    for(var redirect=0;redirect<=5;redirect++){
     using var request=new HttpRequestMessage(HttpMethod.Get,current);
-    request.Headers.UserAgent.ParseAdd("Spectra/0.14.6");
+    request.Headers.UserAgent.ParseAdd("Spectra/0.23.0");
     var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);
     var status=(int)response.StatusCode;
     if(status is not (301 or 302 or 303 or 307 or 308))return response;
@@ -90,6 +104,7 @@ public sealed partial class BedrockService
  {
   var release=(await Catalogue()).FirstOrDefault(r=>r.Id==id)??throw new IOException("Версия отсутствует в каталоге Bedrock");
   var folder=Path.Combine(store.Root,"bedrock","downloads");Directory.CreateDirectory(folder);var filename=id.Replace(':','-')+(release.Format=="GDK"?".msixvc":".appx");var path=Path.Combine(folder,filename);var receipt=path+".json";
+  try{
   bool cached=false;try{var saved=JsonNode.Parse(await File.ReadAllTextAsync(receipt));cached=File.Exists(path)&&new FileInfo(path).Length>0&&saved.Str("sha256")==await Net.Hash(path,"SHA256");}catch{}
   if(!cached){var urls=release.Format=="GDK"?release.Urls:new[]{await ResolveUwp(release)};Exception? last=null;bool ready=false;
    foreach(var url in urls){try{await DownloadMicrosoftPackage(url,path);ready=true;break;}catch(Exception e){last=e;}}
@@ -101,7 +116,9 @@ public sealed partial class BedrockService
   }
   if(cached&&release.Format=="UWP"){var package=await Import(path,false);if(!package.Name.Equals(release.Name,StringComparison.OrdinalIgnoreCase)||!MatchesUwpVersion(release.Version,package.Version))throw new IOException("Сохранённый пакет не соответствует выбранному выпуску: "+package.Version);release=release with{PackageVersion=package.Version};}
   return (release,path);
+  }catch{DeleteDownload(path);throw;}
  }
+ internal static void DeleteDownload(string path){foreach(var file in new[]{path,path+".json"})try{File.Delete(file);}catch(IOException){}catch(UnauthorizedAccessException){}}
  public async Task<object> Download(string id)
  {
   await gate.WaitAsync();try{var downloaded=await DownloadRelease(id);return new{status="downloaded",path=downloaded.Path,version=downloaded.Release.Version,message="Пакет сохранён. Установленная игра не изменена."};}finally{gate.Release();}
@@ -113,13 +130,28 @@ async Task<string> ExtractPackage(string appx,string name,string version)
   var root=Path.Combine(store.Root,"bedrock","versions",name+"_"+version);var manifest=Path.Combine(root,"AppxManifest.xml");var marker=Path.Combine(root,".spectra-ready");
   if(File.Exists(manifest)&&File.Exists(marker))return manifest;
   Net.ProgressSink.Value?.Invoke(new{type="progress",message="Распаковка пакета Bedrock…",percent=0,indeterminate=true});
-  await Task.Run(()=>{
-   if(Directory.Exists(root))Directory.Delete(root,true);Directory.CreateDirectory(root);ZipFile.ExtractToDirectory(appx,root);
-   foreach(var f in new[]{"AppxSignature.p7x","AppxBlockMap.xml","[Content_Types].xml"}){var p=Path.Combine(root,f);if(File.Exists(p))File.Delete(p);}
-   var meta=Path.Combine(root,"AppxMetadata");if(Directory.Exists(meta))Directory.Delete(meta,true);
-   if(!File.Exists(manifest))throw new IOException("В пакете нет AppxManifest.xml");File.WriteAllText(marker,"1");
-  });
+  var staging=Store.SafePath(Path.Combine(store.Root,"bedrock","versions"),".extract-"+Guid.NewGuid().ToString("N"));
+  try{await Task.Run(()=>{
+   Directory.CreateDirectory(staging);using(var archive=ZipFile.OpenRead(appx)){
+    if(archive.Entries.Count>200000)throw new IOException("Слишком много файлов в пакете Bedrock");long bytes=0;
+    foreach(var entry in archive.Entries){if(entry.FullName.Contains('\\')||((entry.ExternalAttributes>>16)&0xF000)==0xA000)throw new IOException("Недопустимый путь в пакете Bedrock");var destination=Store.SafePath(staging,entry.FullName);bytes=checked(bytes+entry.Length);if(bytes>16L*1024*1024*1024)throw new IOException("Пакет Bedrock слишком большой");if(entry.FullName.EndsWith('/')){Directory.CreateDirectory(destination);continue;}Directory.CreateDirectory(Path.GetDirectoryName(destination)!);entry.ExtractToFile(destination);}
+   }
+   foreach(var file in new[]{"AppxSignature.p7x","AppxBlockMap.xml","[Content_Types].xml"})File.Delete(Path.Combine(staging,file));
+   var meta=Path.Combine(staging,"AppxMetadata");if(Directory.Exists(meta))Directory.Delete(meta,true);
+   if(!File.Exists(Path.Combine(staging,"AppxManifest.xml")))throw new IOException("В пакете нет AppxManifest.xml");
+   File.WriteAllText(Path.Combine(staging,".spectra-ready"),"1");
+   if(Directory.Exists(root))Directory.Delete(root,true);Directory.Move(staging,root);
+  });}finally{if(Directory.Exists(staging))Directory.Delete(staging,true);}
   return manifest;
+ }
+ async Task<List<Package>> RegisterWithCleanup(string package,string name,string version,List<Package> current)
+ {
+  var root=Store.SafePath(Path.Combine(store.Root,"bedrock","versions"),name+"_"+version);var existed=File.Exists(Path.Combine(root,".spectra-ready"));
+  try{var manifest=await ExtractPackage(package,name,version);return await ReplaceWithBackup(current,name,()=>Bridge("register",manifest,name,version));}
+  catch{
+   if(!existed&&Directory.Exists(root))try{var installed=await Bridge("list");if(!installed.Any(p=>p.Name.Equals(name,StringComparison.OrdinalIgnoreCase)&&p.Version==version))Directory.Delete(root,true);}catch{/* Keep files if Windows cannot confirm that they are unused. */}
+   throw;
+  }
  }
  static void CopyDirectory(string source,string target)
  {
@@ -151,9 +183,10 @@ async Task<string> ExtractPackage(string appx,string name,string version)
   var release=(await Catalogue()).FirstOrDefault(r=>r.Id==id)??throw new IOException("Версия отсутствует в каталоге Bedrock");
   var selected=current.FirstOrDefault(p=>p.Name.Equals(release.Name,StringComparison.OrdinalIgnoreCase)&&(release.Format=="UWP"?MatchesUwpVersion(release.Version,p.Version):p.Version==release.PackageVersion));if(selected!=null)return selected;
   if(WouldReplace(release.Name,release.PackageVersion,current)&&!replace)throw new IOException("Эта версия заменит установленный выпуск Minecraft. Spectra отменил установку. Используйте «Скачать пакет», чтобы сохранить его отдельно.");
-  var downloaded=await DownloadRelease(id);release=downloaded.Release;
-  if(release.Format=="GDK")throw new IOException("Пакет MSIXVC сохранён, но Add-AppxPackage не является установщиком Xbox Gaming Services. Используйте «Последняя версия» для установки через Microsoft Store. Текущая игра не изменена.");
-  Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Bedrock "+release.Version,percent=100});var manifest=replace?await ExtractPackage(downloaded.Path,release.Name,release.PackageVersion):"";var registered=replace?await ReplaceWithBackup(current,release.Name,()=>Bridge("register",manifest,release.Name,release.PackageVersion)):await Bridge("install",downloaded.Path,release.Name,release.PackageVersion);selected=registered.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);
-  if(selected==null)throw new IOException("Установка завершилась, но выбранный пакет не найден: "+release.Name+" "+release.PackageVersion+". Найдены: "+string.Join(", ",registered.Select(p=>p.Name+" "+p.Version))+". Пакет сохранён: "+downloaded.Path);return selected;
+  if(release.Format=="GDK")throw new IOException("Этот выпуск использует Xbox Gaming Services (GDK). Установите его через Minecraft Launcher / Microsoft Store. Отдельный MSIXVC можно сохранить кнопкой «Скачать пакет».");
+  var downloaded=await DownloadRelease(id);release=downloaded.Release;try{
+  Net.ProgressSink.Value?.Invoke(new{type="progress",message="Установка Bedrock "+release.Version,percent=100});var registered=replace?await RegisterWithCleanup(downloaded.Path,release.Name,release.PackageVersion,current):await Bridge("install",downloaded.Path,release.Name,release.PackageVersion);selected=registered.FirstOrDefault(p=>p.Name==release.Name&&p.Version==release.PackageVersion);
+  if(selected==null)throw new IOException("Установка завершилась, но выбранный пакет не найден: "+release.Name+" "+release.PackageVersion+". Найдены: "+string.Join(", ",registered.Select(p=>p.Name+" "+p.Version)));return selected;
+  }finally{DeleteDownload(downloaded.Path);}
  }
 }

@@ -12,6 +12,7 @@ public sealed class Store
  public static readonly JsonSerializerOptions Json=new(){PropertyNamingPolicy=JsonNamingPolicy.CamelCase,PropertyNameCaseInsensitive=true};
  public string Root{get;}=System.IO.Path.Combine(System.IO.Path.GetTempPath(),"spectra-features-"+Guid.NewGuid().ToString("N"));
  public void Save(){}
+ public static string SafePath(string root,string relative){var full=System.IO.Path.GetFullPath(System.IO.Path.Combine(root,relative));var prefix=System.IO.Path.GetFullPath(root).TrimEnd(System.IO.Path.DirectorySeparatorChar)+System.IO.Path.DirectorySeparatorChar;if(!full.StartsWith(prefix,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Invalid path");return full;}
  public TestConfig Config{get;}=new();
 }
 public sealed class TestConfig{public string CurseForgeKey{get;set;}="";public string SelectedBedrock{get;set;}="";public string SelectedBedrockLabel{get;set;}="";}
@@ -20,4 +21,5 @@ public sealed partial class CatalogService(Store store)
 {
  static string Q(string value)=>Uri.EscapeDataString(value);
  static Task<JsonNode> Curse(string url)=>throw new NotSupportedException("Network metadata is not used by parser tests");
+ static Task<object> ExternalContents(string source,string id,string version)=>throw new NotSupportedException("External catalogs are covered by catalog tests");
 }

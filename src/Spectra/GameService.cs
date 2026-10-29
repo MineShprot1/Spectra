@@ -21,9 +21,10 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
  public ConcurrentDictionary<string,Process> Running { get; } = new();
  readonly ConcurrentDictionary<string,byte> busy=new();
  readonly SemaphoreSlim installationGate=new(1,1);
+ readonly SharedLibraries sharedLibraries=new(store);
  MinecraftLauncher CreateLauncher(string root)
  {
-  var path=new MinecraftPath(root){Assets=Path.Combine(store.Root,"cache","assets")};
+  var path=new MinecraftPath(root){Assets=Path.Combine(store.Root,"cache","assets"),Library=Path.Combine(store.Root,"cache","libraries")};
   var parameters=MinecraftLauncherParameters.CreateDefault(path,Net.Http);
   var extractors=DefaultFileExtractors.CreateDefault(Net.Http,parameters.RulesEvaluator!,parameters.JavaPathResolver!);extractors.Java=null;parameters.FileExtractors=extractors.ToExtractorCollection();
   parameters.GameInstaller=new ParallelGameInstaller(Math.Clamp(Environment.ProcessorCount,2,4),16,256,Net.Http);
@@ -41,7 +42,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
  {
   await Metadata(version);await installationGate.WaitAsync();try{
    var instance=new Instance{CreatedAt=DateTime.UtcNow,Id="vanilla",Version=version,Settings=store.Config.Defaults with {}};
-   await Java(instance);var launcher=CreateLauncher(store.Folder(instance));
+   await Java(instance);await sharedLibraries.Prepare();var launcher=CreateLauncher(store.Folder(instance));
    launcher.FileProgressChanged+=(_,e)=>emit(new{type="progress",message=e.Name,percent=e.TotalTasks>0?e.ProgressedTasks*100d/e.TotalTasks:0});
    await launcher.InstallAsync(version);
   }finally{installationGate.Release();}
@@ -64,7 +65,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
  {
   if(metadata.TryGetValue(version,out var cached))return cached.DeepClone();
   var item=(await Manifest())["versions"]!.AsArray().FirstOrDefault(v=>v.Str("id")==version)??throw new IOException("Версия отсутствует в официальном манифесте");
-  var result=await Net.Get(item.Str("url"));metadata[version]=result;return result.DeepClone();
+  var result=await Net.Get(item.Str("url"));if(metadata.Count>=64)metadata.TryRemove(metadata.Keys.First(),out _);metadata[version]=result;return result.DeepClone();
  }
  Dictionary<string,string>? artwork;
  public async Task<object> Artwork()
@@ -165,7 +166,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    if(session==null)await auth.Login(false);
    session??=auth.Session??throw new IOException("Войдите в аккаунт");
    recentLogs[id]=new();stopped.TryRemove(id,out _);
-   var java=await Java(i);Gpu(java,i.Settings.Gpu);
+   var java=await Java(i);await sharedLibraries.Prepare();Gpu(java,i.Settings.Gpu);
    var root=store.Folder(i);var launcher=CreateLauncher(root);
    long lastProgress=0;
    launcher.FileProgressChanged+=(s,e)=>{var now=Environment.TickCount64;if(now-lastProgress<150)return;lastProgress=now;emit(new{type="progress",instanceId=id,message=e.Name,percent=e.TotalTasks>0?(double)e.ProgressedTasks/e.TotalTasks*100:0});};
@@ -185,7 +186,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader!="vanilla") await launcher.InstallAsync(version);
-   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=session,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.22.0"});
+   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=session,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.23.0"});
    var elyName=client?.ElyName??(auth.IsOffline?auth.ActiveAccount?.ElyName:"");
    if(!string.IsNullOrEmpty(elyName)){try{var agent=await OfflineSkinBridge.Agent(store);var bridge=OfflineSkinBridge.Shared;await bridge.Register(client?.Name??auth.Profile.Str("name"),elyName);var arg="-javaagent:"+agent+"="+bridge.Url;if(process.StartInfo.ArgumentList.Count>0)process.StartInfo.ArgumentList.Insert(0,arg);else process.StartInfo.Arguments="\""+arg+"\" "+process.StartInfo.Arguments;}catch(Exception error) when(error is IOException or System.Net.Http.HttpRequestException or TaskCanceledException){emit(new{type="progress",instanceId=id,message="Ely.by недоступен. Запускаем игру со стандартным скином.",percent=100});}}
    if(targetKind!=""){
@@ -236,11 +237,16 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
  object FileInfo(string p,string root,string kind)
  {
   var name=Path.GetFileName(p);var label=name;var version="";var game="";var icon="";
-  if(kind=="mods")try
+  if(kind is "mods" or "resources" or "shaders")try
   {
-   using var zip=ZipFile.OpenRead(p);var entry=zip.GetEntry("fabric.mod.json")??zip.GetEntry("quilt.mod.json");
-   if(entry!=null){using var reader=new StreamReader(entry.Open());var n=JsonNode.Parse(reader.ReadToEnd())!;if(n["quilt_loader"]!=null)n=n["quilt_loader"]!;label=n["metadata"].Str("name");if(label=="")label=n.Str("name");version=n.Str("version");game=n["depends"]?.Str("minecraft")??"";var iconName=n.Str("icon");if(iconName!=""&&zip.GetEntry(iconName) is {} image&&image.Length<2*1024*1024){using var stream=image.Open();using var ms=new MemoryStream();stream.CopyTo(ms);icon="data:image/png;base64,"+Convert.ToBase64String(ms.ToArray());}}
-  }catch(Exception ex) when(ex is IOException or JsonException or InvalidOperationException or ArgumentException){}
+   using var zip=ZipFile.OpenRead(p);var entry=zip.GetEntry("fabric.mod.json")??zip.GetEntry("quilt.mod.json");string iconName="";
+   if(entry!=null&&entry.Length<1024*1024){using var reader=new StreamReader(entry.Open());var n=JsonNode.Parse(reader.ReadToEnd())!;if(n["quilt_loader"]!=null)n=n["quilt_loader"]!;var info=n["metadata"]??n;label=info.Str("name");version=n.Str("version");game=(n["depends"] is JsonObject depends?depends.Str("minecraft"):"");var value=info["icon"];iconName=value is JsonObject variants?variants.OrderByDescending(v=>int.TryParse(v.Key,out var size)?size:0).FirstOrDefault().Value?.ToString()??"":value?.ToString()??"";}
+   var toml=zip.GetEntry("META-INF/neoforge.mods.toml")??zip.GetEntry("META-INF/mods.toml");
+   if(toml!=null&&toml.Length<1024*1024){using var reader=new StreamReader(toml.Open());var text=reader.ReadToEnd();string Field(string key)=>System.Text.RegularExpressions.Regex.Match(text,@"(?m)^\s*"+key+"\\s*=\\s*\"([^\"]+)\"").Groups[1].Value;label=Field("displayName") is {Length:>0} display?display:label;version=Field("version");iconName=Field("logoFile");}
+   var legacy=zip.GetEntry("mcmod.info");if(legacy!=null&&legacy.Length<1024*1024){using var reader=new StreamReader(legacy.Open());var info=JsonNode.Parse(reader.ReadToEnd());var mod=(info as JsonArray)?.FirstOrDefault()??info?["modList"]?.AsArray().FirstOrDefault();if(mod!=null){label=mod.Str("name");version=mod.Str("version");if(iconName=="")iconName=mod.Str("logoFile");}}
+   var image=(iconName.Length>0?zip.GetEntry(iconName.TrimStart('/')):null)??zip.GetEntry("pack.png")??zip.Entries.FirstOrDefault(e=>e.FullName.EndsWith("/icon.png",StringComparison.OrdinalIgnoreCase)||e.FullName.EndsWith("/logo.png",StringComparison.OrdinalIgnoreCase));
+   if(image!=null&&image.Length is >0 and <524288&&image.FullName.EndsWith(".png",StringComparison.OrdinalIgnoreCase)){using var stream=image.Open();using var ms=new MemoryStream();stream.CopyTo(ms);var bytes=ms.ToArray();if(bytes.Length>=8&&bytes.AsSpan(0,8).SequenceEqual(new byte[]{137,80,78,71,13,10,26,10})){var cache=Path.Combine(store.Root,"cache","content-icons");Directory.CreateDirectory(cache);var cached=Path.Combine(cache,Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))+".png");if(!File.Exists(cached))File.WriteAllBytes(cached,bytes);icon=Asset(cached);}}
+  }catch(Exception ex) when(ex is IOException or InvalidDataException or JsonException or InvalidOperationException or ArgumentException){}
   return new{side=kind=="mods"?store.Get(Path.GetFileName(Path.GetDirectoryName(root))!).ModSides.GetValueOrDefault(name,InstanceServer.ModSide(p)):"",name,label=string.IsNullOrEmpty(label)?name:label,version,game,icon,path=Path.GetRelativePath(root,p),enabled=!p.EndsWith(".disabled",StringComparison.OrdinalIgnoreCase),size=new System.IO.FileInfo(p).Length,modified=File.GetLastWriteTimeUtc(p),image=kind=="screenshots"?Asset(p):""};
  }
  public static string KindFolder(string kind)=>kind switch{"mods"=>"mods","shaders"=>"shaderpacks","resources"=>"resourcepacks","worlds"=>"saves","servers"=>"", "screenshots"=>"screenshots","logs"=>"logs",_=>throw new IOException("Неизвестная папка")};
