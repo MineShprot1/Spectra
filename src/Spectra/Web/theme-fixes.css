@@ -1,0 +1,27 @@
+/* Keep the original Spectra shell. Only new store components and color-mode bugs are patched here. */
+body[data-theme][data-color-mode]{--surface-edge:color-mix(in srgb,var(--theme-text) 24%,var(--theme-panel));--surface-raised:color-mix(in srgb,var(--theme-accent) 8%,var(--theme-panel));--text-muted:color-mix(in srgb,var(--theme-text) 68%,var(--theme-panel))}
+.language-field{display:flex;align-items:center;gap:12px}.language-field .language-flag{width:27px;height:18px;object-fit:cover;image-rendering:pixelated}.language-field #uiLanguage{flex:1}
+body:has(.store-page) #quickLaunch{display:none!important}body:has(.store-page) #main{padding-bottom:40px!important}
+.store-page :is(.store-sidebar,.store-spotlight,.store-project-tile,.store-ranking,.store-category-showcase){background:var(--theme-panel);color:var(--theme-text);border-color:var(--surface-edge);border-radius:var(--theme-radius)}
+.store-page :is(.store-feature-name,h2,h3){font-family:var(--heading-font,'SpectraPixel'),'Segoe UI',sans-serif}
+.store-page .store-sidebar>button.active{color:var(--theme-accent)!important;border-left-color:var(--theme-accent)!important}
+.catalog-source-select{font-size:10px;padding:6px;max-width:160px}.catalog-bottom{flex-wrap:wrap;gap:8px}
+
+/* Correct light colors without replacing the shell's borders, sizes, fonts or shadows. */
+html body[data-theme][data-color-mode=light]:not(.entry-mode){background-color:var(--theme-bg)!important}
+html body[data-theme][data-color-mode=light] :is(#main,#shell,.settings-content,.settings-workspace,.project-body,.profile-grid){background:var(--theme-bg)!important;color:var(--theme-text)!important}
+html body[data-theme][data-color-mode=light] :is(.panel,.glass,dialog,.dropdown,.instance-card,.version-card,.catalog-card,.empty,.settings-sidebar,.project-sidebar,.chat-tools,.chat-messages,.party-members article,.party-worlds article,.profile-edit,.account-menu-identity,.account-choice,.appearance-theme,.navigation-previews>button,#titlebar,#navigation,footer,#quickLaunch){background:var(--theme-panel)!important;color:var(--theme-text)!important;border-color:var(--surface-edge)!important}
+html body[data-theme][data-color-mode=light] :is(input,select,textarea){background:var(--theme-bg)!important;color:var(--theme-text)!important;border-color:var(--surface-edge)!important}
+html body[data-theme][data-color-mode=light] button:where(:not(.primary,.play,.store-feature-art,.store-project-tile)){background-color:var(--theme-panel)!important;color:var(--theme-text)!important}
+html body[data-theme][data-color-mode=light] :is(p,.muted,.hint,.eyebrow,.text-button,small,label){color:var(--text-muted)!important}
+html body[data-theme][data-color-mode=light] :is(h1,h2,h3){color:var(--theme-text)}
+html body[data-theme=aero][data-color-mode=dark] :is(#main,.settings-sidebar,.panel,.glass,dialog,#titlebar,#navigation,footer){background:var(--theme-panel)!important;color:var(--theme-text)!important}
+html body[data-theme=aero][data-color-mode=dark] :is(input,select,textarea){background:var(--theme-bg)!important;color:var(--theme-text)!important}
+
+/* Entry screens have a transparent drag area and window controls, never library chrome. */
+html body.entry-mode[data-theme][data-color-mode] #titlebar{height:40px!important;background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important}
+html body.entry-mode[data-theme][data-color-mode] #titlebar>:not(.drag,.window-controls){display:none!important}
+html body.entry-mode[data-theme][data-color-mode] #titlebar .window-controls button,html body.entry-mode[data-theme][data-color-mode] .entry-window-controls button{background:transparent!important;border:0!important;box-shadow:none!important}
+html body.entry-mode[data-theme][data-color-mode] :is(#titlebar .window-controls,.entry-window-controls) button[data-window=close]:hover{background:#bd3c4a!important}
+html body.entry-mode[data-theme][data-color-mode] #navigation{display:none!important}
+html body.entry-mode[data-theme][data-color-mode] :is(#accountMenu,#friendsPanel,#notificationsPanel){display:none!important}
