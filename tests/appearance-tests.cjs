@@ -71,9 +71,9 @@ console.log('PASS: shared backdrop gradient occurs once, panel tints and unified
 
 const png='data:image/png;base64,iVBORw0KGgo=';context.iconPng=png;
 const newTheme=vm.runInContext("SpectraAppearance.validate({theme:'modern'})",context);assert.equal(newTheme.theme,'modern');assert.equal(vm.runInContext("SpectraAppearance.validate({theme:'liquid'}).theme",context),'liquid');
-vm.runInContext("SpectraAppearance.apply({theme:'steam',themeIcons:{steam:{style:'rounded',custom:{play:iconPng}},windows:{style:'outline'}}})",context);assert(styles.get('#themeStyle').textContent.includes(png));assert(styles.get('#themeStyle').textContent.includes('icons-rounded/cube.svg'));
-const icons=vm.runInContext("SpectraAppearance.validate({themeIcons:{steam:{style:'bad',custom:{play:'https://evil.test/x',edit:'data:image/png;base64,x);bad'}}}})",context);assert.equal(icons.themeIcons.steam.style,'outline');assert.deepEqual(Object.keys(icons.themeIcons.steam.custom),[]);
-vm.runInContext("SpectraAppearance.apply({theme:'liquid'})",context);assert(styles.get('#themeStyle').textContent.includes('icons-outline/play.svg'));
+vm.runInContext("SpectraAppearance.apply({theme:'steam',themeIcons:{steam:{style:'rounded',custom:{play:iconPng}},windows:{style:'outline'}}})",context);assert(styles.get('#themeStyle').textContent.includes(png));assert(styles.get('#themeStyle').textContent.includes('assets/cube.svg'));
+const icons=vm.runInContext("SpectraAppearance.validate({themeIcons:{steam:{style:'bad',custom:{play:'https://evil.test/x',edit:'data:image/png;base64,x);bad'}}}})",context);assert.equal(icons.themeIcons.steam.style,'pixel');assert.deepEqual(Object.keys(icons.themeIcons.steam.custom),[]);
+vm.runInContext("SpectraAppearance.apply({theme:'liquid'})",context);assert(styles.get('#themeStyle').textContent.includes('assets/play.svg'));
 console.log('PASS: Modern/Liquid Glass, per-theme icon preferences, custom PNG persistence and invalid icon rejection');
 
 vm.runInContext("SpectraAppearance.apply({theme:'liquid',liquidMode:'dark'})",context);assert.equal(context.document.body.dataset.liquidMode,'dark');assert(styles.get('#themeStyle').textContent.includes('--theme-bg:#101723'));

@@ -99,6 +99,7 @@ public record Configuration
  public LauncherPreferences Preferences {get;set;}=new();
  public double InterfaceScale {get;set;}=1;
  public string AppearanceJson {get;set;}="{}";
+ public string WebAssetVersion {get;set;}="";
  public GameSettings Defaults { get; set; } = new();
  public string SelectedEdition {get;set;}="java";
  public string SelectedBedrock {get;set;}="";

@@ -2,6 +2,14 @@ using System.IO.Compression;
 using System.Text.Json;
 using Spectra;
 void Check(bool condition,string name){if(!condition)throw new Exception(name);Console.WriteLine("PASS: "+name);}
+var listings=CatalogService.MergeListings([
+ new("modrinth","sodium","Sodium","Fast renderer","",100,Author:"CaffeineMC",Slug:"sodium"),
+ new("curseforge","394468","SODIUM","Fast renderer","https://example.test/icon.png",200,Author:"CaffeineMC",Slug:"sodium"),
+ new("curseforge","different","Sodium","Unrelated project","",5,Author:"Other author",Slug:"sodium-port"),
+ new("modrinth","iris","Iris Shaders","Shaders","",80),new("curseforge","iris-cf","Iris Shaders","Shaders","",90)]);
+Check(listings.Count==3&&listings[0].Alternatives?.Length==2&&listings[0].Downloads==200&&listings[0].Icon!="","catalog merges cross-service projects, retains sources, never sums unrelated download totals");
+Check(listings.Any(x=>x.Id=="different"),"distinct projects and different authors retain their own listing");
+Check(CatalogService.MergeListings([new("modrinth","emi","EMI","","",1,Slug:"emi"),new("curseforge","emi-cf","EMI","","",2,Slug:"emi"),new("modrinth","jei","Just Enough Items","","",1),new("curseforge","jei-cf","Just Enough Items (JEI)","","",2)]).Count==2,"short project names and matching parenthetical acronyms deduplicate across catalogs");
 Check(Authentication.OfflineUuid("Notch")=="b50ad385829d3141a2167e7d7539ba7f","Java-compatible offline UUID");
 foreach(var name in new[]{"../outside","ab","a b","name;exec","abcdefghijklmnopq"}){try{Authentication.ValidateName(name);throw new Exception("Accepted invalid name");}catch(IOException){}}
 Check(true,"account name validation");

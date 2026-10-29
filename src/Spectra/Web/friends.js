@@ -73,5 +73,5 @@
  $('#friendsButton').onclick=()=>{if(!panel.hidden&&!closing){hidePanel();return;}showPanel();$('#accountMenu').hidden=true;if(items.length)draw();else panel.innerHTML='<div class="friends-loading"><span class="spectra-logo"></span><p>Получаем друзей…</p></div>';refresh();};
  document.addEventListener('pointerdown',e=>{if(!e.target.closest('#friendsPanel,#friendsButton'))hidePanel();});
  document.addEventListener('keydown',e=>{if(e.key==='Escape')hidePanel();});setInterval(()=>{if(!panel.hidden&&!closing)refresh();},10000);
- window.SpectraFriends={settings,profile,registration,download:friend=>join(friend,true)};
+ window.SpectraFriends={settings,profile,registration,open:()=>{showPanel();refresh();},download:friend=>join(friend,true)};
 })();

@@ -4,7 +4,8 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 namespace Spectra;
-public record CatalogItem(string Source,string Id,string Title,string Description,string Icon,long Downloads,string Side="unknown");
+public record CatalogSource(string Source,string Id);
+public record CatalogItem(string Source,string Id,string Title,string Description,string Icon,long Downloads,string Side="unknown",string Author="",string Slug="",CatalogSource[]? Alternatives=null);
 public sealed partial class CatalogService(Store store,GameService game,Action<object> emit)
 {
  readonly SemaphoreSlim installation=new(1);
@@ -21,7 +22,7 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
   if(i!=null){facets.Add(new[]{"versions:"+i.Version});if(kind=="mods"&&i.Loader!="vanilla")facets.Add(new[]{"categories:"+i.Loader});}
   foreach(var tag in tags)facets.Add(new[]{"categories:"+tag});
   var warnings=new List<string>();var results=new List<CatalogItem>();
-  try{var n=await Net.Get("https://api.modrinth.com/v2/search?query="+Q(query)+"&limit=24&offset="+offset+"&index=downloads&facets="+Q(JsonSerializer.Serialize(facets)));results.AddRange(n["hits"]!.AsArray().Select(x=>new CatalogItem("modrinth",x.Str("project_id"),x.Str("title"),x.Str("description"),x.Str("icon_url"),x?["downloads"]?.GetValue<long>()??0)));}catch(Exception){warnings.Add("Modrinth сейчас недоступен");}
+  try{var n=await Net.Get("https://api.modrinth.com/v2/search?query="+Q(query)+"&limit=24&offset="+offset+"&index=downloads&facets="+Q(JsonSerializer.Serialize(facets)));results.AddRange(n["hits"]!.AsArray().Select(x=>new CatalogItem("modrinth",x.Str("project_id"),x.Str("title"),x.Str("description"),x.Str("icon_url"),x?["downloads"]?.GetValue<long>()??0,Author:x.Str("author"),Slug:x.Str("slug"))));}catch(Exception){warnings.Add("Modrinth сейчас недоступен");}
   if(string.IsNullOrWhiteSpace(store.Config.CurseForgeKey))warnings.Add("CurseForge: добавьте API-ключ в настройках");
   else try
   {
@@ -32,12 +33,21 @@ public sealed partial class CatalogService(Store store,GameService game,Action<o
    if(tags.Length>0){var categories=(await Curse("https://api.curseforge.com/v1/categories?gameId=432&classId="+classId))["data"]!.AsArray();categoryIds=tags.Select(tag=>categories.FirstOrDefault(c=>c.Str("slug")==tag||c.Str("name").Replace(" ","-").Equals(tag,StringComparison.OrdinalIgnoreCase))?["id"]?.GetValue<long>()??0).ToArray();}
    if(categoryIds.Contains(0))warnings.Add("CurseForge: для выбранного фильтра нет точного соответствия, показаны подходящие результаты Modrinth");
    else {if(categoryIds.Length>0)url+="&categoryIds="+Q(JsonSerializer.Serialize(categoryIds));
-   var n=await Curse(url);results.AddRange(n["data"]!.AsArray().Where(x=>categoryIds.All(id=>x?["categories"]?.AsArray().Any(c=>c?["id"]?.GetValue<long>()==id)==true)).Select(x=>new CatalogItem("curseforge",x.Str("id"),x.Str("name"),x.Str("summary"),x?["logo"].Str("thumbnailUrl")??"",(long)(x?["downloadCount"]?.GetValue<double>()??0))));}
+   var n=await Curse(url);results.AddRange(n["data"]!.AsArray().Where(x=>categoryIds.All(id=>x?["categories"]?.AsArray().Any(c=>c?["id"]?.GetValue<long>()==id)==true)).Select(x=>new CatalogItem("curseforge",x.Str("id"),x.Str("name"),x.Str("summary"),x?["logo"].Str("thumbnailUrl")??"",(long)(x?["downloadCount"]?.GetValue<double>()??0),Author:x?["authors"]?.AsArray().FirstOrDefault().Str("name")??"",Slug:x.Str("slug"))));}
   }catch(Exception){warnings.Add("CurseForge недоступен или ключ не принят");}
   if(kind=="modpacks")foreach(var source in new[]{"ftb","technic"})try{results.AddRange(await ExternalSearch(source,query,offset));}catch(Exception e){warnings.Add(source.ToUpperInvariant()+": "+e.Message);}
   if(kind=="mods")results=(await Task.WhenAll(results.Select(async item=>{try{return item with {Side=await Side(item.Source,item.Id)};}catch{return item;}}))).ToList();
-  // Counts belong to different services, preserve source attribution.
-  return new{items=results.OrderByDescending(x=>x.Downloads),warnings,nextOffset=offset+24};
+  return new{items=MergeListings(results).OrderByDescending(x=>x.Downloads),warnings,nextOffset=offset+24};
+ }
+ public static List<CatalogItem> MergeListings(IEnumerable<CatalogItem> items)
+ {
+  static string Key(string value){value=System.Text.RegularExpressions.Regex.Replace(value,@"\s*\(([A-Z0-9]{2,8})\)\s*$",match=>{var words=System.Text.RegularExpressions.Regex.Matches(value[..match.Index],@"[\p{L}\p{N}]+");var initials=string.Concat(words.Select(word=>char.ToUpperInvariant(word.Value[0])));return initials==match.Groups[1].Value?"":match.Value;});return System.Text.RegularExpressions.Regex.Replace(value.Normalize(System.Text.NormalizationForm.FormKC).ToLowerInvariant(),@"[^\p{L}\p{N}]","");}
+  var result=new List<CatalogItem>();
+  foreach(var item in items){var key=Key(item.Title);var index=result.FindIndex(other=>other.Source==item.Source&&other.Id==item.Id||(key.Length>=4||key.Length>0&&(other.Slug!=""&&other.Slug==item.Slug||other.Author!=""&&Key(other.Author)==Key(item.Author)))&&Key(other.Title)==key&&(other.Author==""||item.Author==""||Key(other.Author)==Key(item.Author)||other.Slug!=""&&other.Slug==item.Slug)&&!(other.Alternatives??[new(other.Source,other.Id)]).Any(s=>s.Source==item.Source&&s.Id!=item.Id));
+   var sources=item.Alternatives??[new(item.Source,item.Id)];
+   if(index<0)result.Add(item with{Alternatives=sources});else{var prior=result[index];result[index]=prior with{Icon=prior.Icon==""?item.Icon:prior.Icon,Downloads=Math.Max(prior.Downloads,item.Downloads),Alternatives=(prior.Alternatives??[new(prior.Source,prior.Id)]).Concat(sources).Distinct().ToArray()};}
+  }
+  return result;
  }
  static int LoaderNumber(string loader)=>loader switch{"forge"=>1,"fabric"=>4,"quilt"=>5,"neoforge"=>6,_=>0};
  async Task<JsonNode> Curse(string url){using var req=new HttpRequestMessage(HttpMethod.Get,url);req.Headers.Add("x-api-key",store.Config.CurseForgeKey);return await Net.Send(req);}

@@ -17,7 +17,6 @@ const SpectraUpgrade=(()=>{
  let backdrop=null;document.addEventListener('pointerdown',e=>{backdrop=e.target instanceof HTMLDialogElement&&outside(e.target,e)?e.target:null;});
  function outside(dialog,e){const r=dialog.getBoundingClientRect();return e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom;}
  document.addEventListener('click',e=>{if(backdrop===e.target&&outside(backdrop,e))backdrop.close();backdrop=null;});
- $('#friendsButton').addEventListener('click',e=>{if(preview)return;e.stopImmediatePropagation();$('#friendsPanel').hidden=true;run(()=>api('friendsWindow'));},true);
  document.addEventListener('error',e=>{const img=e.target;if(img instanceof HTMLImageElement&&img.src.includes('mc-heads.net/avatar/')){img.src='assets/default-face.svg';img.loading='eager';}},true);
  return{allows,showScale};
 })();

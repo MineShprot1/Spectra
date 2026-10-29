@@ -1,13 +1,14 @@
 'use strict';
 const SpectraContent=(()=>{
  let edition=localStorage.getItem('spectra.discoverEdition')||'java',kind='modpacks',ticket=0;
- const names={modpacks:'МОДПАКИ',skins:'СКИНЫ',worlds:'КАРТЫ',addons:'АДДОНЫ',resources:'ТЕКСТУР ПАКИ',servers:'СЕРВЕРЫ'};
- function categories(){return edition==='java'?['modpacks','worlds','servers']:['addons','skins','worlds','resources'];}
+ const names={mods:'МОДЫ',shaders:'ШЕЙДЕРЫ',modpacks:'МОДПАКИ',skins:'СКИНЫ',worlds:'КАРТЫ',addons:'АДДОНЫ',resources:'ТЕКСТУР ПАКИ',servers:'СЕРВЕРЫ'};
+ function categories(){return edition==='java'?['modpacks','mods','shaders','resources','worlds','servers']:['addons','skins','worlds','resources'];}
  function editionControls(){return `<div class="edition-switch"><button data-content-edition="java" class="${edition==='java'?'active':''}">Java Edition</button><button data-content-edition="bedrock" class="${edition==='bedrock'?'active':''}">Bedrock Edition</button></div>`;}
  function categoryControl(){return `<select id="contentKind" aria-label="Категория контента">${categories().map(k=>`<option value="${k}" ${kind===k?'selected':''}>${names[k]}</option>`).join('')}</select>`;}
  function bindControls(){ $$('[data-content-edition]').forEach(b=>b.onclick=()=>{edition=b.dataset.contentEdition;localStorage.setItem('spectra.discoverEdition',edition);kind=categories()[0];return render();});$('#contentKind').onchange=()=>{kind=$('#contentKind').value;return render();};}
  async function render(){
   if(!categories().includes(kind))kind=categories()[0];const t=++ticket;
+  if(typeof SpectraStore!=='undefined'){return SpectraStore.render({kind,edition,categories:categories(),editionControls,categoryControl,bindControls});}
   if(kind==='modpacks'){
    const loading=renderModpacks();if(t!==ticket||page!=='discover')return;
    $('#main .hero').insertAdjacentHTML('beforebegin',editionControls());
@@ -49,5 +50,5 @@ const SpectraContent=(()=>{
  }
  function settings(host){host.insertAdjacentHTML('beforeend',`<div class="panel settings-section"><h2>Окно лаунчера</h2><button id="launcherFullscreen">${state.launcherFullscreen?'Выйти из полноэкранного режима':'Полноэкранный режим'} · F11</button></div><div class="panel settings-section"><h2>Скины Bedrock</h2><p id="skinDownloadFolder" data-no-i18n>${esc(state.bedrockSkinFolder||SpectraAppearance.text('Загрузки'))}</p><button id="pickBedrockSkinFolder">Изменить папку загрузки</button></div>`);$('#launcherFullscreen').onclick=()=>run(async()=>{await api('window',{command:'fullscreen'});updateState(await api('state'));$('#launcherFullscreen').textContent=(state.launcherFullscreen?'Выйти из полноэкранного режима':'Полноэкранный режим')+' · F11';});$('#pickBedrockSkinFolder').onclick=()=>run(async()=>{updateState(await api('bedrockSkinFolder'));$('#skinDownloadFolder').textContent=state.bedrockSkinFolder;});}
  document.addEventListener('keydown',e=>{if(e.key==='F11'&&!e.repeat){e.preventDefault();api('window',{command:'fullscreen'}).catch(()=>{});}});
- return {render,settings,additions};
+ return {render,settings,additions,details,importFile};
 })();
