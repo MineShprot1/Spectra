@@ -1,0 +1,51 @@
+/* Requested theme updates only. Spectra dark and Minecraft retain their geometry. */
+html body[data-theme=dark][data-color-mode=light] button:not(.primary,.play,.store-feature-art,.store-project-tile,.theme-preview-choice,.account-choice),html body:is([data-theme=gradient],[data-theme=modern]) button:not(.primary,.play,.store-feature-art,.store-project-tile,.theme-preview-choice,.account-choice){background:transparent!important;box-shadow:none!important}
+html body:is([data-theme=gradient],[data-theme=modern]) button:not(.primary,.play):hover,html body[data-theme=dark][data-color-mode=light] button:not(.primary,.play):hover{background:color-mix(in srgb,var(--theme-text) 8%,transparent)!important}
+html body[data-theme=modern] :is(.primary,.play,#quickPlay,#editorPlay){background:var(--theme-accent)!important;background-image:none!important;color:#142037!important}
+html body[data-theme=steam][data-color-mode=dark]{--ui-font:Arial,'Segoe UI',sans-serif;--heading-font:Arial,'Segoe UI',sans-serif;background:#171d25!important}
+html body[data-theme=steam][data-color-mode=dark] :is(#titlebar,#navigation,#shell>footer){background:#171d25!important;border-color:#303742!important;box-shadow:none!important}
+html body[data-theme=steam] #navigation{height:66px;gap:26px;padding-left:26px}
+html body[data-theme=steam] #navigation button{font-size:21px!important;font-weight:500;text-transform:uppercase;letter-spacing:0;line-height:1.2}
+html body[data-theme=steam] #navigation button.active{font-weight:600;color:var(--theme-accent)!important}
+html body[data-theme=steam] #navigation button.active:after{height:3px;border-radius:3px;bottom:12px;left:0;right:0;width:100%}
+html body[data-theme=steam][data-color-mode=dark] #main{background:linear-gradient(#2b3039,#23272e 520px)!important;padding:26px 28px 240px}
+html body[data-theme=steam][data-color-mode=dark] :is(.panel,.glass,.instance-card,.version-card,.catalog-card,.settings-sidebar,.store-ranking,.store-category-showcase){background:#242930!important;border:1px solid #363d48!important;box-shadow:none!important;border-radius:3px!important}
+html body[data-theme=steam] .instance-card{border-left-width:1px;min-height:100px}
+html body[data-theme=steam][data-color-mode=dark] button{background:#343b46!important;border:1px solid transparent!important;box-shadow:none!important;color:#d5d8de!important;border-radius:3px!important}
+html body[data-theme=steam][data-color-mode=dark] button:hover{background:#46505e!important;color:white!important}
+html body[data-theme=steam] :is(#navigation button,.window-controls button,.text-button,.dropdown button,.friend-more){background:transparent!important;box-shadow:none!important}
+html body[data-theme=steam][data-color-mode=dark] :is(input,select,textarea){background:#1b2027!important;border:1px solid #3c434f!important;color:#d5d8de!important}
+html body[data-theme=steam][data-color-mode=dark] :is(.primary,#footerUpdate){background:linear-gradient(110deg,#2d9ff1,#2159c4)!important;color:white!important;box-shadow:none!important}
+html body[data-theme=steam][data-color-mode=dark] :is(.play,#quickPlay,#editorPlay,.version-play,#playCurrentBedrock){background:linear-gradient(100deg,#75b21a,#07a956)!important;color:white!important;text-shadow:none!important}
+html body[data-theme=steam][data-color-mode=dark] :is(.primary,.play):hover{filter:brightness(1.12)}
+html body[data-theme=steam] :is(.heading h1,.hero h1,.hero h2){font-family:var(--ui-font)!important;font-weight:500;letter-spacing:0;font-size:28px}
+html body[data-theme=steam][data-color-mode=dark] .hero{background:linear-gradient(115deg,#333e4c,#252c35)!important;border:0!important;border-radius:3px}
+html body[data-theme=steam] .hero:before,html body[data-theme=steam] .hero:after{display:none}
+html body[data-theme=steam] .store-page .hero{min-height:300px}
+html body[data-theme=steam][data-color-mode=dark] #quickLaunch{background:#20252d!important;border-color:#3b424f!important;border-radius:3px!important}
+html body[data-theme=steam] :is(.account-menu-identity,.friend-row){font-family:var(--ui-font)!important}
+/* Aero: luminous landscape, reflective glass, aqua controls and green launch actions. */
+html body[data-theme=aero][data-color-mode]{background-image:url('assets/aero-landscape.jpg')!important;background-position:center!important;background-size:cover!important;background-attachment:fixed!important}
+html body[data-theme=aero][data-color-mode] :is(#main,#shell,.settings-workspace,.settings-content){background:transparent!important}
+html body[data-theme=aero][data-color-mode=light] :is(#titlebar,#navigation,#shell>footer){background:linear-gradient(#ffffffdf,#ccecf3b8)!important;border-color:#ffffffb0!important;box-shadow:inset 0 1px #fff,0 1px 8px #06496130}
+html body[data-theme=aero][data-color-mode=light] :is(.panel,.glass,.settings-sidebar,.instance-card,.version-card,.catalog-card,.store-ranking,.store-category-showcase){background:linear-gradient(145deg,#fffffff0,#d8f5f2d9)!important;border:1px solid #ffffffd9!important;box-shadow:inset 0 1px #fff,0 5px 18px #07526d26!important;border-radius:12px!important}
+html body[data-theme=aero][data-color-mode=dark] :is(.panel,.glass,.settings-sidebar,.instance-card,.version-card,.catalog-card,#titlebar,#navigation,#shell>footer){background:linear-gradient(145deg,#123f50ed,#082b3de8)!important;border-color:#8fdbef70!important;box-shadow:inset 0 1px #b5edff35,0 5px 18px #001d3f55!important}
+html body[data-theme=aero][data-color-mode=light] button{background:linear-gradient(#ffffffef 0%,#d5f3faee 46%,#afe1ebee 49%,#e2fcfaee)!important;border:1px solid #77baca!important;box-shadow:inset 0 1px #fff,0 1px 2px #0c607522!important;color:#0b495f!important;border-radius:8px!important}
+html body[data-theme=aero][data-color-mode=dark] button{background:linear-gradient(#3b7887,#175267 49%,#0b3b50 51%,#216278)!important;color:#e8faff!important;border-color:#76c4d077!important;border-radius:8px!important}
+html body[data-theme=aero][data-color-mode] :is(.primary,.play,#quickPlay,#editorPlay){background:linear-gradient(#bcf873 0%,#80cf3a 46%,#49a419 49%,#70c835)!important;border-color:#458f25!important;color:#123c08!important;box-shadow:inset 0 1px #f2ffcd,0 2px 6px #164d3520!important;text-shadow:0 1px #e1ffbc77}
+html body[data-theme=aero][data-color-mode] :is(#navigation button,.window-controls button,.modal-close,.friend-more){background:transparent!important;box-shadow:none!important;border-color:transparent!important}
+html body[data-theme=aero][data-color-mode=light] .hero{background:linear-gradient(120deg,#eafff5df,#a8e5edcc)!important;border:1px solid #fff!important;border-radius:14px}
+html body[data-theme=aero][data-color-mode=dark] .hero{background:linear-gradient(120deg,#1c5f69e8,#123952e0)!important}
+html body[data-theme=aero][data-color-mode=light] :is(dialog,.dropdown,#friendsPanel,#notificationsPanel){background:linear-gradient(#f4ffff,#d8f0f4)!important}
+html body[data-theme=aero][data-color-mode=dark] :is(dialog,.dropdown,#friendsPanel,#notificationsPanel){background:linear-gradient(#17495b,#102e43)!important}
+html body[data-theme=aero][data-color-mode] #wallpaperScene:after{background:linear-gradient(#001b3208,#00324920)}
+/* Smooth icon assets use vector geometry; the remaining themes keep pixel icons. */
+html body:is([data-theme=steam],[data-theme=windows],[data-theme=aero],[data-theme=modern],[data-theme=liquid]) .pixel-icon{image-rendering:auto}
+html body:is([data-theme=steam],[data-theme=windows],[data-theme=aero],[data-theme=modern],[data-theme=liquid]) .window-pixel{border-radius:1px}
+@media(max-width:700px){html body[data-theme=steam] #navigation{gap:13px;padding-left:14px}html body[data-theme=steam] #navigation button{font-size:15px!important}}
+
+html body[data-theme=aero][data-color-mode] .instance-card:has(.card-bg) :is(h3,.instance-meta,.muted,p,small){color:#effcff!important;text-shadow:0 1px 3px #001b37bb!important}
+html body[data-theme=aero][data-color-mode=light] #main>section>.section-label{background:#ecffffdd;border:1px solid #fff9;border-radius:8px;padding:10px 12px}
+
+html body:is([data-theme=modern],[data-theme=gradient])[data-color-mode] button:not(.primary):not(.play),html body[data-theme=dark][data-color-mode=light] button:not(.primary):not(.play){background:transparent!important;background-image:none!important;box-shadow:none!important}
+html body:is([data-theme=modern],[data-theme=gradient])[data-color-mode] button:not(.primary):not(.play):hover,html body[data-theme=dark][data-color-mode=light] button:not(.primary):not(.play):hover{background:#ffffff0c!important}

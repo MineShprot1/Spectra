@@ -79,8 +79,31 @@ public record LauncherPreferences
  public bool ChatNotifications {get;set;}=true;
  public bool GroupNotifications {get;set;}=true;
 }
+public record LauncherMediaAsset
+{
+ public string Id {get;set;}="";
+ public string Name {get;set;}="";
+ public string Kind {get;set;}="image";
+ public double Volume {get;set;}=.35;
+}
+public record WallpaperPlacement
+{
+ public bool Live {get;set;}
+ public double Zoom {get;set;}=1;
+ public int Blur {get;set;}
+}
+public record LauncherMediaSettings
+{
+ public List<LauncherMediaAsset> Backgrounds {get;set;}=[];
+ public List<LauncherMediaAsset> Sounds {get;set;}=[];
+ public string Background {get;set;}="default";
+ public string Music {get;set;}="";
+ public string Login {get;set;}="";
+ public Dictionary<string,WallpaperPlacement> Placements {get;set;}=new();
+}
 public record Configuration
 {
+ public LauncherMediaSettings Media {get;set;}=new();
  [JsonIgnore] public string CurseForgeKey { get; set; } = "";
  [JsonIgnore] public string CraftyKey { get; set; } = "";
  public string FriendsEndpoint {get;set;}="https://spectra-friends.spectrafriends.workers.dev";

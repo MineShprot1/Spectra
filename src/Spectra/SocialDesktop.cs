@@ -48,23 +48,13 @@ public sealed partial class SocialDesktop:IDisposable
  {
   if(popup!=null||queue.Count==0||disposed)return;var n=queue.Dequeue();
   var titleText=n.Action["type"]?.ToString() is "chat" or "friend"?n.Title:localize(n.Title);var bodyText=n.Action["type"]?.ToString()=="chat"&&n.Action["systemMessage"]?.GetValue<bool>()!=true?n.Text:localize(n.Text);titleText=titleText[..Math.Min(titleText.Length,100)];bodyText=bodyText[..Math.Min(bodyText.Length,130)];
-  var font=new FontFamily("Consolas");var fontPath=Path.Combine(AppContext.BaseDirectory,"Web","assets","minecraft.ttf");
-  try{if(File.Exists(fontPath))font=new FontFamily(new Uri(Path.GetDirectoryName(fontPath)!+Path.DirectorySeparatorChar),"./#Minecraft Rus");}catch{}
-  var grid=new Grid{Margin=new Thickness(12,8,12,10)};for(int i=0;i<4;i++)grid.RowDefinitions.Add(new(){Height=GridLength.Auto});
-  var brand=new TextBlock{Text="■ SPECTRA NETWORK",Foreground=Surface("accent"),FontSize=11,FontFamily=font,Margin=new Thickness(0,2,28,7)};grid.Children.Add(brand);
-  var close=PixelButton("×");close.FontFamily=font;close.HorizontalAlignment=HorizontalAlignment.Right;close.ToolTip=localize("Закрыть уведомление");grid.Children.Add(close);
-  var title=new TextBlock{Text=titleText,Foreground=Surface("text"),FontFamily=font,FontSize=13,LineHeight=18,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,9)};Grid.SetRow(title,1);grid.Children.Add(title);
-  var text=new TextBlock{Text=bodyText,Foreground=Surface("muted"),FontFamily=font,FontSize=11,LineHeight=16,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};Grid.SetRow(text,2);grid.Children.Add(text);
-  var link=PixelButton(localize("Открыть в Spectra →"),true);link.FontFamily=font;link.HorizontalAlignment=HorizontalAlignment.Right;Grid.SetRow(link,3);grid.Children.Add(link);
-  var root=new Grid{Background=Surface("panel")};root.RowDefinitions.Add(new(){Height=new GridLength(3)});root.RowDefinitions.Add(new(){Height=GridLength.Auto});root.RowDefinitions.Add(new(){Height=new GridLength(3)});
-  root.Children.Add(new Border{Background=Surface("accent")});Grid.SetRow(grid,1);root.Children.Add(grid);var lifetime=new Border{Background=Surface("accent"),RenderTransformOrigin=new Point(0,0),RenderTransform=new ScaleTransform(1,1)};Grid.SetRow(lifetime,2);root.Children.Add(lifetime);
-  var border=new Border{Child=root,BorderBrush=Surface("border"),BorderThickness=new Thickness(1),SnapsToDevicePixels=true};
-  var w=new Window{Width=Math.Min(320,SystemParameters.WorkArea.Width-24),SizeToContent=SizeToContent.Height,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowInTaskbar=false,ShowActivated=false,Topmost=true,Background=Surface("panel"),Content=border,Opacity=0,UseLayoutRounding=true};popup=w;
+  var content=NotificationContent(titleText,bodyText,n.Action);var border=content.Root;var close=content.Close;var lifetime=content.Lifetime;
+  var w=new Window{Width=Math.Min(340,SystemParameters.WorkArea.Width-24),SizeToContent=SizeToContent.Height,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowInTaskbar=false,ShowActivated=false,Topmost=true,Background=Surface("panel"),Content=border,Opacity=0,UseLayoutRounding=true};popup=w;
   var timer=new DispatcherTimer{Interval=TimeSpan.FromSeconds(6)};bool closing=false;
   void StartTimer(){if(closing)return;timer.Start();if(SystemParameters.ClientAreaAnimation)((ScaleTransform)lifetime.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty,new DoubleAnimation(1,0,TimeSpan.FromSeconds(6)));}
   void Dismiss(){if(closing)return;closing=true;timer.Stop();if(SystemParameters.ClientAreaAnimation){w.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(0,TimeSpan.FromMilliseconds(160)));var animation=new DoubleAnimation(w.Left+24,TimeSpan.FromMilliseconds(160));animation.Completed+=(_,_)=>w.Close();w.BeginAnimation(Window.LeftProperty,animation);}else w.Close();}
   void Open(){Show();open(n.Action);Dismiss();}
-  close.Click+=(_,_)=>Dismiss();link.Click+=(_,_)=>Open();title.MouseLeftButtonUp+=(_,_)=>Open();text.MouseLeftButtonUp+=(_,_)=>Open();
+  close.Click+=(_,_)=>Dismiss();border.MouseLeftButtonUp+=(_,_)=>{if(!close.IsMouseOver)Open();};
   w.MouseEnter+=(_,_)=>{timer.Stop();((ScaleTransform)lifetime.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty,null);};w.MouseLeave+=(_,_)=>StartTimer();
   w.Closed+=(_,_)=>{timer.Stop();popup=null;Next();};
   w.Loaded+=(_,_)=>{var area=SystemParameters.WorkArea;w.Left=area.Right-w.Width-16;w.Top=area.Bottom-w.ActualHeight-16;if(SystemParameters.ClientAreaAnimation){w.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(1,TimeSpan.FromMilliseconds(220)));w.BeginAnimation(Window.LeftProperty,new DoubleAnimation(w.Left+30,w.Left,TimeSpan.FromMilliseconds(220)){EasingFunction=new CubicEase{EasingMode=EasingMode.EaseOut}});}else w.Opacity=1;StartTimer();};timer.Tick+=(_,_)=>Dismiss();w.Show();
