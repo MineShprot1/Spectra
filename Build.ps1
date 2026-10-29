@@ -46,6 +46,8 @@ dotnet build src/Spectra/Spectra.csproj -c Release --no-restore
 if ($LASTEXITCODE) { throw 'Build failed' }
 dotnet run --project tests/Workspace.Tests.csproj -c Release
 if ($LASTEXITCODE) { throw 'Workspace feature tests failed' }
+dotnet run --project tests/Tray.Tests.csproj -c Release
+if ($LASTEXITCODE) { throw 'Native tray tests failed' }
 dotnet run --project tests/Spectra.Tests.csproj -c Release
 if ($LASTEXITCODE) { throw 'Tests failed' }
 dotnet run --project tests/features/Features.Tests.csproj -c Release

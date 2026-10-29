@@ -21,7 +21,7 @@ const SpectraProjects=(()=>{
   select.onchange=()=>{host.querySelector('#projectContentsTab').textContent='Состав';loadContents();};loadContents();
  }
  async function open(source,id,kind,instanceId=''){
-  const side=kind!=='modpacks'&&instanceId&&$('#modalResults')&&$('#modal').open;let sideHost;if(side){sideHost=$('#catalogProjectSide');if(!sideHost){sideHost=document.createElement('aside');sideHost.id='catalogProjectSide';$('#modalContent').prepend(sideHost);}$('#modal').classList.add('catalog-split-dialog');}
+  const side=kind!=='modpacks'&&instanceId&&$('#modalResults')&&$('#modal').open;let sideHost;if(side){sideHost=$('#catalogProjectSide');if(!sideHost){sideHost=document.createElement('aside');sideHost.id='catalogProjectSide';sideHost.className='download-project';sideHost.ondragstart=e=>{if(e.target.closest('img'))e.preventDefault();};($('#modalContent .download-browser')||$('#modalContent')).append(sideHost);}$('#modal').classList.add('catalog-split-dialog');}
   const ticket=++request,overlay=kind!=='modpacks',view=overlay?viewSeq:++viewSeq;
   const loading=`${overlay?closeButton():''}<div class="project-loading" data-project-request="${ticket}">${empty('Открываем страницу','Получаем описание, авторов и скриншоты…')}</div>`;
   if(side){sideHost.innerHTML=loading;}else if(overlay){modal(loading);$('#modal').classList.add('project-dialog');}else{$('#main').innerHTML='<section>'+loading+'</section>';}

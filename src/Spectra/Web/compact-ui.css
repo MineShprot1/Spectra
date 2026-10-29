@@ -1,0 +1,92 @@
+/* Changes are scoped to requested components; keep the classic launcher shell. */
+.store-toolbar .edition-switch{border:0;box-shadow:none}
+html body #modal.download-dialog{resize:none!important;overscroll-behavior:none}
+#modal.download-dialog .download-catalog{container-type:inline-size}
+#modal.download-dialog .download-filter-menu .catalog-filters{width:min(310px,calc(100cqw - 64px))}
+#modal.download-dialog img{-webkit-user-drag:none}
+#friendsPanel .friend-row[data-relation=incoming] .friend-row-actions,#friendsPanel .friend-row[data-relation=outgoing] .friend-row-actions{flex-direction:row}
+#friendsPanel .friend-row.selected{background:var(--surface-raised,#ffffff08)}
+.store-toolbar{align-items:center;gap:10px}.store-toolbar .edition-switch{display:flex;align-items:stretch;align-self:center;margin:0!important;padding:0;height:34px;flex:none}.store-toolbar .edition-switch button{height:34px!important;min-height:34px!important;padding:6px 11px!important;font-size:12px!important;line-height:20px!important;margin:0;box-sizing:border-box}.store-toolbar .store-search{align-items:center}.store-toolbar .store-search input,.store-toolbar .store-search button,.store-toolbar>#contentImport{height:34px!important;min-height:34px!important;padding:6px 10px!important;font-size:12px;line-height:20px;box-sizing:border-box}.store-category-field[hidden]{display:none!important}
+.store-sidebar{overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;min-height:0}.store-sidebar>button{min-width:0;overflow-wrap:anywhere}.store-sidebar>[data-store-query]{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.store-feature-info{justify-content:center}.store-feature-info>button{margin-top:8px}
+.mod-side-label{font-size:10px;color:var(--text-muted,var(--theme-text));padding:5px 7px;border:1px solid var(--surface-edge,#ffffff20);white-space:nowrap;cursor:default;flex:none}
+/* The dialog never scrolls as one page: each pane owns its vertical scrolling. */
+html body #modal.download-dialog{width:min(1180px,96vw)!important;max-width:96vw!important;height:min(760px,88dvh)!important;max-height:88dvh!important;padding:0!important;overflow:hidden!important;box-sizing:border-box}
+#modal.download-dialog #modalContent{display:block!important;height:100%;max-height:none!important;min-height:0;padding:0!important;overflow:hidden!important}
+#modal.download-dialog .download-browser{display:grid;grid-template-columns:minmax(0,1fr);width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}
+#modal.download-dialog.catalog-split-dialog .download-browser{grid-template-columns:minmax(280px,.85fr) minmax(0,1.15fr)}
+#modal.download-dialog .download-catalog{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-width:0;min-height:0;overflow:hidden}
+#modal.download-dialog .download-header{padding:12px 46px 10px 14px;border-bottom:1px solid var(--surface-edge,#ffffff20);min-width:0;position:relative;z-index:3}
+#modal.download-dialog .download-title{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:9px}
+#modal.download-dialog .download-title h2{font-size:16px!important;line-height:1.4;margin:0;padding:0!important;border:0;letter-spacing:0}
+#modal.download-dialog .download-title small{font-size:10px;opacity:.6;overflow-wrap:anywhere}
+#modal.download-dialog .download-query-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;min-width:0}
+#modal.download-dialog .download-query-row>input,#modal.download-dialog .download-query-row>button,#modal.download-dialog .download-filter-menu>summary{min-height:30px!important;height:30px;font-size:11px;padding:5px 8px!important;margin:0;box-sizing:border-box;line-height:18px}
+#modal.download-dialog .download-query-row>input{width:100%;min-width:0}
+#modal.download-dialog .download-filter-menu{position:relative;min-width:0}
+#modal.download-dialog .download-filter-menu>summary{cursor:pointer;border:1px solid var(--surface-edge,#ffffff20);background:var(--theme-bg);white-space:nowrap}
+#modal.download-dialog .download-filter-menu .catalog-filters{position:absolute;top:calc(100% + 6px);right:0;width:min(310px,calc(100cqw - 64px));max-height:min(350px,55dvh);overflow:auto;display:grid!important;grid-template-columns:1fr!important;gap:9px;padding:12px!important;margin:0!important;background:var(--theme-panel)!important;border:1px solid var(--surface-edge,#ffffff20);box-shadow:0 8px 24px #0005;animation:none!important}
+#modal.download-dialog .catalog-filters label{gap:4px;font-size:10px}
+#modal.download-dialog .catalog-filters select{min-height:30px!important;padding:5px!important;font-size:11px}
+#modal.download-dialog #modalResults{min-width:0;min-height:0;max-height:none!important;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:12px;scrollbar-gutter:stable;contain:inline-size}
+#modal.download-dialog #modalResults .catalog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+#modal.download-dialog #modalResults .catalog-card,#modal.download-dialog #modalResults .catalog-card:first-child{grid-column:auto;padding:12px!important;min-width:0}
+#modal.download-dialog #modalResults .catalog-card h3,#modal.download-dialog #modalResults .catalog-card:first-child h3{font-size:13px!important;line-height:1.45}
+#modal.download-dialog #modalResults .catalog-icon,#modal.download-dialog #modalResults .catalog-card:first-child .catalog-icon{width:40px;height:40px;flex:none}
+#modal.download-dialog #modalResults .catalog-card p{font-size:11px;line-height:1.5}
+#modal.download-dialog #modalResults .catalog-bottom{gap:6px;flex-wrap:wrap}
+#modal.download-dialog #modalResults .catalog-bottom button{min-height:28px;font-size:10px;padding:5px 8px}
+#modal.download-dialog.catalog-split-dialog #modalResults .catalog-grid{grid-template-columns:1fr}
+#modal.download-dialog .download-footer{padding:7px 12px;background:transparent!important;border-top:1px solid var(--surface-edge,#ffffff20);display:flex;justify-content:center;min-height:0;grid-column:auto}
+#modal.download-dialog .download-footer:has(button[hidden]){display:none}
+#modal.download-dialog .download-footer button{font-size:11px;padding:6px 10px}
+#modal.download-dialog #catalogProjectSide.download-project{grid-column:auto!important;grid-row:auto!important;position:relative!important;min-width:0;min-height:0;max-height:none!important;height:100%;padding:14px 16px!important;border:0;border-left:1px solid var(--surface-edge,#ffffff20);overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain;contain:inline-size;scrollbar-gutter:stable}
+#modal.download-dialog #catalogProjectSide .project-page{min-width:0;width:100%}
+#modal.download-dialog #catalogProjectSide .project-header{gap:10px;margin-top:12px}
+#modal.download-dialog #catalogProjectSide h1{font-size:23px!important;overflow-wrap:anywhere}
+#modal.download-dialog #catalogProjectSide .project-body{display:block;min-width:0}
+#modal.download-dialog #catalogProjectSide .project-description{min-width:0;max-width:100%;overflow-wrap:anywhere}
+#modal.download-dialog #catalogProjectSide :is(img,video){max-width:100%;height:auto;object-fit:contain}
+#modal.download-dialog #catalogProjectSide #projectHero img{max-height:220px}
+#modal.download-dialog #catalogProjectSide :is(table,pre){display:block;max-width:100%;overflow:auto}
+#modal.download-dialog #catalogProjectSide .project-sidebar{margin-top:18px;padding:12px;position:static}
+#modal.download-dialog>.modal-close,#modal.download-dialog #modalContent>.modal-close{position:absolute;top:8px!important;right:10px!important;z-index:8}
+#modal.download-dialog #catalogProjectSide>.modal-close{top:8px!important;right:44px!important;z-index:5}
+/* Compact identity layout with activity colors, in Spectra's existing palette. */
+[data-presence=playing]{--presence-color:#8fbe62}[data-presence=online]{--presence-color:var(--theme-accent,#9fc8f3)}[data-presence=offline],[data-presence=invisible]{--presence-color:color-mix(in srgb,var(--theme-text) 45%,var(--theme-panel))}
+#account.account{gap:0;padding:0 9px 0 0;min-height:34px;overflow:hidden;background:color-mix(in srgb,var(--theme-text) 6%,var(--theme-panel));border:1px solid var(--surface-edge,#ffffff20);border-radius:3px;margin-right:12px}
+#account .avatar{width:34px;height:34px;flex:none;margin-right:10px;border-right:2px solid var(--presence-color,var(--theme-accent));border-radius:0}
+#account #accountName{font:400 13px var(--ui-font,'SpectraReading');color:var(--presence-color,var(--theme-accent));max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#account .account-chevron{width:12px;height:12px;margin-left:10px;color:var(--theme-accent)}
+#accountMenu .account-menu-identity{display:flex;align-items:center;gap:11px;padding:12px;border-bottom:1px solid var(--surface-edge,#ffffff20)}
+#accountMenu .account-menu-face{width:38px;height:38px;border-left:2px solid var(--presence-color);flex:none}
+#accountMenu .account-menu-identity strong{color:var(--presence-color);font-size:14px;font-weight:400}
+.identity-status{display:block;color:var(--presence-color);font-size:11px;margin-top:5px}.identity-status:before{content:'';display:inline-block;width:5px;height:5px;background:var(--presence-color);margin-right:6px;vertical-align:middle}.identity-activity{display:block;font-size:10px;opacity:.55;margin-top:4px}
+#accountMenu .presence-choices{display:flex;gap:5px;padding:8px 10px;border-bottom:1px solid var(--surface-edge,#ffffff20)}
+#accountMenu .presence-choices button{flex:1;padding:6px;font-size:10px}.presence-choices button[aria-pressed=true]{border-color:var(--theme-accent)}
+/* Steam-like grouping and interaction, without a Steam skin or separate window. */
+#friendsPanel{width:min(390px,calc(100vw - 24px));padding:0!important;display:flex;flex-direction:column;max-height:calc(100dvh - 72px);overflow:hidden;border:1px solid var(--surface-edge,#ffffff20);border-radius:var(--theme-radius);box-shadow:0 12px 36px #0005}
+#friendsPanel .friends-window-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid var(--surface-edge,#ffffff20)}
+#friendsPanel .friends-window-heading h2{font-size:13px;margin:0;letter-spacing:1px}
+#friendsPanel #friendsClose{padding:2px 6px;min-height:22px;border:0;box-shadow:none;background:transparent}
+#friendsPanel .friends-self{display:flex;align-items:center;gap:12px;padding:14px 13px;background:color-mix(in srgb,var(--theme-accent) 5%,var(--theme-panel))}
+.friends-self-face{width:40px;height:40px;flex:none;border-left:2px solid var(--presence-color);background:var(--theme-bg);overflow:hidden}.friends-self-face img{width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.friends-self strong{color:var(--presence-color);font-size:15px;font-weight:400}
+#friendsPanel .friends-tabs{display:flex;gap:0;padding:0 10px;border-bottom:1px solid var(--surface-edge,#ffffff20);margin:0}
+#friendsPanel .friends-tabs button{padding:9px 8px;font-size:10px;background:transparent;border:0;box-shadow:none;border-bottom:2px solid transparent}
+#friendsPanel .friends-tabs button.active{color:var(--theme-accent);border-bottom-color:var(--theme-accent)}
+#friendsPanel .friends-search-row{display:flex;gap:6px;padding:10px}.friends-search-row .friends-search{margin:0;min-width:0;flex:1}.friends-search-row input{width:100%;height:31px;padding:6px 9px;font-size:11px}.friends-search-row>button{width:31px;height:31px;padding:6px}
+#friendsPanel .friends-list{flex:1;min-height:80px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:0 8px;max-height:none}
+.friend-group>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 5px;font-size:10px;color:var(--text-muted,var(--theme-text));border-bottom:1px solid var(--surface-edge,#ffffff15)}.friend-group>summary:before{content:'▸';font-size:10px}.friend-group[open]>summary:before{content:'▾'}.friend-group>summary small{margin-left:auto;opacity:.5}
+#friendsPanel .friend-row{padding:10px 5px;display:flex;gap:10px;align-items:flex-start;border:0;border-bottom:1px solid color-mix(in srgb,var(--theme-text) 5%,transparent)}
+#friendsPanel .friend-avatar{width:33px;height:33px;flex:none;border:0;border-left:2px solid var(--presence-color);border-radius:0;background:var(--theme-bg)}
+#friendsPanel .friend-details{min-width:0;flex:1;padding:0}.friend-details .friend-name-line{display:flex;align-items:center;gap:4px}
+#friendsPanel .friend-name-line>button:first-child{min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:left;padding:0;font-size:13px;line-height:1.5;color:var(--presence-color);background:transparent;border:0;box-shadow:none}
+#friendsPanel .friend-details>small{display:block;margin-top:3px;font-size:10px;line-height:1.5;color:var(--presence-color);opacity:.7;overflow-wrap:anywhere}
+#friendsPanel .friend-name-line .friend-more{padding:0 5px;min-height:20px;font-size:11px;background:transparent;border:0;box-shadow:none}
+#friendsPanel .friend-row-actions{display:flex;flex-direction:column;gap:4px;margin-top:9px;padding:8px;background:var(--theme-bg);border:1px solid var(--surface-edge,#ffffff20)}
+#friendsPanel .friend-row-actions button{text-align:left;font-size:10px;padding:6px 8px}
+#friendsPanel .friends-actions{display:flex;gap:6px;flex-wrap:wrap;padding:10px;margin:0;border-top:1px solid var(--surface-edge,#ffffff20)}
+#friendsPanel .friends-actions button{font-size:10px;padding:6px 9px}.friends-count{font-size:10px;opacity:.55}
+@media(max-width:760px){.store-sidebar{position:static;max-height:none!important;flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;scrollbar-gutter:auto}.store-sidebar>button{flex:none;width:auto;white-space:nowrap}.store-sidebar>[data-store-query]{display:inline-flex!important}.store-toolbar{gap:8px}.store-toolbar .store-search{min-width:200px}}
+@media(max-width:760px){#modal.download-dialog.catalog-split-dialog .download-browser{grid-template-columns:minmax(0,1fr)}#modal.download-dialog.catalog-split-dialog .download-catalog{display:none}#modal.download-dialog #catalogProjectSide.download-project{border:0;padding-top:12px!important}#modal.download-dialog #modalResults .catalog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){#modal.download-dialog #modalResults .catalog-grid{grid-template-columns:1fr}}

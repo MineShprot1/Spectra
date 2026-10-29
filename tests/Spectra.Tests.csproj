@@ -3,5 +3,5 @@
  <ItemGroup><PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" /><Compile Include="../src/Spectra/LauncherLocalization.cs" Link="LauncherLocalization.cs" /></ItemGroup>
  <ItemGroup><Compile Include="../src/Spectra/BuiltInConnections.cs" Link="BuiltInConnections.cs" /><Compile Include="../src/Spectra/Models.cs" Link="Models.cs" /><Compile Include="../src/Spectra/Nbt.cs" Link="Nbt.cs" /><Compile Include="../src/Spectra/Network.cs" Link="Network.cs" /><Compile Include="../src/Spectra/UpdateService.cs" Link="UpdateService.cs" /></ItemGroup>
 <ItemGroup><Compile Remove="ActivityTests.cs" /><Compile Remove="features/**/*.cs" /><Compile Remove="workspace/**/*.cs" /><Compile Remove="catalog/**/*.cs" />
-    <Compile Remove="social/**/*.cs" /></ItemGroup>
+    <Compile Remove="social/**/*.cs" /><Compile Remove="tray/**/*.cs" /></ItemGroup>
 </Project>

@@ -15,11 +15,10 @@ public sealed class SocialVault(Store store)
  public JsonNode Load(string scope){var path=PathFor(scope);if(!File.Exists(path))return new JsonObject();if(new FileInfo(path).Length>8*1024*1024)throw new IOException("Слишком большое хранилище чата");return JsonNode.Parse(Encoding.UTF8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(path),null,DataProtectionScope.CurrentUser)))??new JsonObject();}
  public void Save(string scope,JsonNode value){var raw=Encoding.UTF8.GetBytes(value.ToJsonString());if(raw.Length>8*1024*1024)throw new IOException("История чатов переполнена");var path=PathFor(scope);Directory.CreateDirectory(Path.GetDirectoryName(path)!);File.WriteAllBytes(path+".tmp",ProtectedData.Protect(raw,null,DataProtectionScope.CurrentUser));File.Move(path+".tmp",path,true);}
 }
-public sealed class SocialDesktop:IDisposable
+public sealed partial class SocialDesktop:IDisposable
 {
  readonly Func<string,string> localize;readonly Window main;readonly Action<JsonNode> open;readonly System.Windows.Forms.NotifyIcon tray;readonly MediaPlayer sound=new();readonly Queue<(string Title,string Text,JsonNode Action)> queue=new();Window? popup;bool quitting,disposed;
  readonly Func<string> appearance;
- readonly System.Drawing.Text.PrivateFontCollection trayFonts=new();
  bool LightMode(){try{var config=JsonNode.Parse(appearance());var theme=config.Str("theme");var mode=config?["themeModes"].Str(theme);return theme=="light"||mode=="light"||mode==""&&(theme=="aero"||theme=="liquid"&&config.Str("liquidMode")!="dark");}catch{return false;}}
  SolidColorBrush Surface(string role){var light=LightMode();string theme;try{theme=JsonNode.Parse(appearance()).Str("theme");}catch{theme="dark";}var palette=(theme,light) switch{
   ("steam",true)=>new[]{"#eef2f5","#ffffff","#243746","#1673ab"},("steam",false)=>new[]{"#1b2028","#2a2e35","#dcdedf","#1a9fff"},
@@ -29,23 +28,12 @@ public sealed class SocialDesktop:IDisposable
   ("liquid",true)=>new[]{"#e7edf7","#ffffff","#172339","#007aff"},("liquid",false)=>new[]{"#101723","#1b2638","#edf3ff","#64acff"},
   (_,true)=>new[]{"#edf3fa","#ffffff","#15243b","#286ac8"},_=>new[]{"#090e18","#172333","#edf3fc","#9fc8f3"}};
   var index=role switch{"bg"=>0,"panel"=>1,"text"=>2,"accent"=>3,_=>-1};if(index>=0)return new((Color)ColorConverter.ConvertFromString(palette[index]));return role=="muted"?(light?Ink(87,104,125):Ink(165,183,204)):(light?Ink(169,185,204):Ink(66,86,110));}
- public SocialDesktop(Window main,Action<JsonNode> open,Func<string,string>? localize=null,Action<string>? onCommand=null,Func<string>? appearance=null){this.localize=localize??(value=>value);this.appearance=appearance??(()=>"{}");this.main=main;this.open=open;
-  var menu=new System.Windows.Forms.ContextMenuStrip{ShowImageMargin=false,Padding=new System.Windows.Forms.Padding(5),Font=new System.Drawing.Font("Consolas",10)};
-  try{var fontFile=Path.Combine(AppContext.BaseDirectory,"Web","assets","minecraft.ttf");if(File.Exists(fontFile)){trayFonts.AddFontFile(fontFile);menu.Font=new System.Drawing.Font(trayFonts.Families[0],10);}}catch{/* A monospace fallback keeps the menu usable if the bundled font cannot load. */}
-  void Item(string label,string command){var item=menu.Items.Add(label,null,(_,_)=>{if(command=="show")Show();else onCommand?.Invoke(command);});item.Tag=label;}
-  Item("Открыть Spectra","show");Item("Библиотека сборок","instances");Item("Версии Minecraft","versions");Item("Друзья и чат","friends");menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());Item("Запустить выбранную сборку","launch");Item("Открыть папку Spectra","folder");Item("Настройки","settings");Item("Переключить уведомления","mute");menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());var exit=menu.Items.Add("Выйти полностью",null,(_,_)=>{quitting=true;Dispose();Application.Current.Shutdown();});exit.Tag="Выйти полностью";
-  tray=new(){Text=this.localize("Spectra · работает в фоне"),Icon=System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)??System.Drawing.SystemIcons.Application,Visible=true,ContextMenuStrip=menu};menu.Opening+=(_,_)=>RefreshLanguage();tray.DoubleClick+=(_,_)=>Show();main.Closing+=(_,e)=>{if(!quitting){e.Cancel=true;main.Hide();}};Application.Current.SessionEnding+=(_,_)=>quitting=true;
+ public SocialDesktop(Window main,Action<JsonNode> open,Func<string,string>? localize=null,Action<string>? onCommand=null,Func<string>? appearance=null,Func<DesktopIdentity>? identity=null){this.localize=localize??(value=>value);this.appearance=appearance??(()=>"{}");this.main=main;this.open=open;
+  this.identity=identity??(()=>new DesktopIdentity("Spectra","","offline","Не в сети",false,false,""));this.command=onCommand;
+  tray=new(){Text=this.localize("Spectra · работает в фоне"),Icon=System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)??System.Drawing.SystemIcons.Application,Visible=true};tray.DoubleClick+=(_,_)=>Show();tray.MouseUp+=(_,e)=>{if(e.Button==System.Windows.Forms.MouseButtons.Right)main.Dispatcher.Invoke(OpenTray);};
+  main.Closing+=(_,e)=>{if(!quitting){e.Cancel=true;main.Hide();}};Application.Current.SessionEnding+=(_,_)=>quitting=true;
  }
- public void RefreshLanguage(){if(disposed)return;tray.Text=localize("Spectra · работает в фоне");var menu=tray.ContextMenuStrip;if(menu==null)return;foreach(System.Windows.Forms.ToolStripItem item in menu.Items)if(item.Tag is string key)item.Text=localize(key);var light=LightMode();menu.Renderer=new System.Windows.Forms.ToolStripProfessionalRenderer(new TrayColors(light,Drawing(Surface("panel")),Drawing(Surface("accent")))){RoundedEdges=false};menu.ForeColor=Drawing(Surface("text"));menu.BackColor=Drawing(Surface("panel"));}
- static System.Drawing.Color Drawing(SolidColorBrush brush)=>System.Drawing.Color.FromArgb(brush.Color.R,brush.Color.G,brush.Color.B);
- sealed class TrayColors(bool light,System.Drawing.Color panel,System.Drawing.Color accent):System.Windows.Forms.ProfessionalColorTable
- {
-  System.Drawing.Color Panel=>panel;
-  public override System.Drawing.Color ToolStripDropDownBackground=>Panel;
-  public override System.Drawing.Color ImageMarginGradientBegin=>Panel;public override System.Drawing.Color ImageMarginGradientMiddle=>Panel;public override System.Drawing.Color ImageMarginGradientEnd=>Panel;
-  public override System.Drawing.Color MenuItemSelected=>System.Drawing.Color.FromArgb((panel.R*4+accent.R)/5,(panel.G*4+accent.G)/5,(panel.B*4+accent.B)/5);
-  public override System.Drawing.Color MenuItemBorder=>MenuItemSelected;public override System.Drawing.Color MenuBorder=>light?System.Drawing.Color.LightSteelBlue:System.Drawing.Color.FromArgb(67,87,111);
- }
+ public void RefreshLanguage(){if(disposed)return;tray.Text=localize("Spectra · работает в фоне");if(trayMenu?.IsOpen==true)PopulateTray(trayMenu);}
  public void Show(){main.Show();if(main.WindowState==WindowState.Minimized)main.WindowState=WindowState.Normal;main.Activate();}
  public void Notify(string title,string text,JsonNode action){if(disposed)return;if(queue.Count>=20)queue.Dequeue();queue.Enqueue((title[..Math.Min(title.Length,1000)],text[..Math.Min(text.Length,8000)],action.DeepClone()));Next();}
  static SolidColorBrush Ink(byte r,byte g,byte b)=>new(Color.FromRgb(r,g,b));
@@ -83,5 +71,5 @@ public sealed class SocialDesktop:IDisposable
   var path=Path.Combine(AppContext.BaseDirectory,"Web","assets","notification.mp3");try{sound.Open(new Uri(path));sound.Volume=.7;sound.Play();}catch{}
  }
  public void Clear(){queue.Clear();popup?.Close();sound.Stop();}
- public void Dispose(){if(disposed)return;quitting=true;disposed=true;queue.Clear();popup?.Close();sound.Close();tray.Visible=false;tray.Dispose();trayFonts.Dispose();}
+ public void Dispose(){if(disposed)return;quitting=true;disposed=true;queue.Clear();popup?.Close();sound.Close();if(trayMenu!=null)trayMenu.IsOpen=false;tray.Visible=false;tray.Dispose();}
 }
