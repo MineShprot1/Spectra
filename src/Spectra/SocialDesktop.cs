@@ -28,8 +28,8 @@ public sealed partial class SocialDesktop:IDisposable
   ("liquid",true)=>new[]{"#e7edf7","#ffffff","#172339","#007aff"},("liquid",false)=>new[]{"#101723","#1b2638","#edf3ff","#64acff"},
   (_,true)=>new[]{"#edf3fa","#ffffff","#15243b","#286ac8"},_=>new[]{"#090e18","#172333","#edf3fc","#9fc8f3"}};
   var index=role switch{"bg"=>0,"panel"=>1,"text"=>2,"accent"=>3,_=>-1};if(index>=0)return new((Color)ColorConverter.ConvertFromString(palette[index]));return role=="muted"?(light?Ink(87,104,125):Ink(165,183,204)):(light?Ink(169,185,204):Ink(66,86,110));}
- public SocialDesktop(Window main,Action<JsonNode> open,Func<string,string>? localize=null,Action<string>? onCommand=null,Func<string>? appearance=null,Func<DesktopIdentity>? identity=null){this.localize=localize??(value=>value);this.appearance=appearance??(()=>"{}");this.main=main;this.open=open;
-  this.identity=identity??(()=>new DesktopIdentity("Spectra","","offline","Не в сети",false,false,""));this.command=onCommand;
+ public SocialDesktop(Window main,Action<JsonNode> open,Func<string,string>? localize=null,Action<string>? onCommand=null,Func<string>? appearance=null,Func<DesktopIdentity>? identity=null,PlayerAvatars? avatars=null){this.localize=localize??(value=>value);this.appearance=appearance??(()=>"{}");this.main=main;this.open=open;
+  trayAvatars=avatars??new();this.identity=identity??(()=>new DesktopIdentity("Spectra","","offline","Не в сети",false,false,""));this.command=onCommand;
   tray=new(){Text=this.localize("Spectra · работает в фоне"),Icon=System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)??System.Drawing.SystemIcons.Application,Visible=true};tray.DoubleClick+=(_,_)=>Show();tray.MouseUp+=(_,e)=>{if(e.Button==System.Windows.Forms.MouseButtons.Right)main.Dispatcher.Invoke(OpenTray);};
   main.Closing+=(_,e)=>{if(!quitting){e.Cancel=true;main.Hide();}};Application.Current.SessionEnding+=(_,_)=>quitting=true;
  }
@@ -71,5 +71,5 @@ public sealed partial class SocialDesktop:IDisposable
   var path=Path.Combine(AppContext.BaseDirectory,"Web","assets","notification.mp3");try{sound.Open(new Uri(path));sound.Volume=.7;sound.Play();}catch{}
  }
  public void Clear(){queue.Clear();popup?.Close();sound.Stop();}
- public void Dispose(){if(disposed)return;quitting=true;disposed=true;queue.Clear();popup?.Close();sound.Close();if(trayMenu!=null)trayMenu.IsOpen=false;tray.Visible=false;tray.Dispose();}
+ public void Dispose(){if(disposed)return;quitting=true;disposed=true;trayLifetime?.Stop();queue.Clear();popup?.Close();sound.Close();if(trayMenu!=null)trayMenu.IsOpen=false;tray.Visible=false;tray.Dispose();}
 }

@@ -10,10 +10,11 @@ static class TrayTests
  static void Main()
  {
   var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
+  AvatarTests.Run();
   var window=new Window();
   var snapshot=new DesktopIdentity("Player","","playing","Minecraft",true,false,"Test pack");
   string appearance="{}",command="";
-  using(var desktop=new SocialDesktop(window,_=>{},onCommand:value=>command=value,appearance:()=>appearance,identity:()=>snapshot))
+  using(var desktop=new SocialDesktop(window,_=>{},onCommand:value=>command=value,appearance:()=>appearance,identity:()=>snapshot,avatars:new PlayerAvatars(_=>Task.FromResult(Array.Empty<byte>()))))
   {
    var populate=typeof(SocialDesktop).GetMethod("PopulateTray",BindingFlags.Instance|BindingFlags.NonPublic)!;
    foreach(var light in new[]{false,true})
