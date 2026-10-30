@@ -17,7 +17,7 @@ public sealed class SocialVault(Store store)
 }
 public sealed partial class SocialDesktop:IDisposable
 {
- readonly Func<string,string> localize;readonly Window main;readonly Action<JsonNode> open;readonly System.Windows.Forms.NotifyIcon tray;readonly MediaPlayer sound=new();readonly Queue<(string Title,string Text,JsonNode Action)> queue=new();Window? popup;bool quitting,disposed;
+ readonly Func<string,string> localize;readonly Window main;readonly Action<JsonNode> open;readonly System.Windows.Forms.NotifyIcon tray;readonly MediaPlayer sound=new();bool quitting,disposed;
  readonly Func<string> appearance;
  bool LightMode(){try{var config=JsonNode.Parse(appearance());var theme=config.Str("theme");var mode=config?["themeModes"].Str(theme);return theme=="light"||mode=="light"||mode==""&&(theme=="aero"||theme=="liquid"&&config.Str("liquidMode")!="dark");}catch{return false;}}
  SolidColorBrush Surface(string role){var light=LightMode();string theme;try{theme=JsonNode.Parse(appearance()).Str("theme");}catch{theme="dark";}var palette=(theme,light) switch{
@@ -33,9 +33,8 @@ public sealed partial class SocialDesktop:IDisposable
   tray=new(){Text=this.localize("Spectra · работает в фоне"),Icon=System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)??System.Drawing.SystemIcons.Application,Visible=true};tray.DoubleClick+=(_,_)=>Show();tray.MouseUp+=(_,e)=>{if(e.Button==System.Windows.Forms.MouseButtons.Right)main.Dispatcher.Invoke(OpenTray);};
   main.Closing+=(_,e)=>{if(!quitting){e.Cancel=true;main.Hide();}};Application.Current.SessionEnding+=(_,_)=>quitting=true;
  }
- public void RefreshLanguage(){if(disposed)return;tray.Text=localize("Spectra · работает в фоне");if(trayMenu?.IsOpen==true)PopulateTray(trayMenu);}
+ public void RefreshLanguage(){if(disposed)return;tray.Text=localize("Spectra · работает в фоне");if(dismissAll!=null)dismissAll.Content=localize("Скрыть все уведомления");if(trayMenu?.IsOpen==true)PopulateTray(trayMenu);}
  public void Show(){main.Show();if(main.WindowState==WindowState.Minimized)main.WindowState=WindowState.Normal;main.Activate();}
- public void Notify(string title,string text,JsonNode action){if(disposed)return;if(queue.Count>=20)queue.Dequeue();queue.Enqueue((title[..Math.Min(title.Length,1000)],text[..Math.Min(text.Length,8000)],action.DeepClone()));Next();}
  static SolidColorBrush Ink(byte r,byte g,byte b)=>new(Color.FromRgb(r,g,b));
  Button PixelButton(string label,bool primary=false)
  {
@@ -44,22 +43,5 @@ public sealed partial class SocialDesktop:IDisposable
   var button=new Button{Content=label,Foreground=primary?Surface("bg"):Surface("text"),Cursor=System.Windows.Input.Cursors.Hand,FontSize=12,Template=new ControlTemplate(typeof(Button)){VisualTree=frame}};
   button.MouseEnter+=(_,_)=>button.Opacity=.8;button.MouseLeave+=(_,_)=>button.Opacity=1;return button;
  }
- void Next()
- {
-  if(popup!=null||queue.Count==0||disposed)return;var n=queue.Dequeue();
-  var titleText=n.Action["type"]?.ToString() is "chat" or "friend"?n.Title:localize(n.Title);var bodyText=n.Action["type"]?.ToString()=="chat"&&n.Action["systemMessage"]?.GetValue<bool>()!=true?n.Text:localize(n.Text);titleText=titleText[..Math.Min(titleText.Length,100)];bodyText=bodyText[..Math.Min(bodyText.Length,130)];
-  var content=NotificationContent(titleText,bodyText,n.Action);var border=content.Root;var close=content.Close;var lifetime=content.Lifetime;
-  var w=new Window{Width=Math.Min(340,SystemParameters.WorkArea.Width-24),SizeToContent=SizeToContent.Height,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowInTaskbar=false,ShowActivated=false,Topmost=true,Background=Surface("panel"),Content=border,Opacity=0,UseLayoutRounding=true};popup=w;
-  var timer=new DispatcherTimer{Interval=TimeSpan.FromSeconds(6)};bool closing=false;
-  void StartTimer(){if(closing)return;timer.Start();if(SystemParameters.ClientAreaAnimation)((ScaleTransform)lifetime.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty,new DoubleAnimation(1,0,TimeSpan.FromSeconds(6)));}
-  void Dismiss(){if(closing)return;closing=true;timer.Stop();if(SystemParameters.ClientAreaAnimation){w.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(0,TimeSpan.FromMilliseconds(160)));var animation=new DoubleAnimation(w.Left+24,TimeSpan.FromMilliseconds(160));animation.Completed+=(_,_)=>w.Close();w.BeginAnimation(Window.LeftProperty,animation);}else w.Close();}
-  void Open(){Show();open(n.Action);Dismiss();}
-  close.Click+=(_,_)=>Dismiss();border.MouseLeftButtonUp+=(_,_)=>{if(!close.IsMouseOver)Open();};
-  w.MouseEnter+=(_,_)=>{timer.Stop();((ScaleTransform)lifetime.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty,null);};w.MouseLeave+=(_,_)=>StartTimer();
-  w.Closed+=(_,_)=>{timer.Stop();popup=null;Next();};
-  w.Loaded+=(_,_)=>{var area=SystemParameters.WorkArea;w.Left=area.Right-w.Width-16;w.Top=area.Bottom-w.ActualHeight-16;if(SystemParameters.ClientAreaAnimation){w.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(1,TimeSpan.FromMilliseconds(220)));w.BeginAnimation(Window.LeftProperty,new DoubleAnimation(w.Left+30,w.Left,TimeSpan.FromMilliseconds(220)){EasingFunction=new CubicEase{EasingMode=EasingMode.EaseOut}});}else w.Opacity=1;StartTimer();};timer.Tick+=(_,_)=>Dismiss();w.Show();
-  var path=Path.Combine(AppContext.BaseDirectory,"Web","assets","notification.mp3");try{sound.Open(new Uri(path));sound.Volume=.7;sound.Play();}catch{}
- }
- public void Clear(){queue.Clear();popup?.Close();sound.Stop();}
- public void Dispose(){if(disposed)return;quitting=true;disposed=true;trayLifetime?.Stop();queue.Clear();popup?.Close();sound.Close();if(trayMenu!=null)trayMenu.IsOpen=false;tray.Visible=false;tray.Dispose();}
+ public void Dispose(){if(disposed)return;quitting=true;disposed=true;trayLifetime?.Stop();Clear();sound.Close();if(trayMenu!=null)trayMenu.IsOpen=false;tray.Visible=false;tray.Dispose();}
 }

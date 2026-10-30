@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "test": "node tests/frontend-tests.cjs && node tests/skin-tests.cjs && node tests/appearance-tests.cjs && node tests/friends-tests.cjs && node tests/project-tests.cjs && node tests/bedrock-tests.cjs && node tests/version-actions.cjs && node tests/content-actions.cjs && node tests/settings-actions.cjs && node tests/social-crypto.cjs && node tests/party-connection.cjs",
-    "test:ui": "node tests/ui-smoke.cjs && node tests/catalog-social-ui.cjs && node tests/upgrade-ui.cjs && node tests/restyle-ui.cjs && node tests/classic-shell-ui.cjs && node tests/refinements-ui.cjs && node tests/completeness-ui.cjs && node tests/media-ui.cjs",
+    "test:ui": "node tests/ui-smoke.cjs && node tests/catalog-social-ui.cjs && node tests/upgrade-ui.cjs && node tests/restyle-ui.cjs && node tests/classic-shell-ui.cjs && node tests/refinements-ui.cjs && node tests/completeness-ui.cjs && node tests/media-ui.cjs && node tests/social-refresh-ui.cjs",
     "test:dom": "node tests/dom-features.cjs && node tests/workspace-dom.cjs && node tests/social-dom.cjs",
     "build:crypto": "node tools/build-social-crypto.cjs",
     "build:locales": "node tools/build-locales.cjs",

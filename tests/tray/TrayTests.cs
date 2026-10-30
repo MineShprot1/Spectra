@@ -12,6 +12,7 @@ static class TrayTests
   var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
   AvatarTests.Run();
   MediaTests.Run();
+  NotificationTests.Run();
   var window=new Window();
   var snapshot=new DesktopIdentity("Player","","playing","Minecraft",true,false,"Test pack");
   string appearance="{}",command="";
