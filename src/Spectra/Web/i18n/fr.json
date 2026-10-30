@@ -1781,5 +1781,11 @@
   "Сообщения": "Messages",
   "Форматирование": "Formatage",
   "Эмодзи не найдены": "Aucun emoji trouvé",
-  "P2P подключён": "P2P connecté"
+  "P2P подключён": "P2P connecté",
+  "Не удалось обновить Spectra": "La mise à jour de Spectra a échoué",
+  "Не удалось проверить обновления": "Échec de la vérification des mises à jour",
+  "Обновление уже устанавливается": "La mise à jour est déjà en cours d'installation",
+  "Предыдущая установка обновления завершилась ошибкой": "L'installation de la mise à jour précédente a échoué",
+  "Продолжить без обновления": "Continuer sans mettre à jour",
+  "Сервер обновлений вернул неверный ответ": "Le serveur de mise à jour a renvoyé une réponse incorrecte"
 }

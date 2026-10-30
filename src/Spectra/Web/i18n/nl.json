@@ -1781,5 +1781,11 @@
   "Сообщения": "Berichten",
   "Форматирование": "Opmaak",
   "Эмодзи не найдены": "Geen emoji gevonden",
-  "P2P подключён": "P2P verbonden"
+  "P2P подключён": "P2P verbonden",
+  "Не удалось обновить Spectra": "Spectra-update is mislukt",
+  "Не удалось проверить обновления": "Kan niet controleren op updates",
+  "Обновление уже устанавливается": "De update wordt al geïnstalleerd",
+  "Предыдущая установка обновления завершилась ошибкой": "Installatie van de vorige update is mislukt",
+  "Продолжить без обновления": "Ga door zonder bij te werken",
+  "Сервер обновлений вернул неверный ответ": "De updateserver heeft een onjuist antwoord geretourneerd"
 }

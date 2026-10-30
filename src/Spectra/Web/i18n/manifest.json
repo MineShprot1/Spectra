@@ -20,7 +20,7 @@
     "hu": "Magyar",
     "id": "Bahasa Indonesia"
   },
-  "keys": 1783,
+  "keys": 1789,
   "editorial": "Core UI terminology reviewed; extended UI and error text includes build-time machine translation.",
   "runtime": "Bundled static catalogs; no runtime translation service."
 }

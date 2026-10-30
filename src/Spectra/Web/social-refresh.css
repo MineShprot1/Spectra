@@ -39,3 +39,10 @@ html body #friendsPanel #partyView{flex:1;min-height:0;min-width:0;max-height:no
 @media(max-width:650px){#socialChat .chat-header{padding-left:11px;gap:8px}#socialChat .chat-heading h2{font-size:13px!important}#socialChat .chat-composer{padding:7px 8px}#socialChat .chat-compose-actions{gap:2px}#socialChat .chat-compose-actions>button{width:26px;min-width:26px}html body #socialChat .chat-messages{padding:11px}html body #socialChat .chat-messages article{max-width:94%;font-size:12px}#socialChat .chat-tools{right:-25px;width:210px}}
 
 #friendsPanel .party-members article:nth-last-child(-n+2) .party-member-menu>div{top:auto;bottom:25px}
+
+/* The close button is in the same layout/stacking context as the invite action. */
+html body #socialChat .chat-header{padding:10px 12px 10px 16px}
+html body #socialChat .chat-header :is(.chat-header-action,.chat-more>summary){position:static!important;inset:auto!important;width:32px!important;height:32px!important;min-width:32px!important;min-height:32px!important;max-width:32px!important;max-height:32px!important;margin:0!important;padding:6px!important;display:grid;place-items:center;box-sizing:border-box;flex:none;font-size:18px;line-height:18px;background:transparent!important;border:1px solid transparent!important;box-shadow:none!important;cursor:pointer;z-index:auto}
+html body #socialChat .chat-header :is(.chat-header-action,.chat-more>summary):hover{background:color-mix(in srgb,var(--theme-text) 9%,transparent)!important;border-color:var(--social-line)!important}
+html body #socialChat #chatGameInvite .pixel-icon{width:18px;height:18px}
+.update-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:22px}.update-actions button{font-size:12px;padding:10px 14px}.update-failed #updateDetail{max-width:440px;margin-inline:auto;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}

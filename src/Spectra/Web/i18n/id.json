@@ -1781,5 +1781,11 @@
   "Сообщения": "Pesan",
   "Форматирование": "Pemformatan",
   "Эмодзи не найдены": "Tidak ada emoji yang ditemukan",
-  "P2P подключён": "P2P terhubung"
+  "P2P подключён": "P2P terhubung",
+  "Не удалось обновить Spectra": "Pembaruan spektrum gagal",
+  "Не удалось проверить обновления": "Gagal memeriksa pembaruan",
+  "Обновление уже устанавливается": "Pembaruan sudah diinstal",
+  "Предыдущая установка обновления завершилась ошибкой": "Penginstalan pembaruan sebelumnya gagal",
+  "Продолжить без обновления": "Lanjutkan tanpa memperbarui",
+  "Сервер обновлений вернул неверный ответ": "Server pembaruan mengembalikan respons yang salah"
 }

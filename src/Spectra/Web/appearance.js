@@ -23,7 +23,7 @@ const SpectraAppearance=(()=>{
   return{colors,angle,gradientTargets,gradientUnified:c.gradientUnified!==false};
  }
  function presetList(values){const ids=new Set();return(Array.isArray(values)?values:[]).slice(0,50).filter(p=>p&&typeof p.id==='string'&&/^[a-z0-9_-]{1,80}$/i.test(p.id)&&typeof p.name==='string'&&p.name.trim()&&!ids.has(p.id)&&(ids.add(p.id),true)).map(p=>({id:p.id,name:p.name.trim().slice(0,60),...gradientData(p)}));}
- const iconNames=['chevron','smile','versions','cube','discover','profile','edit','play','plus','down','arrow','folder','home','mods','pack','sun','shots','friends','bell'];
+ const iconNames=['invite','chevron','smile','versions','cube','discover','profile','edit','play','plus','down','arrow','folder','home','mods','pack','sun','shots','friends','bell'];
  const iconThemes=Object.keys(palettes);
  function cleanIcons(input){let size=0;return Object.fromEntries(iconThemes.map(theme=>{const v=input?.[theme]||{},custom={};for(const name of iconNames){const url=v.custom?.[name];if(typeof url==='string'&&url.length<=11000&&/^data:image\/png;base64,[a-z0-9+/]+=*$/i.test(url)&&size+url.length<=32000){custom[name]=url;size+=url.length;}}return[theme,{style:['steam','windows','aero','modern','liquid'].includes(theme)?(v.style==='outline'?'outline':'rounded'):'pixel',custom}];}));}
  function iconCss(){const choice=config.themeIcons?.[config.theme],style=choice?.style||(['modern','liquid'].includes(config.theme)?'rounded':'pixel');return iconNames.map(name=>{const url=choice?.custom?.[name]||(style==='pixel'?'assets/'+name+'.svg':'assets/icons-'+style+'/'+name+'.svg');return `body[data-theme="${config.theme}"] .pixel-icon[style*="assets/${name}.svg"]{--icon-mask:url('${url}')!important}`;}).join('');}

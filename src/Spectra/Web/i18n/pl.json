@@ -1781,5 +1781,11 @@
   "Сообщения": "Wiadomości",
   "Форматирование": "Formatowanie",
   "Эмодзи не найдены": "Nie znaleziono emoji",
-  "P2P подключён": "Połączono P2P"
+  "P2P подключён": "Połączono P2P",
+  "Не удалось обновить Spectra": "Aktualizacja widm nie powiodła się",
+  "Не удалось проверить обновления": "Nie udało się sprawdzić dostępności aktualizacji",
+  "Обновление уже устанавливается": "Aktualizacja jest już instalowana",
+  "Предыдущая установка обновления завершилась ошибкой": "Instalacja poprzedniej aktualizacji nie powiodła się",
+  "Продолжить без обновления": "Kontynuuj bez aktualizacji",
+  "Сервер обновлений вернул неверный ответ": "Serwer aktualizacji zwrócił niepoprawną odpowiedź"
 }

@@ -13,6 +13,7 @@ static class TrayTests
   AvatarTests.Run();
   MediaTests.Run();
   NotificationTests.Run();
+  Task.Run(UpdateTests.Run).GetAwaiter().GetResult();
   var window=new Window();
   var snapshot=new DesktopIdentity("Player","","playing","Minecraft",true,false,"Test pack");
   string appearance="{}",command="";

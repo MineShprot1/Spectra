@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) { throw 'Install .NET SDK 8 from https://dotnet.microsoft.com/download/dotnet/8.0' }
-$gitCommand = Get-Command git -CommandType Application -ErrorAction SilentlyContinue
+$gitCommand = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($gitCommand) {
  # Git metadata is optional: source ZIPs do not contain a .git directory.
  # Redirect through Process so Windows PowerShell 5.1 does not turn Git's

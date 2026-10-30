@@ -1781,5 +1781,11 @@
   "Сообщения": "Üzenetek",
   "Форматирование": "Formázás",
   "Эмодзи не найдены": "Nem található hangulatjel",
-  "P2P подключён": "P2P csatlakoztatva"
+  "P2P подключён": "P2P csatlakoztatva",
+  "Не удалось обновить Spectra": "A Spectra frissítése nem sikerült",
+  "Не удалось проверить обновления": "Nem sikerült ellenőrizni a frissítéseket",
+  "Обновление уже устанавливается": "A frissítés már telepítve van",
+  "Предыдущая установка обновления завершилась ошибкой": "Az előző frissítés telepítése nem sikerült",
+  "Продолжить без обновления": "Folytassa frissítés nélkül",
+  "Сервер обновлений вернул неверный ответ": "A frissítési kiszolgáló helytelen választ adott vissza"
 }

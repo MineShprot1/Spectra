@@ -1781,5 +1781,11 @@
   "Сообщения": "Mesajlar",
   "Форматирование": "Biçimlendirme",
   "Эмодзи не найдены": "Emoji bulunamadı",
-  "P2P подключён": "P2P bağlandı"
+  "P2P подключён": "P2P bağlandı",
+  "Не удалось обновить Spectra": "Spectra güncellemesi başarısız oldu",
+  "Не удалось проверить обновления": "Güncellemeler kontrol edilemedi",
+  "Обновление уже устанавливается": "Güncelleme zaten yükleniyor",
+  "Предыдущая установка обновления завершилась ошибкой": "Önceki güncelleme yüklemesi başarısız oldu",
+  "Продолжить без обновления": "Güncellemeden devam et",
+  "Сервер обновлений вернул неверный ответ": "Güncelleme sunucusu yanlış bir yanıt verdi"
 }

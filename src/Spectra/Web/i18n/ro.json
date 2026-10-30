@@ -1781,5 +1781,11 @@
   "Сообщения": "Mesaje",
   "Форматирование": "Formatare",
   "Эмодзи не найдены": "Nu a fost găsit niciun emoji",
-  "P2P подключён": "P2P conectat"
+  "P2P подключён": "P2P conectat",
+  "Не удалось обновить Spectra": "Actualizarea Spectra a eșuat",
+  "Не удалось проверить обновления": "Nu s-au putut verifica actualizări",
+  "Обновление уже устанавливается": "Actualizarea este deja instalată",
+  "Предыдущая установка обновления завершилась ошибкой": "Instalarea actualizării anterioare a eșuat",
+  "Продолжить без обновления": "Continuați fără a actualiza",
+  "Сервер обновлений вернул неверный ответ": "Serverul de actualizare a returnat un răspuns incorect"
 }

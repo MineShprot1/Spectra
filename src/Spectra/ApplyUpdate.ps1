@@ -9,7 +9,7 @@ $protectedInstall=$false
 foreach($root in @($env:ProgramFiles,${env:ProgramFiles(x86)})){if($root -and $initialTask.install.StartsWith($root.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){$protectedInstall=$true}}
 if($protectedInstall -and -not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){
  $arguments='-NoProfile -ExecutionPolicy Bypass -File "'+$PSCommandPath+'" -JobFile "'+$JobFile+'"'
- Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $arguments -ErrorAction Stop | Out-Null
+ Start-Process -FilePath 'powershell.exe' -Verb RunAs -WindowStyle Hidden -ArgumentList $arguments -ErrorAction Stop | Out-Null
  exit
 }
 # Windows PowerShell 5.1 uses legacy .NET path handling. Use Unicode Win32
@@ -80,6 +80,11 @@ function Under([string]$Root,[string]$Relative){return [SpectraUpdateFiles]::Und
 function ReportResult([bool]$Success,[string]$Message){
  if($task.report){$report=@{success=$Success;message=$Message;commit=$task.commit;install=$task.install;time=[DateTime]::UtcNow.ToString('o')} | ConvertTo-Json;[SpectraUpdateFiles]::Write($task.report,$report)}
 }
+function RestartLauncher([bool]$recovery) {
+ $restartArgs=@();if($task.background){$restartArgs+='--background'};if($recovery){$restartArgs+='--update-recovery'}
+ $restart=@{FilePath=(Under $task.install 'Spectra.exe');WorkingDirectory=$task.install;ErrorAction='Stop'}
+ if($restartArgs.Count){$restart.ArgumentList=$restartArgs};if($task.background){$restart.WindowStyle='Hidden'};Start-Process @restart
+}
 try {
  $running=Get-Process -Id $task.pid -ErrorAction SilentlyContinue
  if($running){Wait-Process -Id $task.pid -Timeout 45 -ErrorAction Stop}
@@ -119,12 +124,12 @@ try {
  try{if(Test-Path -LiteralPath $task.cache){Remove-Item -LiteralPath $task.cache -Recurse -Force};Move-Item -LiteralPath $task.source -Destination $task.cache}catch{}
  [SpectraUpdateFiles]::Delete($task.failureMarker)
  ReportResult $true 'Installed files verified; starting new executable.'
- Start-Process -FilePath (Under $task.install 'Spectra.exe') -WorkingDirectory $task.install -ErrorAction Stop
+ RestartLauncher $false
 } catch {
  $failure=$_.Exception.Message
  foreach($relative in $changed){try{[SpectraUpdateFiles]::Copy((Under $backup $relative),(Under $task.install $relative))}catch{$failure+="; Restore failed: $relative; $($_.Exception.Message)"}}
  foreach($relative in $created){try{[SpectraUpdateFiles]::Delete((Under $task.install $relative))}catch{}}
  try{[SpectraUpdateFiles]::Write($task.failureMarker,$task.commit);ReportResult $false $failure;[SpectraUpdateFiles]::Write((Under $task.job 'apply-error.txt'),$failure)}catch{}
- if(-not (Get-Process -Id $task.pid -ErrorAction SilentlyContinue)){Start-Process -FilePath (Under $task.install 'Spectra.exe') -WorkingDirectory $task.install -ErrorAction SilentlyContinue}
+ if(-not (Get-Process -Id $task.pid -ErrorAction SilentlyContinue)){try{RestartLauncher $true}catch{}}
  exit 1
 }

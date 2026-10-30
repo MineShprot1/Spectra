@@ -1781,5 +1781,11 @@
   "Сообщения": "Mensajes",
   "Форматирование": "Formato",
   "Эмодзи не найдены": "No se encontraron emojis",
-  "P2P подключён": "P2P conectado"
+  "P2P подключён": "P2P conectado",
+  "Не удалось обновить Spectra": "La actualización de espectros falló",
+  "Не удалось проверить обновления": "No se pudo buscar actualizaciones",
+  "Обновление уже устанавливается": "La actualización ya se está instalando.",
+  "Предыдущая установка обновления завершилась ошибкой": "Error en la instalación de la actualización anterior",
+  "Продолжить без обновления": "Continuar sin actualizar",
+  "Сервер обновлений вернул неверный ответ": "El servidor de actualización devolvió una respuesta incorrecta"
 }

@@ -1781,5 +1781,11 @@
   "Сообщения": "Zprávy",
   "Форматирование": "Formátování",
   "Эмодзи не найдены": "Nebyly nalezeny žádné emotikony",
-  "P2P подключён": "P2P připojeno"
+  "P2P подключён": "P2P připojeno",
+  "Не удалось обновить Spectra": "Aktualizace Spectra se nezdařila",
+  "Не удалось проверить обновления": "Kontrola aktualizací se nezdařila",
+  "Обновление уже устанавливается": "Aktualizace se již instaluje",
+  "Предыдущая установка обновления завершилась ошибкой": "Instalace předchozí aktualizace se nezdařila",
+  "Продолжить без обновления": "Pokračujte bez aktualizace",
+  "Сервер обновлений вернул неверный ответ": "Aktualizační server vrátil nesprávnou odpověď"
 }

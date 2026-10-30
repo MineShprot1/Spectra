@@ -1,41 +1,42 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 namespace Spectra;
+public sealed record SourceUpdateCheck(bool Checked,bool Available,string Update,string Version="",string CommitName="",string Commit="") { public bool Automatic=>true; }
 public static class SourceUpdater
 {
  const string Repo="https://api.github.com/repos/MineShprot1/Spectra";
  public static bool ValidCommit(string sha)=>Regex.IsMatch(sha,@"^[0-9a-f]{40}$");
- public static async Task<object> Check()
+ public static string InstalledCommit(string? directory=null)
  {
-  using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(8));
-  try
-  {
-   using var request=new HttpRequestMessage(HttpMethod.Get,Repo+"/commits?per_page=1");
-   request.Headers.CacheControl=new System.Net.Http.Headers.CacheControlHeaderValue{NoCache=true};
-   using var response=await Net.Http.SendAsync(request,timeout.Token);
-   if(!response.IsSuccessStatusCode)return new{update="Проверка коммитов недоступна · GitHub "+(int)response.StatusCode,available=false};
-   var commits=JsonNode.Parse(await response.Content.ReadAsStringAsync(timeout.Token));var sha=commits?[0].Str("sha");
-   if(sha==null||!ValidCommit(sha))return new{update="Нет доступных коммитов Spectra",available=false};
-   var marker=Path.Combine(AppContext.BaseDirectory,"build-commit.txt");var installed=File.Exists(marker)?(await File.ReadAllTextAsync(marker)).Trim():"";
-   var latestName=commits?[0]?["commit"].Str("message").Split('\n')[0].Trim()??"";
-   if(string.IsNullOrWhiteSpace(latestName))latestName=sha[..7];
-   var failurePath=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Spectra","updates","failed-commit.txt");var failed=File.Exists(failurePath)?(await File.ReadAllTextAsync(failurePath)).Trim():"";
-   return new{update=installed==sha?"Исходники Spectra актуальны":"Найден новый коммит Spectra "+sha[..7],available=installed!=sha,automatic=failed!=sha,version=latestName,commitName=latestName,commit=sha};
-  }
-  catch(Exception ex) when(ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
-  {return new{update="Не удалось проверить коммиты · можно продолжить запуск",available=false};}
+  var marker=Path.Combine(directory??AppContext.BaseDirectory,"build-commit.txt");try{if(File.Exists(marker)){var value=File.ReadAllText(marker).Trim().ToLowerInvariant();if(ValidCommit(value))return value;}}catch(IOException){}catch(UnauthorizedAccessException){}
+  var info=System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion??"";
+  return Regex.Match(info,@"\+([a-f0-9]{40})(?:\W|$)",RegexOptions.IgnoreCase).Groups[1].Value.ToLowerInvariant();
  }
- public static async Task Prepare(string sha,Store store,Action<object> emit)
+ public static async Task<SourceUpdateCheck> Check(HttpClient? client=null,string? directory=null,CancellationToken cancellation=default)
+ {
+  using var timeout=CancellationTokenSource.CreateLinkedTokenSource(cancellation);timeout.CancelAfter(TimeSpan.FromSeconds(8));
+  try{
+   using var request=new HttpRequestMessage(HttpMethod.Get,Repo+"/commits?per_page=1");request.Headers.CacheControl=new System.Net.Http.Headers.CacheControlHeaderValue{NoCache=true};
+   using var response=await (client??Net.Http).SendAsync(request,timeout.Token).ConfigureAwait(false);
+   if(!response.IsSuccessStatusCode)return new(false,false,"Проверка коммитов недоступна · GitHub "+(int)response.StatusCode);
+   var raw=await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);if(raw.Length>1024*1024)return new(false,false,"Сервер обновлений вернул неверный ответ");
+   if(JsonNode.Parse(raw) is not JsonArray {Count:>0} commits||commits[0] is not JsonObject item||!ValidCommit(item.Str("sha")))return new(false,false,"Сервер обновлений вернул неверный ответ");
+   var sha=item.Str("sha");var installed=InstalledCommit(directory);var name=item["commit"].Str("message").Split('\n')[0].Trim();if(name=="")name=sha[..7];
+   return new(true,installed!=sha,installed==sha?"Исходники Spectra актуальны":"Найден новый коммит Spectra "+sha[..7],name,name,sha);
+  }catch(OperationCanceledException) when(cancellation.IsCancellationRequested){throw;}
+  catch(Exception ex) when(ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException or IOException){return new(false,false,"Не удалось проверить коммиты · можно продолжить запуск");}
+ }
+ public static async Task Prepare(string sha,Store store,Action<object> emit,Func<bool>? background=null)
  {
   if(!ValidCommit(sha))throw new IOException("Некорректный SHA коммита");
-  var installedMarker=Path.Combine(AppContext.BaseDirectory,"build-commit.txt");
-  if(File.Exists(installedMarker)&&(await File.ReadAllTextAsync(installedMarker)).Trim()==sha)throw new IOException("Этот коммит уже установлен");
+  if(InstalledCommit()==sha)throw new IOException("Этот коммит уже установлен");
   var sdk=new ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};sdk.ArgumentList.Add("--list-sdks");
   try{using var p=Process.Start(sdk)??throw new IOException("Не удалось найти .NET SDK");var output=await p.StandardOutput.ReadToEndAsync();await p.WaitForExitAsync();if(!output.Split('\n').Any(x=>x.TrimStart().StartsWith("8.")))throw new IOException("Для обновления из исходников установите .NET SDK 8 x64");}
   catch(System.ComponentModel.Win32Exception){throw new IOException("Для обновления из исходников установите .NET SDK 8 x64");}
@@ -115,11 +116,11 @@ public static class SourceUpdater
    foreach(var path in Directory.EnumerateFiles(publish,"*",SearchOption.AllDirectories))hashes[Path.GetRelativePath(publish,path)]=await Net.Hash(path,"SHA256");
    var hashesFile=Path.Combine(job,"hashes.json");await File.WriteAllTextAsync(hashesFile,JsonSerializer.Serialize(hashes));
    var helper=Path.Combine(job,"ApplyUpdate.ps1");File.Copy(Path.Combine(publish,"ApplyUpdate.ps1"),helper);
-   var manifest=Path.Combine(job,"job.json");await File.WriteAllTextAsync(manifest,JsonSerializer.Serialize(new{hashesFile,report=Path.Combine(store.Root,"updates","last-apply.json"),pid=Environment.ProcessId,install=AppContext.BaseDirectory,publish,source,cache,job,commit=sha,failureMarker=Path.Combine(store.Root,"updates","failed-commit.txt")},Store.Json));
+   var manifest=Path.Combine(job,"job.json");await File.WriteAllTextAsync(manifest,JsonSerializer.Serialize(new{hashesFile,report=Path.Combine(store.Root,"updates","last-apply.json"),pid=Environment.ProcessId,install=AppContext.BaseDirectory,publish,source,cache,job,commit=sha,background=background?.Invoke()??false,failureMarker=Path.Combine(store.Root,"updates","failed-commit.txt")},Store.Json));
    bool elevate=new[]{Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)}.Any(root=>!string.IsNullOrEmpty(root)&&AppContext.BaseDirectory.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase));var probe=Path.Combine(AppContext.BaseDirectory,".spectra-write-"+Guid.NewGuid().ToString("N"));
    try{File.WriteAllText(probe,"");File.Delete(probe);}catch(UnauthorizedAccessException){elevate=true;}
    var helperStart=new ProcessStartInfo("powershell.exe"){UseShellExecute=elevate,CreateNoWindow=!elevate,WorkingDirectory=job};
-   if(elevate)helperStart.Verb="runas";
+   helperStart.WindowStyle=ProcessWindowStyle.Hidden;if(elevate)helperStart.Verb="runas";
    foreach(var arg in new[]{"-NoProfile","-ExecutionPolicy","Bypass","-File",helper,"-JobFile",manifest})helperStart.ArgumentList.Add(arg);
    _=Process.Start(helperStart)??throw new IOException("Не удалось запустить замену обновления");handedOff=true;
   }
