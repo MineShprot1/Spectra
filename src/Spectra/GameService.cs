@@ -138,9 +138,9 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
  }
  public record ExitSummary(int Code,bool Stopped,DateTime Time);
  public ConcurrentDictionary<string,ExitSummary> LastExits {get;}=new();
- readonly ConcurrentDictionary<string,ConcurrentQueue<string>> recentLogs=new();
+ readonly ConcurrentDictionary<string,RecentLogBuffer> recentLogs=new();
  readonly ConcurrentDictionary<string,byte> stopped=new();
- public string RecentLogs(string id)=>recentLogs.TryGetValue(id,out var lines)?string.Join("\n",lines):"";
+ public string RecentLogs(string id)=>recentLogs.TryGetValue(id,out var lines)?lines.ToString():"";
  public Task<string> ServerJava(Instance instance)=>Java(instance);
  public Task<string> InstallerJava(Instance instance)=>Java(instance with {Settings=instance.Settings with {JavaPath=""}},21);
  public async Task LaunchMany(string id,MultiClientProfile[] clients)
@@ -165,7 +165,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
   {
    if(session==null)await auth.Login(false);
    session??=auth.Session??throw new IOException("Войдите в аккаунт");
-   recentLogs[id]=new();stopped.TryRemove(id,out _);
+   foreach(var old in recentLogs.Keys.Where(key=>key!=id&&!Running.ContainsKey(key)).Take(Math.Max(0,recentLogs.Count-7)))recentLogs.TryRemove(old,out _);recentLogs[id]=new();stopped.TryRemove(id,out _);
    var java=await Java(i);await sharedLibraries.Prepare();Gpu(java,i.Settings.Gpu);
    var root=store.Folder(i);var launcher=CreateLauncher(root);
    long lastProgress=0;
@@ -186,7 +186,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    if(i.Loader=="forge") version=await new ForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new ForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader=="neoforge") version=await new NeoForgeInstaller(launcher).Install(i.Version,i.LoaderVersion,new NeoForgeInstallOptions{JavaPath=java,InstallerOutput=new Progress<string>(line=>emit(new{type="log",instanceId=id,line=Redact(line)}))});
    if(i.Loader!="vanilla") await launcher.InstallAsync(version);
-   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=session,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.27.1"});
+   var process=await launcher.BuildProcessAsync(version,new MLaunchOption{Session=session,JavaPath=java,MinimumRamMb=i.Settings.MinRam,MaximumRamMb=i.Settings.MaxRam,ScreenWidth=i.Settings.Width,ScreenHeight=i.Settings.Height,GameLauncherName="Spectra",GameLauncherVersion="0.27.2"});
    var elyName=client?.ElyName??(auth.IsOffline?auth.ActiveAccount?.ElyName:"");
    if(!string.IsNullOrEmpty(elyName)){try{var agent=await OfflineSkinBridge.Agent(store);var bridge=OfflineSkinBridge.Shared;await bridge.Register(client?.Name??auth.Profile.Str("name"),elyName);var arg="-javaagent:"+agent+"="+bridge.Url;if(process.StartInfo.ArgumentList.Count>0)process.StartInfo.ArgumentList.Insert(0,arg);else process.StartInfo.Arguments="\""+arg+"\" "+process.StartInfo.Arguments;}catch(Exception error) when(error is IOException or System.Net.Http.HttpRequestException or TaskCanceledException){emit(new{type="progress",instanceId=id,message="Ely.by недоступен. Запускаем игру со стандартным скином.",percent=100});}}
    if(targetKind!=""){
@@ -203,7 +203,7 @@ public sealed class GameService(Store store, Authentication auth, Action<object>
    }
    process.StartInfo.UseShellExecute=false;process.StartInfo.RedirectStandardOutput=true;process.StartInfo.RedirectStandardError=true;process.StartInfo.CreateNoWindow=true;process.EnableRaisingEvents=true;
    var activityParser=new ActivityLog(targetKind=="worlds"?activityTarget:"");var logPath=Path.Combine(root,"logs","latest.log");var watcher=new ActivityLogWatcher(logPath,line=>{if(Running.TryGetValue(id,out var live)&&ReferenceEquals(live,process))ObserveActivity(id,activityParser,line,process);});try{watcher.Baseline();}catch(Exception e) when(e is IOException or UnauthorizedAccessException){}
-   void Log(string? line) { if(line!=null){var clean=Redact(line);var queue=recentLogs.GetOrAdd(id,_=>new());queue.Enqueue(clean);while(queue.Count>500)queue.TryDequeue(out _);emit(new{type="log",instanceId=id,line=clean});if(!watcher.HasCurrentLog)ObserveActivity(id,activityParser,line,process);} }
+   void Log(string? line) { if(line!=null){var clean=Redact(line);var queue=recentLogs.GetOrAdd(id,_=>new());queue.Add(clean);emit(new{type="log",instanceId=id,line=clean});if(!watcher.HasCurrentLog)ObserveActivity(id,activityParser,line,process);} }
    process.OutputDataReceived+=(s,e)=>Log(e.Data);process.ErrorDataReceived+=(s,e)=>Log(e.Data);
    process.Exited+=(s,e)=>{Running.TryRemove(id,out _);Playtime.Stop(id);StopActivity(id);Activities.TryRemove(id,out _);var code=process.ExitCode;LastExits[id]=new(code,stopped.TryRemove(id,out _),DateTime.UtcNow);emit(new{type="exited",instanceId=id,code});process.Dispose();};
    Activities[id]=new(i.Version,i.Loader,i.LoaderVersion,i.Name,"","",i.PackSource,i.PackId,i.PackVersion,StartedAt:DateTime.UtcNow);

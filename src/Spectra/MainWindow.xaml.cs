@@ -60,6 +60,14 @@ public partial class MainWindow : Window
  }
  readonly ConcurrentQueue<string> logQueue=new();
  readonly DispatcherTimer logTimer=new(){Interval=TimeSpan.FromMilliseconds(100)};
+ // Keep social/P2P timers alive in the tray; ask Chromium to release caches
+ // instead of suspending the renderer (which would also stop incoming chat).
+ void UpdateBrowserMemoryTarget()
+ {
+  if(Browser.CoreWebView2 is not { } core)return;
+  try{core.MemoryUsageTargetLevel=IsVisible&&WindowState!=WindowState.Minimized&&IsActive?CoreWebView2MemoryUsageTargetLevel.Normal:CoreWebView2MemoryUsageTargetLevel.Low;}
+  catch(NotImplementedException){}catch(System.Runtime.InteropServices.COMException){}
+ }
  void FlushLogs()
  {
   if(Browser.CoreWebView2==null)return;var batch=new List<string>();while(batch.Count<1000&&logQueue.TryDequeue(out var line))batch.Add(line);
@@ -126,6 +134,7 @@ public partial class MainWindow : Window
   {
    var env=await CoreWebView2Environment.CreateAsync(null,Path.Combine(store.Root,"webview"));await Browser.EnsureCoreWebView2Async(env);
    var core=Browser.CoreWebView2;
+   Activated+=(_,_)=>UpdateBrowserMemoryTarget();Deactivated+=(_,_)=>UpdateBrowserMemoryTarget();IsVisibleChanged+=(_,_)=>UpdateBrowserMemoryTarget();StateChanged+=(_,_)=>UpdateBrowserMemoryTarget();UpdateBrowserMemoryTarget();Closed+=(_,_)=>Browser.Dispose();
    core.Settings.AreBrowserAcceleratorKeysEnabled=false;core.Settings.AreDefaultContextMenusEnabled=false;core.Settings.AreDevToolsEnabled=false;core.Settings.IsStatusBarEnabled=false;
    core.SetVirtualHostNameToFolderMapping("app.spectra.local",Path.Combine(AppContext.BaseDirectory,"Web"),CoreWebView2HostResourceAccessKind.DenyCors);
    core.SetVirtualHostNameToFolderMapping("data.spectra.local",store.Root,CoreWebView2HostResourceAccessKind.DenyCors);
@@ -140,7 +149,7 @@ public partial class MainWindow : Window
    core.WebMessageReceived+=Receive;
    // Clear only cached assets, preserving cookies and appearance storage.
    // Refresh bundled UI assets once per release; keep cookies and ordinary launch caching.
-   var assetVersion=typeof(MainWindow).Assembly.GetName().Version?.ToString(3)??"0.27.1";
+   var assetVersion=typeof(MainWindow).Assembly.GetName().Version?.ToString(3)??"0.27.2";
    if(store.Config.WebAssetVersion!=assetVersion)try{await core.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache);store.Config.WebAssetVersion=assetVersion;store.Save();}catch{/* A cache cleanup failure must not block the launcher. */}
    if(store.Config.LauncherFullscreen&&!backgroundPending)ToggleFullscreen();
    core.Settings.IsZoomControlEnabled=false;
@@ -150,9 +159,10 @@ public partial class MainWindow : Window
  }
  void Emit(object data)
  {
-  var json=JsonSerializer.Serialize(data,Store.Json);
   var kind=data.GetType().GetProperty("type")?.GetValue(data)?.ToString();
-  if(kind=="log"){logQueue.Enqueue(json);while(logQueue.Count>5000)logQueue.TryDequeue(out _);return;}
+  if(kind=="log"){var line=data.GetType().GetProperty("line")?.GetValue(data)?.ToString()??"";data=new{type="log",instanceId=data.GetType().GetProperty("instanceId")?.GetValue(data)?.ToString()??"",line=line.Length>8192?line[..8192]:line};}
+  var json=JsonSerializer.Serialize(data,Store.Json);
+  if(kind=="log"){logQueue.Enqueue(json);while(logQueue.Count>128)logQueue.TryDequeue(out _);return;}
   if(kind is "progress" or "auth" or "networkError"){var packet=JsonNode.Parse(json)!;if(packet["message"] is JsonValue message&&message.TryGetValue<string>(out var source))packet["message"]=localization.Text(source);json=packet.ToJsonString(Store.Json);}
   Dispatcher.InvokeAsync(()=>
   {
@@ -185,7 +195,7 @@ public partial class MainWindow : Window
   catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=localization.Text(ex.Message),status=ex is FriendsRequestException requestError?requestError.Status:0});}
   finally{Net.ProgressSink.Value=null;if(mutating)libraryMutation.Release();activeRequests.Remove(requestId);}
  }
- object State()=>new{launcherVersion=typeof(MainWindow).Assembly.GetName().Version?.ToString(3)??"0.27.1",preferences=store.Config.Preferences,media=mediaLibrary.Snapshot(),startWithWindows=store.Config.StartWithWindows,backgroundLaunch=backgroundPending,updateRecovery=App.UpdateRecovery,playtime=game.Playtime.Snapshot(),accounts=store.Config.Accounts.Select(a=>new{a.Id,a.Name,a.Offline,a.OwnerId,a.ElyName,skin=a.Profile?["skins"]?.AsArray().FirstOrDefault().Str("url")??""}),activeAccountId=store.Config.ActiveAccountId,friendsOwnerId=store.Config.FriendsOwnerId,offline=auth.IsOffline,interfaceScale=store.Config.InterfaceScale,multiClients=store.Config.MultiClients,multiClientCount=store.Config.MultiClientCount,geminiConfigured=crashAssistant.Configured,lastExits=game.LastExits,bedrockRunning=BedrockService.IsRunning(),launcherFullscreen=fullscreen,bedrockSkinFolder=store.Config.BedrockSkinFolder,networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,hideOnlineStatus=store.Config.HideOnlineStatus,friendsSharingError=friends.LastSharingError,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=SourceUpdater.InstalledCommit(),updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),selection=new{edition=store.Config.SelectedEdition,bedrockId=store.Config.SelectedBedrock,bedrockLabel=store.Config.SelectedBedrockLabel,version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
+ object State()=>new{launcherVersion=typeof(MainWindow).Assembly.GetName().Version?.ToString(3)??"0.27.2",preferences=store.Config.Preferences,media=mediaLibrary.Snapshot(),startWithWindows=store.Config.StartWithWindows,backgroundLaunch=backgroundPending,updateRecovery=App.UpdateRecovery,playtime=game.Playtime.Snapshot(),accounts=store.Config.Accounts.Select(a=>new{a.Id,a.Name,a.Offline,a.OwnerId,a.ElyName,skin=a.Profile?["skins"]?.AsArray().FirstOrDefault().Str("url")??""}),activeAccountId=store.Config.ActiveAccountId,friendsOwnerId=store.Config.FriendsOwnerId,offline=auth.IsOffline,interfaceScale=store.Config.InterfaceScale,multiClients=store.Config.MultiClients,multiClientCount=store.Config.MultiClientCount,geminiConfigured=crashAssistant.Configured,lastExits=game.LastExits,bedrockRunning=BedrockService.IsRunning(),launcherFullscreen=fullscreen,bedrockSkinFolder=store.Config.BedrockSkinFolder,networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,hideOnlineStatus=store.Config.HideOnlineStatus,friendsSharingError=friends.LastSharingError,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=SourceUpdater.InstalledCommit(),updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),selection=new{edition=store.Config.SelectedEdition,bedrockId=store.Config.SelectedBedrock,bedrockLabel=store.Config.SelectedBedrockLabel,version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
  async Task<object?> Handle(string action,JsonNode d)
  {
   switch(action)

@@ -10,6 +10,7 @@ static class TrayTests
  static void Main()
  {
   var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
+  MemoryTests.Run();
   AvatarTests.Run();
   MediaTests.Run();
   NotificationTests.Run();

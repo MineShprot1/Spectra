@@ -45,7 +45,15 @@ async function attachCape(rig,url,isCurrent){
  }catch{/* Keep the player visible if the cape texture cannot load. */}
 }
 
+// One observer per page root. Detached, never-visible cards must not be kept
+// alive by an observer closure after navigating away from a long skin list.
+const pendingSkinPairs=new Map();let skinPairObserver=null,skinPairRoot=null;
+function pruneSkinPairs(){for(const host of pendingSkinPairs.keys())if(!host.isConnected){skinPairObserver?.unobserve(host);pendingSkinPairs.delete(host);}if(!pendingSkinPairs.size){skinPairObserver?.disconnect();skinPairObserver=null;skinPairRoot=null;}}
 function lazySkinPair(host,url,variant){
  if(!host)return;if(!window.IntersectionObserver){paintSkinPair(host,url,variant);return;}
- const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){observer.disconnect();paintSkinPair(host,url,variant);}},{root:document.querySelector('#main'),rootMargin:'100px'});observer.observe(host);
+ pruneSkinPairs();const root=document.querySelector('#main');
+ if(skinPairObserver&&root!==skinPairRoot){skinPairObserver.disconnect();pendingSkinPairs.clear();skinPairObserver=null;}
+ if(!skinPairObserver){skinPairRoot=root;skinPairObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(!entry.isIntersecting)continue;const value=pendingSkinPairs.get(entry.target);skinPairObserver?.unobserve(entry.target);pendingSkinPairs.delete(entry.target);if(value&&entry.target.isConnected)paintSkinPair(entry.target,...value);}pruneSkinPairs();},{root,rootMargin:'100px'});}
+ pendingSkinPairs.set(host,[url,variant]);skinPairObserver.observe(host);
 }
+if(typeof MutationObserver!=='undefined')new MutationObserver(pruneSkinPairs).observe(document.body,{childList:true,subtree:true});

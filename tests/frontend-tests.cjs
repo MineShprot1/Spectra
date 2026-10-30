@@ -25,7 +25,7 @@ assert(!evaluate("quickCard('',{name:'X',banner:'javascript:alert(1)'})").includ
  await assert.rejects(()=>evaluate("previewApi('launch',{})"),/просмотр интерфейса/i);
  await assert.rejects(()=>evaluate("previewApi('login',{})"),/просмотр интерфейса/i);
  evaluate("pending.set('test',{resolve:value=>globalThis.replyValue=value,reject:error=>globalThis.replyError=error})");evaluate("onMessage({type:'reply',id:'test',ok:true,result:42})");assert.equal(context.replyValue,42);assert.equal(evaluate('pending.size'),0);
- evaluate("for(let x=0;x<5100;x++)onMessage({type:'log',instanceId:'bounded',line:String(x)})");assert.equal(evaluate("logs.get('bounded').length"),5000);assert.equal(evaluate("logs.get('bounded')[0]"),'100');
+ evaluate("for(let x=0;x<5100;x++)onMessage({type:'log',instanceId:'bounded',line:String(x)})");assert.equal(evaluate("logs.get('bounded').length"),2000);assert.equal(evaluate("logs.get('bounded')[0]"),'3100');
  evaluate("onMessage({type:'logBatch',items:[{type:'log',instanceId:'batched',line:'first'},{type:'log',instanceId:'batched',line:'second'}]})");assert.equal(evaluate("logs.get('batched').join(',')"),'first,second');
  console.log('PASS: escaping, image URLs, preview integrity, RPC replies, bounded log buffer');
 })().catch(e=>{console.error(e);process.exit(1)});
