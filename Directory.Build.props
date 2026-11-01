@@ -1,0 +1,6 @@
+<Project>
+ <PropertyGroup>
+  <SpectraChannel Condition="'$(SpectraChannel)' == ''">testing</SpectraChannel>
+  <TestingBuildNumber Condition="'$(TestingBuildNumber)' == ''">$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)testing-build.json')), '\d+').Value)</TestingBuildNumber>
+ </PropertyGroup>
+</Project>

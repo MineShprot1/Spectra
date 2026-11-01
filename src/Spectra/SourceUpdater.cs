@@ -8,10 +8,19 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 namespace Spectra;
-public sealed record SourceUpdateCheck(bool Checked,bool Available,string Update,string Version="",string CommitName="",string Commit="") { public bool Automatic=>true; }
+public sealed record SourceUpdateCheck(bool Checked,bool Available,string Update,string Version="",string CommitName="",string Commit="",string Channel="stable") { public bool Automatic=>true; }
+public sealed record SourceUpdateChannel
+{
+ public string Repository {get;}public string Token {get;}public string Name {get;}
+ public string Api=>"https://api.github.com/repos/"+Repository;
+ SourceUpdateChannel(string repository,string token,string name){Repository=repository;Token=token;Name=name;}
+ public static SourceUpdateChannel Stable {get;}=new("MineShprot1/Spectra","","stable");
+ public static SourceUpdateChannel Testing(string token)=>new("MineShprot1/Spectra-Testing",token,"testing");
+ public HttpRequestMessage Request(string path){var request=new HttpRequestMessage(HttpMethod.Get,Api+path);if(Token!="")request.Headers.Authorization=new("Bearer",Token);return request;}
+ public override string ToString()=>Name+":"+Repository;
+}
 public static class SourceUpdater
 {
- const string Repo="https://api.github.com/repos/MineShprot1/Spectra";
  public static bool ValidCommit(string sha)=>Regex.IsMatch(sha,@"^[0-9a-f]{40}$");
  public static string InstalledCommit(string? directory=null)
  {
@@ -19,34 +28,37 @@ public static class SourceUpdater
   var info=System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion??"";
   return Regex.Match(info,@"\+([a-f0-9]{40})(?:\W|$)",RegexOptions.IgnoreCase).Groups[1].Value.ToLowerInvariant();
  }
- public static async Task<SourceUpdateCheck> Check(HttpClient? client=null,string? directory=null,CancellationToken cancellation=default)
+ public static async Task<SourceUpdateCheck> Check(HttpClient? client=null,string? directory=null,CancellationToken cancellation=default,SourceUpdateChannel? channel=null)
  {
+  channel??=SourceUpdateChannel.Stable;
   using var timeout=CancellationTokenSource.CreateLinkedTokenSource(cancellation);timeout.CancelAfter(TimeSpan.FromSeconds(8));
   try{
-   using var request=new HttpRequestMessage(HttpMethod.Get,Repo+"/commits?per_page=1");request.Headers.CacheControl=new System.Net.Http.Headers.CacheControlHeaderValue{NoCache=true};
+   using var request=channel.Request("/commits?per_page=1&sha=main");request.Headers.CacheControl=new System.Net.Http.Headers.CacheControlHeaderValue{NoCache=true};
    using var response=await (client??Net.Http).SendAsync(request,timeout.Token).ConfigureAwait(false);
    if(!response.IsSuccessStatusCode)return new(false,false,"Проверка коммитов недоступна · GitHub "+(int)response.StatusCode);
    var raw=await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);if(raw.Length>1024*1024)return new(false,false,"Сервер обновлений вернул неверный ответ");
    if(JsonNode.Parse(raw) is not JsonArray {Count:>0} commits||commits[0] is not JsonObject item||!ValidCommit(item.Str("sha")))return new(false,false,"Сервер обновлений вернул неверный ответ");
-   var sha=item.Str("sha");var installed=InstalledCommit(directory);var name=item["commit"].Str("message").Split('\n')[0].Trim();if(name=="")name=sha[..7];
-   return new(true,installed!=sha,installed==sha?"Исходники Spectra актуальны":"Найден новый коммит Spectra "+sha[..7],name,name,sha);
+   var sha=item.Str("sha");var installed=InstalledCommit(directory);var name=item["commit"].Str("message").Split('\n')[0].Trim();if(name=="")name=sha[..7];var available=installed!=sha||BuildIdentity.Channel!=channel.Name;
+   return new(true,available,available?"Найден новый коммит Spectra "+sha[..7]:"Исходники Spectra актуальны",name,name,sha,channel.Name);
   }catch(OperationCanceledException) when(cancellation.IsCancellationRequested){throw;}
   catch(Exception ex) when(ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException or IOException){return new(false,false,"Не удалось проверить коммиты · можно продолжить запуск");}
  }
- public static async Task Prepare(string sha,Store store,Action<object> emit,Func<bool>? background=null)
+ static async Task<JsonNode> GithubJson(SourceUpdateChannel channel,string path){using var request=channel.Request(path);using var response=await Net.Http.SendAsync(request);response.EnsureSuccessStatusCode();return JsonNode.Parse(await response.Content.ReadAsStringAsync())??throw new IOException("Пустой ответ сервера");}
+ public static async Task Prepare(string sha,Store store,Action<object> emit,Func<bool>? background=null,SourceUpdateChannel? channel=null)
  {
+  channel??=SourceUpdateChannel.Stable;
   if(!ValidCommit(sha))throw new IOException("Некорректный SHA коммита");
-  if(InstalledCommit()==sha)throw new IOException("Этот коммит уже установлен");
+  if(InstalledCommit()==sha&&BuildIdentity.Channel==channel.Name)throw new IOException("Этот коммит уже установлен");
   var sdk=new ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};sdk.ArgumentList.Add("--list-sdks");
   try{using var p=Process.Start(sdk)??throw new IOException("Не удалось найти .NET SDK");var output=await p.StandardOutput.ReadToEndAsync();await p.WaitForExitAsync();if(!output.Split('\n').Any(x=>x.TrimStart().StartsWith("8.")))throw new IOException("Для обновления из исходников установите .NET SDK 8 x64");}
   catch(System.ComponentModel.Win32Exception){throw new IOException("Для обновления из исходников установите .NET SDK 8 x64");}
-  var job=Path.Combine(Path.GetTempPath(),"SpU",Guid.NewGuid().ToString("N")[..12]);var source=Path.Combine(job,"source");var publish=Path.Combine(job,"publish");var cache=Path.Combine(store.Root,"updates","source");Directory.CreateDirectory(source);
+  var job=Path.Combine(Path.GetTempPath(),"SpU",Guid.NewGuid().ToString("N")[..12]);var source=Path.Combine(job,"source");var publish=Path.Combine(job,"publish");var cache=Path.Combine(store.Root,"updates",channel.Name,"source");Directory.CreateDirectory(source);
   bool handedOff=false;
   try
   {
-   var commit=await Net.Get(Repo+"/commits/"+sha);var treeSha=commit?["commit"]?["tree"].Str("sha")??"";if(!ValidCommit(treeSha))throw new IOException("Нет дерева коммита");
+   var commit=await GithubJson(channel,"/commits/"+sha);var treeSha=commit?["commit"]?["tree"].Str("sha")??"";if(!ValidCommit(treeSha))throw new IOException("Нет дерева коммита");
    var commitName=commit?["commit"].Str("message").Split('\n')[0].Trim()??sha[..7];
-   var tree=await Net.Get(Repo+"/git/trees/"+treeSha+"?recursive=1");if(tree?["truncated"]?.GetValue<bool>()==true)throw new IOException("Дерево GitHub неполное");
+   var tree=await GithubJson(channel,"/git/trees/"+treeSha+"?recursive=1");if(tree?["truncated"]?.GetValue<bool>()==true)throw new IOException("Дерево GitHub неполное");
    var files=tree?["tree"]?.AsArray().Where(x=>x.Str("type")=="blob").ToArray()??[];if(files.Length>10000)throw new IOException("Слишком большой репозиторий");
    long total=0;
    var downloads=new List<(string Path,string Destination,string Hash,long Size)>();
@@ -73,10 +85,12 @@ public static class SourceUpdater
     }
    }
    Report(0);
-   await Parallel.ForEachAsync(downloads,new ParallelOptions{MaxDegreeOfParallelism=8},async(file,cancellation)=>
+   await Parallel.ForEachAsync(downloads,new ParallelOptions{MaxDegreeOfParallelism=channel.Name=="testing"?2:8},async(file,cancellation)=>
    {
-    var url="https://raw.githubusercontent.com/MineShprot1/Spectra/"+sha+"/"+string.Join('/',file.Path.Split('/').Select(Uri.EscapeDataString));
-    using var response=await Net.Http.GetAsync(url,HttpCompletionOption.ResponseHeadersRead,cancellation);response.EnsureSuccessStatusCode();
+    if(channel.Name=="testing")await Task.Delay(300,cancellation);
+    using var request=channel.Name=="testing"?channel.Request("/git/blobs/"+file.Hash):new HttpRequestMessage(HttpMethod.Get,"https://raw.githubusercontent.com/"+channel.Repository+"/"+sha+"/"+string.Join('/',file.Path.Split('/').Select(Uri.EscapeDataString)));
+    if(channel.Name=="testing")request.Headers.Accept.ParseAdd("application/vnd.github.raw+json");
+    using var response=await Net.Http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,cancellation);response.EnsureSuccessStatusCode();
     await using(var input=await response.Content.ReadAsStreamAsync(cancellation))
     await using(var output=new FileStream(file.Destination,FileMode.CreateNew,FileAccess.Write,FileShare.None,65536,true))
     {
@@ -97,6 +111,10 @@ public static class SourceUpdater
    emit(new{type="progress",message="Компиляция нового коммита · текущая версия ещё работает",percent=0});
    var start=new ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,WorkingDirectory=source};
    foreach(var arg in new[]{"publish",project,"-c","Release","-r","win-x64","--self-contained","true","-o",publish})start.ArgumentList.Add(arg);
+   start.ArgumentList.Add("-p:SpectraChannel="+channel.Name);
+   if(channel.Name=="testing"){
+    var number=JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(source,"testing-build.json")))?["number"]?.GetValue<int>()??0;if(number<1||number>65534)throw new IOException("Invalid testing build number");start.ArgumentList.Add("-p:TestingBuildNumber="+number);
+   }
    start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"]="1";
    start.Environment["DOTNET_CLI_UI_LANGUAGE"]="en";
    start.StandardOutputEncoding=Encoding.UTF8;start.StandardErrorEncoding=Encoding.UTF8;

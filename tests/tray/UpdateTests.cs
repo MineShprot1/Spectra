@@ -6,8 +6,8 @@ static class UpdateTests
 {
  sealed class Handler:HttpMessageHandler
  {
-  public HttpStatusCode Status=HttpStatusCode.OK;public string Body="[]";public bool Fail,NoCache;public int Calls;
-  protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellation){Calls++;NoCache=request.Headers.CacheControl?.NoCache==true;if(Fail)throw new HttpRequestException("offline");return Task.FromResult(new HttpResponseMessage(Status){Content=new StringContent(Body)});}
+  public HttpStatusCode Status=HttpStatusCode.OK;public string Body="[]";public bool Fail,NoCache;public int Calls;public string? Authorization;public Uri? Url;
+  protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellation){Calls++;Authorization=request.Headers.Authorization?.ToString();Url=request.RequestUri;NoCache=request.Headers.CacheControl?.NoCache==true;if(Fail)throw new HttpRequestException("offline");return Task.FromResult(new HttpResponseMessage(Status){Content=new StringContent(Body)});}
  }
  public static async Task Run()
  {
@@ -16,7 +16,10 @@ static class UpdateTests
    var a=new string('a',40);var b=new string('b',40);File.WriteAllText(Path.Combine(root,"build-commit.txt"),a);
    using var handler=new Handler{Body="[{\"sha\":\""+b+"\",\"commit\":{\"message\":\"Update B\\nDetails\"}}]"};using var client=new HttpClient(handler);
    var fresh=await SourceUpdater.Check(client,root);if(!fresh.Checked||!fresh.Available||!fresh.Automatic||fresh.Commit!=b||fresh.Version!="Update B"||!handler.NoCache)throw new Exception("Fresh update check failed");
-   handler.Body=handler.Body.Replace(b,a);var current=await SourceUpdater.Check(client,root);if(!current.Checked||current.Available)throw new Exception("Installed commit comparison failed");
+   handler.Body=handler.Body.Replace(b,a);var current=await SourceUpdater.Check(client,root);if(!current.Checked||current.Available!=(BuildIdentity.Channel!="stable"))throw new Exception("Installed commit/channel comparison failed");
+   var test=await SourceUpdater.Check(client,root,channel:SourceUpdateChannel.Testing("github_pat_fixture_only"));if(!test.Checked||test.Channel!="testing"||handler.Authorization!="Bearer github_pat_fixture_only"||handler.Url?.AbsolutePath!="/repos/MineShprot1/Spectra-Testing/commits")throw new Exception("Private channel ignored authentication or repository");
+   await SourceUpdater.Check(client,root);if(handler.Authorization!=null||Net.Http.DefaultRequestHeaders.Authorization!=null)throw new Exception("Private credential leaked into stable/global HTTP requests");
+   handler.Status=HttpStatusCode.Unauthorized;var denied=await SourceUpdater.Check(client,root,channel:SourceUpdateChannel.Testing("github_pat_fixture_only"));if(denied.Checked||denied.Available||!denied.Update.Contains("401"))throw new Exception("Private denial silently fell back to stable");
    handler.Status=HttpStatusCode.TooManyRequests;var limited=await SourceUpdater.Check(client,root);if(limited.Checked||limited.Available||!limited.Update.Contains("429"))throw new Exception("Rate limit was reported as up-to-date");
    handler.Status=HttpStatusCode.OK;handler.Body="{}";if((await SourceUpdater.Check(client,root)).Checked)throw new Exception("Invalid response was accepted");handler.Fail=true;if((await SourceUpdater.Check(client,root)).Checked)throw new Exception("Offline was reported as up-to-date");handler.Fail=false;
    using var canceled=new CancellationTokenSource();canceled.Cancel();try{await SourceUpdater.Check(client,root,canceled.Token);throw new Exception("Cancellation ignored");}catch(OperationCanceledException){}

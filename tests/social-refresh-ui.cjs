@@ -3,6 +3,7 @@ const http=require('node:http'),root=path.resolve(__dirname,'../src/Spectra/Web'
 (async()=>{
  server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}try{res.writeHead(200,{'Content-Type':{'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.ttf':'font/ttf'}[path.extname(file)]||'application/octet-stream'});res.end(fs.readFileSync(file));}catch{res.writeHead(404).end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));server.unref();
  const browser=activeBrowser=await chromium.launch({executablePath:process.env.SPECTRA_CHROMIUM_PATH||undefined,args:['--no-sandbox','--disable-gpu']});const p=await browser.newPage({viewport:{width:1200,height:850}}),errors=[];p.on('pageerror',e=>errors.push(e.message));
+ await p.emulateMedia({reducedMotion:'reduce'});
  await p.addInitScript(()=>{window.chrome={webview:{postMessage(){},addEventListener(){}}};});
  await p.route('https://**/*',route=>route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="600"><rect width="2400" height="600" fill="#73a68b"/></svg>'}));
  await p.goto('http://127.0.0.1:'+server.address().port+'/index.html');await p.evaluate(async()=>{

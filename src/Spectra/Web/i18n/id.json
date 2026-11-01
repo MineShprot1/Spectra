@@ -1787,5 +1787,17 @@
   "Обновление уже устанавливается": "Pembaruan sudah diinstal",
   "Предыдущая установка обновления завершилась ошибкой": "Penginstalan pembaruan sebelumnya gagal",
   "Продолжить без обновления": "Lanjutkan tanpa memperbarui",
-  "Сервер обновлений вернул неверный ответ": "Server pembaruan mengembalikan respons yang salah"
+  "Сервер обновлений вернул неверный ответ": "Server pembaruan mengembalikan respons yang salah",
+  "Введите ключ разработчика для доступа к тестовому каналу.": "Masukkan kunci pengembang Anda untuk mengakses saluran pengujian.",
+  "Войти в режим тестирования": "Masuk ke mode pengujian",
+  "Выйти из режима тестирования": "Keluar dari mode pengujian",
+  "Действует до": "Berlaku sampai",
+  "Канал обновлений изменился. Повторите проверку.": "Saluran pembaruan telah berubah. Periksa lagi.",
+  "Ключ недействителен или срок его действия истёк": "Kuncinya tidak valid atau telah kedaluwarsa",
+  "Ключ разработчика": "Kunci pengembang",
+  "Обновления из Spectra-Testing": "Pembaruan dari Spectra-Testing",
+  "Режим тестирования": "Modus uji",
+  "РЕЖИМ ТЕСТИРОВАНИЯ": "MODE PENGUJIAN",
+  "Режим тестирования включён": "Mode pengujian diaktifkan",
+  "ТЕСТОВАЯ СБОРКА": "PEMBANGUNAN UJI"
 }

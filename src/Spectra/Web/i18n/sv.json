@@ -1787,5 +1787,17 @@
   "Обновление уже устанавливается": "Uppdateringen installeras redan",
   "Предыдущая установка обновления завершилась ошибкой": "Installation av tidigare uppdatering misslyckades",
   "Продолжить без обновления": "Fortsätt utan att uppdatera",
-  "Сервер обновлений вернул неверный ответ": "Uppdateringsservern returnerade ett felaktigt svar"
+  "Сервер обновлений вернул неверный ответ": "Uppdateringsservern returnerade ett felaktigt svar",
+  "Введите ключ разработчика для доступа к тестовому каналу.": "Ange din utvecklarnyckel för att komma åt testkanalen.",
+  "Войти в режим тестирования": "Gå in i testläge",
+  "Выйти из режима тестирования": "Avsluta testläget",
+  "Действует до": "Gäller till kl",
+  "Канал обновлений изменился. Повторите проверку.": "Uppdateringskanalen har ändrats. Kontrollera igen.",
+  "Ключ недействителен или срок его действия истёк": "Nyckeln är ogiltig eller har gått ut",
+  "Ключ разработчика": "Utvecklarnyckel",
+  "Обновления из Spectra-Testing": "Uppdateringar från Spectra-Testing",
+  "Режим тестирования": "Testläge",
+  "РЕЖИМ ТЕСТИРОВАНИЯ": "TESTLÄGE",
+  "Режим тестирования включён": "Testläge aktiverat",
+  "ТЕСТОВАЯ СБОРКА": "PROVBYGG"
 }

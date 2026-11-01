@@ -1787,5 +1787,17 @@
   "Обновление уже устанавливается": "Actualizarea este deja instalată",
   "Предыдущая установка обновления завершилась ошибкой": "Instalarea actualizării anterioare a eșuat",
   "Продолжить без обновления": "Continuați fără a actualiza",
-  "Сервер обновлений вернул неверный ответ": "Serverul de actualizare a returnat un răspuns incorect"
+  "Сервер обновлений вернул неверный ответ": "Serverul de actualizare a returnat un răspuns incorect",
+  "Введите ключ разработчика для доступа к тестовому каналу.": "Introduceți cheia de dezvoltator pentru a accesa canalul de testare.",
+  "Войти в режим тестирования": "Intrați în modul de testare",
+  "Выйти из режима тестирования": "Ieși din modul de testare",
+  "Действует до": "Valabil până la",
+  "Канал обновлений изменился. Повторите проверку.": "Canalul de actualizare s-a schimbat. Verificați din nou.",
+  "Ключ недействителен или срок его действия истёк": "Cheia este nevalidă sau a expirat",
+  "Ключ разработчика": "Cheia de dezvoltator",
+  "Обновления из Spectra-Testing": "Actualizări de la Spectra-Testing",
+  "Режим тестирования": "Modul de testare",
+  "РЕЖИМ ТЕСТИРОВАНИЯ": "MOD DE TESTARE",
+  "Режим тестирования включён": "Modul de testare activat",
+  "ТЕСТОВАЯ СБОРКА": "TEST CONSTRUIRE"
 }

@@ -1787,5 +1787,17 @@
   "Обновление уже устанавливается": "The update is already being installed",
   "Предыдущая установка обновления завершилась ошибкой": "Previous update installation failed",
   "Продолжить без обновления": "Continue without updating",
-  "Сервер обновлений вернул неверный ответ": "The update server returned an incorrect response"
+  "Сервер обновлений вернул неверный ответ": "The update server returned an incorrect response",
+  "Введите ключ разработчика для доступа к тестовому каналу.": "Enter your developer key to access the test channel.",
+  "Войти в режим тестирования": "Enter testing mode",
+  "Выйти из режима тестирования": "Exit testing mode",
+  "Действует до": "Valid until",
+  "Канал обновлений изменился. Повторите проверку.": "The update channel has changed. Check again.",
+  "Ключ недействителен или срок его действия истёк": "The key is invalid or has expired",
+  "Ключ разработчика": "Developer key",
+  "Обновления из Spectra-Testing": "Updates from Spectra-Testing",
+  "Режим тестирования": "Test mode",
+  "РЕЖИМ ТЕСТИРОВАНИЯ": "TESTING MODE",
+  "Режим тестирования включён": "Test mode enabled",
+  "ТЕСТОВАЯ СБОРКА": "TEST BUILD"
 }

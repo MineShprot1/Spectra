@@ -1787,5 +1787,17 @@
   "Обновление уже устанавливается": "Güncelleme zaten yükleniyor",
   "Предыдущая установка обновления завершилась ошибкой": "Önceki güncelleme yüklemesi başarısız oldu",
   "Продолжить без обновления": "Güncellemeden devam et",
-  "Сервер обновлений вернул неверный ответ": "Güncelleme sunucusu yanlış bir yanıt verdi"
+  "Сервер обновлений вернул неверный ответ": "Güncelleme sunucusu yanlış bir yanıt verdi",
+  "Введите ключ разработчика для доступа к тестовому каналу.": "Test kanalına erişmek için geliştirici anahtarınızı girin.",
+  "Войти в режим тестирования": "Test moduna girin",
+  "Выйти из режима тестирования": "Test modundan çık",
+  "Действует до": "Şu tarihe kadar geçerlidir:",
+  "Канал обновлений изменился. Повторите проверку.": "Güncelleme kanalı değişti. Tekrar kontrol edin.",
+  "Ключ недействителен или срок его действия истёк": "Anahtar geçersiz veya süresi dolmuş",
+  "Ключ разработчика": "Geliştirici anahtarı",
+  "Обновления из Spectra-Testing": "Spectra-Testing'den Güncellemeler",
+  "Режим тестирования": "Test modu",
+  "РЕЖИМ ТЕСТИРОВАНИЯ": "TEST MODU",
+  "Режим тестирования включён": "Test modu etkinleştirildi",
+  "ТЕСТОВАЯ СБОРКА": "TEST YAPIMI"
 }

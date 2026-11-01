@@ -74,6 +74,8 @@ public partial class MainWindow : Window
   if(batch.Count>0)Browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"logBatch\",\"items\":["+string.Join(",",batch)+"]}");
  }
  readonly Store store=new();
+ TestingAccess? testingAccess;
+ TestingAccess Testing=>testingAccess??=new(store.Root);
  readonly LauncherLocalization localization;
  readonly Authentication auth;
  readonly GameService game;
@@ -89,7 +91,7 @@ public partial class MainWindow : Window
  async Task<object> CheckSourceUpdates(bool announce,CancellationToken cancellation=default)
  {
   await updateCheckGate.WaitAsync(cancellation).ConfigureAwait(false);try{
-   var result=await SourceUpdater.Check(cancellation:cancellation).ConfigureAwait(false);var value=JsonSerializer.SerializeToNode(result,Store.Json)!;
+   var result=await SourceUpdater.Check(cancellation:cancellation,channel:Testing.UpdateChannel).ConfigureAwait(false);var value=JsonSerializer.SerializeToNode(result,Store.Json)!;
    if(!Dispatcher.HasShutdownStarted)await Dispatcher.InvokeAsync(()=>{
     if(result.Checked)lastSourceUpdate=value;
     if(announce){Emit(new{type="sourceUpdateState",update=value});if(result.Available)AnnouncePendingUpdate();}
@@ -149,7 +151,7 @@ public partial class MainWindow : Window
    core.WebMessageReceived+=Receive;
    // Clear only cached assets, preserving cookies and appearance storage.
    // Refresh bundled UI assets once per release; keep cookies and ordinary launch caching.
-   var assetVersion=typeof(MainWindow).Assembly.GetName().Version?.ToString(3)??"0.27.3";
+   var assetVersion=BuildIdentity.Version;
    if(store.Config.WebAssetVersion!=assetVersion)try{await core.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache);store.Config.WebAssetVersion=assetVersion;store.Save();}catch{/* A cache cleanup failure must not block the launcher. */}
    if(store.Config.LauncherFullscreen&&!backgroundPending)ToggleFullscreen();
    core.Settings.IsZoomControlEnabled=false;
@@ -195,7 +197,7 @@ public partial class MainWindow : Window
   catch(Exception ex){if(transfer)Emit(new{type="transferComplete"});Emit(new{type="reply",id=requestId,ok=false,error=localization.Text(ex.Message),status=ex is FriendsRequestException requestError?requestError.Status:0});}
   finally{Net.ProgressSink.Value=null;if(mutating)libraryMutation.Release();activeRequests.Remove(requestId);}
  }
- object State()=>new{launcherVersion=typeof(MainWindow).Assembly.GetName().Version?.ToString(3)??"0.27.3",preferences=store.Config.Preferences,media=mediaLibrary.Snapshot(),startWithWindows=store.Config.StartWithWindows,backgroundLaunch=backgroundPending,updateRecovery=App.UpdateRecovery,playtime=game.Playtime.Snapshot(),accounts=store.Config.Accounts.Select(a=>new{a.Id,a.Name,a.Offline,a.OwnerId,a.ElyName,skin=a.Profile?["skins"]?.AsArray().FirstOrDefault().Str("url")??""}),activeAccountId=store.Config.ActiveAccountId,friendsOwnerId=store.Config.FriendsOwnerId,offline=auth.IsOffline,interfaceScale=store.Config.InterfaceScale,multiClients=store.Config.MultiClients,multiClientCount=store.Config.MultiClientCount,geminiConfigured=crashAssistant.Configured,lastExits=game.LastExits,bedrockRunning=BedrockService.IsRunning(),launcherFullscreen=fullscreen,bedrockSkinFolder=store.Config.BedrockSkinFolder,networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,hideOnlineStatus=store.Config.HideOnlineStatus,friendsSharingError=friends.LastSharingError,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=SourceUpdater.InstalledCommit(),updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),selection=new{edition=store.Config.SelectedEdition,bedrockId=store.Config.SelectedBedrock,bedrockLabel=store.Config.SelectedBedrockLabel,version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
+ object State()=>new{launcherVersion=BuildIdentity.Version,testing=Testing.Snapshot(),preferences=store.Config.Preferences,media=mediaLibrary.Snapshot(),startWithWindows=store.Config.StartWithWindows,backgroundLaunch=backgroundPending,updateRecovery=App.UpdateRecovery,playtime=game.Playtime.Snapshot(),accounts=store.Config.Accounts.Select(a=>new{a.Id,a.Name,a.Offline,a.OwnerId,a.ElyName,skin=a.Profile?["skins"]?.AsArray().FirstOrDefault().Str("url")??""}),activeAccountId=store.Config.ActiveAccountId,friendsOwnerId=store.Config.FriendsOwnerId,offline=auth.IsOffline,interfaceScale=store.Config.InterfaceScale,multiClients=store.Config.MultiClients,multiClientCount=store.Config.MultiClientCount,geminiConfigured=crashAssistant.Configured,lastExits=game.LastExits,bedrockRunning=BedrockService.IsRunning(),launcherFullscreen=fullscreen,bedrockSkinFolder=store.Config.BedrockSkinFolder,networkAccount=friends.Account,friendsEndpoint=store.Config.FriendsEndpoint,shareGameActivity=store.Config.ShareGameActivity,hideOnlineStatus=store.Config.HideOnlineStatus,friendsSharingError=friends.LastSharingError,installedCommitName=File.Exists(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt"))?File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"build-commit-name.txt")).Trim():"",installedCommit=SourceUpdater.InstalledCommit(),updateReport=File.Exists(Path.Combine(store.Root,"updates","last-apply.json"))?JsonNode.Parse(File.ReadAllText(Path.Combine(store.Root,"updates","last-apply.json"))):null,appearance=JsonNode.Parse(store.Config.AppearanceJson),instances=store.Config.Instances,defaults=store.Config.Defaults,profile=auth.Profile,hasAccount=auth.HasSavedAccount,curseForgeConfigured=!string.IsNullOrEmpty(store.Config.CurseForgeKey),craftyConfigured=!string.IsNullOrEmpty(store.Config.CraftyKey),running=game.Running.Keys,runningVersions=game.Activities.Where(x=>game.Running.ContainsKey(x.Key)).ToDictionary(x=>x.Key,x=>x.Value.Version),selection=new{edition=store.Config.SelectedEdition,bedrockId=store.Config.SelectedBedrock,bedrockLabel=store.Config.SelectedBedrockLabel,version=store.Config.SelectedVersion,instanceId=store.Config.SelectedInstance},views=new{versions=store.Config.VersionsView,instances=store.Config.InstancesView},skins=store.Config.Skins.Where(x=>x.Owner==auth.Profile.Str("id")).Select(x=>new{x.Id,x.Name,x.Variant,x.Added,image="https://skins.spectra.local/"+x.Id+".png"})};
  async Task<object?> Handle(string action,JsonNode d)
  {
   switch(action)
@@ -206,6 +208,10 @@ public partial class MainWindow : Window
    case "friendsOwner":{if(!auth.IsOffline)throw new IOException("Эта настройка доступна офлайн");if(!store.Config.Accounts.Any(a=>!a.Offline&&a.Id==d.Str("id")))throw new IOException("Выберите свой Minecraft-аккаунт");store.Config.FriendsOwnerId=d.Str("id");auth.ActiveAccount!.OwnerId=d.Str("id");store.Save();return State();}
    case "multiProfiles":{if(!store.Config.Accounts.Any(a=>!a.Offline))throw new IOException("Нужен лицензионный аккаунт");var clients=d["clients"]!.Deserialize<MultiClientProfile[]>(Store.Json)!;if(clients.Length>8)throw new IOException("Не больше 8 клиентов");foreach(var client in clients){Authentication.ValidateName(client.Name);if(client.ElyName!="")Authentication.ValidateName(client.ElyName);if(!System.Text.RegularExpressions.Regex.IsMatch(client.Id,@"\A[a-f0-9]{32}\z"))throw new IOException("Неверный клиент");}var count=d["count"]?.GetValue<int>()??clients.Length;if(count<1||count>8||count>clients.Length)throw new IOException("Неверное количество клиентов");store.Config.MultiClientCount=count;store.Config.MultiClients=clients.ToList();store.Save();return State();}
    case "launchMany":await game.LaunchMany(d.Str("instanceId"),d["clients"]!.Deserialize<MultiClientProfile[]>(Store.Json)!);return State();
+   case "testingActivate":case "testingDisable":{
+    if(updateInstalling)throw new IOException("Обновление уже устанавливается");
+    await updateCheckGate.WaitAsync();try{if(updateInstalling)throw new IOException("Обновление уже устанавливается");if(action=="testingActivate"){var grant=Testing.Validate(d.Str("key"));var check=await SourceUpdater.Check(channel:SourceUpdateChannel.Testing(grant.GithubToken));if(!check.Checked)throw new IOException(check.Update);Testing.Activate(d.Str("key"));}else Testing.Disable();lastSourceUpdate=null;return State();}finally{updateCheckGate.Release();}
+   }
    case "preferences":{store.Config.Preferences=d.Deserialize<LauncherPreferences>(Store.Json)??new();store.Save();if(!store.Config.Preferences.Notifications||!store.Config.Preferences.SystemNotifications)socialDesktop.Clear();return State();}
    case "friendsWindow":socialDesktop.Show();Emit(new{type="openFriends"});return null;
    case "mediaImport":case "mediaRemove":case "mediaConfigure":case "mediaBlur":case "mediaPoster":case "mediaPreview":return await MediaCommand(action,d);
@@ -330,8 +336,8 @@ public partial class MainWindow : Window
    case "updateSource":
    {
     if(game.Running.Count>0||BedrockService.IsRunning())throw new IOException("Закройте Minecraft перед обновлением лаунчера");
-    if(updateInstalling)throw new IOException("Обновление уже устанавливается");updateInstalling=true;
-    try{await SourceUpdater.Prepare(d.Str("commit"),store,Emit,()=>!IsVisible||WindowState==WindowState.Minimized||Opacity==0);socialDesktop.Dispose();Application.Current.Shutdown();return new{restarting=true};}
+    SourceUpdateChannel channel;await updateCheckGate.WaitAsync();try{if(updateInstalling)throw new IOException("Обновление уже устанавливается");channel=Testing.UpdateChannel;if(d.Str("channel")!=channel.Name)throw new IOException("Канал обновлений изменился. Повторите проверку.");updateInstalling=true;}finally{updateCheckGate.Release();}
+    try{await SourceUpdater.Prepare(d.Str("commit"),store,Emit,()=>!IsVisible||WindowState==WindowState.Minimized||Opacity==0,channel);socialDesktop.Dispose();Application.Current.Shutdown();return new{restarting=true};}
     catch{updateNotices.Observe(d.Str("commit"),true);if(SourceUpdater.ValidCommit(d.Str("commit"))){Directory.CreateDirectory(Path.Combine(store.Root,"updates"));File.WriteAllText(Path.Combine(store.Root,"updates","failed-commit.txt"),d.Str("commit"));}throw;}
     finally{updateInstalling=false;}
    }

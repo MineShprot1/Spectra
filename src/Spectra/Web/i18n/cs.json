@@ -1787,5 +1787,17 @@
   "Обновление уже устанавливается": "Aktualizace se již instaluje",
   "Предыдущая установка обновления завершилась ошибкой": "Instalace předchozí aktualizace se nezdařila",
   "Продолжить без обновления": "Pokračujte bez aktualizace",
-  "Сервер обновлений вернул неверный ответ": "Aktualizační server vrátil nesprávnou odpověď"
+  "Сервер обновлений вернул неверный ответ": "Aktualizační server vrátil nesprávnou odpověď",
+  "Введите ключ разработчика для доступа к тестовому каналу.": "Pro přístup k testovacímu kanálu zadejte svůj klíč vývojáře.",
+  "Войти в режим тестирования": "Vstupte do testovacího režimu",
+  "Выйти из режима тестирования": "Ukončete testovací režim",
+  "Действует до": "Platí do",
+  "Канал обновлений изменился. Повторите проверку.": "Aktualizační kanál se změnil. Zkontrolujte znovu.",
+  "Ключ недействителен или срок его действия истёк": "Klíč je neplatný nebo jeho platnost vypršela",
+  "Ключ разработчика": "Vývojářský klíč",
+  "Обновления из Spectra-Testing": "Aktualizace od Spectra-Testing",
+  "Режим тестирования": "Testovací režim",
+  "РЕЖИМ ТЕСТИРОВАНИЯ": "TESTOVACÍ REŽIM",
+  "Режим тестирования включён": "Testovací režim povolen",
+  "ТЕСТОВАЯ СБОРКА": "TESTOVACÍ SESTAVENÍ"
 }

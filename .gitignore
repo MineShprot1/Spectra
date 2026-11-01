@@ -12,3 +12,7 @@ test-results/
 
 src/Spectra.Installer/payload.zip
 build-commit-name.txt
+**/obj-testing/
+**/*signing-key*.pem
+**/*.testing-key.txt
+**/__pycache__/

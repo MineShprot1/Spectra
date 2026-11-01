@@ -1787,5 +1787,17 @@
   "Обновление уже устанавливается": "La actualización ya se está instalando.",
   "Предыдущая установка обновления завершилась ошибкой": "Error en la instalación de la actualización anterior",
   "Продолжить без обновления": "Continuar sin actualizar",
-  "Сервер обновлений вернул неверный ответ": "El servidor de actualización devolvió una respuesta incorrecta"
+  "Сервер обновлений вернул неверный ответ": "El servidor de actualización devolvió una respuesta incorrecta",
+  "Введите ключ разработчика для доступа к тестовому каналу.": "Ingrese su clave de desarrollador para acceder al canal de prueba.",
+  "Войти в режим тестирования": "Ingrese al modo de prueba",
+  "Выйти из режима тестирования": "Salir del modo de prueba",
+  "Действует до": "Válido hasta",
+  "Канал обновлений изменился. Повторите проверку.": "El canal de actualización ha cambiado. Compruébalo de nuevo.",
+  "Ключ недействителен или срок его действия истёк": "La clave no es válida o ha caducado",
+  "Ключ разработчика": "clave de desarrollador",
+  "Обновления из Spectra-Testing": "Actualizaciones de Spectra Testing",
+  "Режим тестирования": "Modo de prueba",
+  "РЕЖИМ ТЕСТИРОВАНИЯ": "MODO DE PRUEBA",
+  "Режим тестирования включён": "Modo de prueba habilitado",
+  "ТЕСТОВАЯ СБОРКА": "CONSTRUCCIÓN DE PRUEBA"
 }

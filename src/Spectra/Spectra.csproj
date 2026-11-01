@@ -3,9 +3,20 @@
     <OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.27.3</Version><ApplicationIcon>Assets\spectra.ico</ApplicationIcon><AssemblyName>Spectra</AssemblyName>
+    <Version>0.28.0</Version><ApplicationIcon>Assets\spectra.ico</ApplicationIcon><AssemblyName>Spectra</AssemblyName>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SpectraChannel Condition="'$(SpectraChannel)' == ''">stable</SpectraChannel>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(SpectraChannel)' == 'testing'">
+    <TestingBuildNumber Condition="'$(TestingBuildNumber)' == ''">1</TestingBuildNumber>
+    <Version>0.1.0-test.$(TestingBuildNumber)</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.$(TestingBuildNumber)</FileVersion>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="TestingPublicKey.pem" />
+    <AssemblyMetadata Include="SpectraChannel" Value="$(SpectraChannel)" />
     <Resource Include="Assets\spectra.ico" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="CmlLib.Core" Version="4.0.6" />

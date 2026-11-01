@@ -1787,5 +1787,17 @@
   "Обновление уже устанавливается": "De update wordt al geïnstalleerd",
   "Предыдущая установка обновления завершилась ошибкой": "Installatie van de vorige update is mislukt",
   "Продолжить без обновления": "Ga door zonder bij te werken",
-  "Сервер обновлений вернул неверный ответ": "De updateserver heeft een onjuist antwoord geretourneerd"
+  "Сервер обновлений вернул неверный ответ": "De updateserver heeft een onjuist antwoord geretourneerd",
+  "Введите ключ разработчика для доступа к тестовому каналу.": "Voer uw ontwikkelaarssleutel in om toegang te krijgen tot het testkanaal.",
+  "Войти в режим тестирования": "Ga naar de testmodus",
+  "Выйти из режима тестирования": "Verlaat de testmodus",
+  "Действует до": "Geldig tot",
+  "Канал обновлений изменился. Повторите проверку.": "Het updatekanaal is gewijzigd. Controleer opnieuw.",
+  "Ключ недействителен или срок его действия истёк": "De sleutel is ongeldig of verlopen",
+  "Ключ разработчика": "Ontwikkelaarssleutel",
+  "Обновления из Spectra-Testing": "Updates van Spectra-testen",
+  "Режим тестирования": "Testmodus",
+  "РЕЖИМ ТЕСТИРОВАНИЯ": "TESTMODUS",
+  "Режим тестирования включён": "Testmodus ingeschakeld",
+  "ТЕСТОВАЯ СБОРКА": "TESTBOUW"
 }

@@ -1787,5 +1787,17 @@
   "Обновление уже устанавливается": "A frissítés már telepítve van",
   "Предыдущая установка обновления завершилась ошибкой": "Az előző frissítés telepítése nem sikerült",
   "Продолжить без обновления": "Folytassa frissítés nélkül",
-  "Сервер обновлений вернул неверный ответ": "A frissítési kiszolgáló helytelen választ adott vissza"
+  "Сервер обновлений вернул неверный ответ": "A frissítési kiszolgáló helytelen választ adott vissza",
+  "Введите ключ разработчика для доступа к тестовому каналу.": "Adja meg fejlesztői kulcsát a tesztcsatorna eléréséhez.",
+  "Войти в режим тестирования": "Lépjen be a tesztelési módba",
+  "Выйти из режима тестирования": "Lépjen ki a tesztelési módból",
+  "Действует до": "ig érvényes",
+  "Канал обновлений изменился. Повторите проверку.": "A frissítési csatorna megváltozott. Ellenőrizze újra.",
+  "Ключ недействителен или срок его действия истёк": "A kulcs érvénytelen vagy lejárt",
+  "Ключ разработчика": "Fejlesztői kulcs",
+  "Обновления из Spectra-Testing": "Frissítések a Spectra-Testingből",
+  "Режим тестирования": "Teszt mód",
+  "РЕЖИМ ТЕСТИРОВАНИЯ": "TESZT MÓD",
+  "Режим тестирования включён": "Teszt mód engedélyezve",
+  "ТЕСТОВАЯ СБОРКА": "TESZTÉPÍTÉS"
 }

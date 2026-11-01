@@ -17,11 +17,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install dependencies
+        run: npm ci
       - name: Frontend logic tests
         run: npm test
       - name: Install UI test runtime
         run: |
-          npm install
           npx playwright install chromium
       - name: DOM feature tests
         run: npm run test:dom
