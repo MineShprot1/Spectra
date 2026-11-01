@@ -42,7 +42,7 @@ if ($gitCommand) {
 }
 dotnet restore src/Spectra/Spectra.csproj
 if ($LASTEXITCODE) { throw 'Restore failed' }
-dotnet build src/Spectra/Spectra.csproj -c Release --no-restore
+dotnet build src/Spectra/Spectra.csproj -c Release --no-restore -p:SpectraChannel=stable
 if ($LASTEXITCODE) { throw 'Build failed' }
 dotnet run --project tests/Workspace.Tests.csproj -c Release
 if ($LASTEXITCODE) { throw 'Workspace feature tests failed' }
@@ -52,7 +52,7 @@ dotnet run --project tests/Spectra.Tests.csproj -c Release
 if ($LASTEXITCODE) { throw 'Tests failed' }
 dotnet run --project tests/features/Features.Tests.csproj -c Release
 if ($LASTEXITCODE) { throw 'Feature tests failed' }
-dotnet publish src/Spectra/Spectra.csproj -c Release -r win-x64 --self-contained true -o dist/Spectra
+dotnet publish src/Spectra/Spectra.csproj -c Release -r win-x64 --self-contained true -p:SpectraChannel=stable -o dist/Spectra
 if ($LASTEXITCODE) { throw 'Publish failed' }
 if (Test-Path "$PSScriptRoot/api-keys.local.json") { Copy-Item "$PSScriptRoot/api-keys.local.json" "$PSScriptRoot/dist/Spectra/api-keys.local.json" }
 Write-Host "Ready: $PSScriptRoot\dist\Spectra\Spectra.exe"

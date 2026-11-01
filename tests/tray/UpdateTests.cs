@@ -6,8 +6,8 @@ static class UpdateTests
 {
  sealed class Handler:HttpMessageHandler
  {
-  public HttpStatusCode Status=HttpStatusCode.OK;public string Body="[]";public bool Fail,NoCache;public int Calls;public string? Authorization;public Uri? Url;
-  protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellation){Calls++;Authorization=request.Headers.Authorization?.ToString();Url=request.RequestUri;NoCache=request.Headers.CacheControl?.NoCache==true;if(Fail)throw new HttpRequestException("offline");return Task.FromResult(new HttpResponseMessage(Status){Content=new StringContent(Body)});}
+  public HttpStatusCode Status=HttpStatusCode.OK;public string Body="[]";public bool Fail,NoCache;public int Calls;public string? Authorization;public Uri? Url;public string? DescriptorOverride;
+  protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellation){Calls++;Authorization=request.Headers.Authorization?.ToString();Url=request.RequestUri;NoCache=request.Headers.CacheControl?.NoCache==true;if(Fail)throw new HttpRequestException("offline");var body=request.RequestUri!.AbsolutePath.Contains("/contents/")?(DescriptorOverride??(request.RequestUri.Host=="testing.example"?"{\"channel\":\"testing\",\"version\":\"999.0.0-test.1\"}":"{\"channel\":\"stable\",\"version\":\"999.0.0\"}")):Body;return Task.FromResult(new HttpResponseMessage(Status){Content=new StringContent(body)});}
  }
  public static async Task Run()
  {
@@ -15,11 +15,13 @@ static class UpdateTests
   try{
    var a=new string('a',40);var b=new string('b',40);File.WriteAllText(Path.Combine(root,"build-commit.txt"),a);
    using var handler=new Handler{Body="[{\"sha\":\""+b+"\",\"commit\":{\"message\":\"Update B\\nDetails\"}}]"};using var client=new HttpClient(handler);
-   var fresh=await SourceUpdater.Check(client,root);if(!fresh.Checked||!fresh.Available||!fresh.Automatic||fresh.Commit!=b||fresh.Version!="Update B"||!handler.NoCache)throw new Exception("Fresh update check failed");
+   var fresh=await SourceUpdater.Check(client,root);if(!fresh.Checked||!fresh.Available||!fresh.Automatic||fresh.Commit!=b||fresh.Version!="999.0.0"||!handler.NoCache)throw new Exception("Fresh update check failed");
    handler.Body=handler.Body.Replace(b,a);var current=await SourceUpdater.Check(client,root);if(!current.Checked||current.Available!=(BuildIdentity.Channel!="stable"))throw new Exception("Installed commit/channel comparison failed");
-   var test=await SourceUpdater.Check(client,root,channel:SourceUpdateChannel.Testing("github_pat_fixture_only"));if(!test.Checked||test.Channel!="testing"||handler.Authorization!="Bearer github_pat_fixture_only"||handler.Url?.AbsolutePath!="/repos/MineShprot1/Spectra-Testing/commits")throw new Exception("Private channel ignored authentication or repository");
+   var test=await SourceUpdater.Check(client,root,channel:SourceUpdateChannel.Testing("https://testing.example","fixture_session_secret"));if(!test.Checked||test.Channel!="testing"||handler.Authorization!="Bearer fixture_session_secret"||!handler.Url!.AbsolutePath.StartsWith("/v1/testing/github/"))throw new Exception("Private channel ignored authentication or repository");
    await SourceUpdater.Check(client,root);if(handler.Authorization!=null||Net.Http.DefaultRequestHeaders.Authorization!=null)throw new Exception("Private credential leaked into stable/global HTTP requests");
-   handler.Status=HttpStatusCode.Unauthorized;var denied=await SourceUpdater.Check(client,root,channel:SourceUpdateChannel.Testing("github_pat_fixture_only"));if(denied.Checked||denied.Available||!denied.Update.Contains("401"))throw new Exception("Private denial silently fell back to stable");
+   handler.Status=HttpStatusCode.Unauthorized;var denied=await SourceUpdater.Check(client,root,channel:SourceUpdateChannel.Testing("https://testing.example","fixture_session_secret"));if(denied.Checked||denied.Available||!denied.Update.Contains("401"))throw new Exception("Private denial silently fell back to stable");
+   handler.Status=HttpStatusCode.OK;handler.DescriptorOverride="{\"channel\":\"testing\",\"version\":\"0.1.0-test.99\"}";var mixed=await SourceUpdater.Check(client,root);if(mixed.Checked||mixed.Available)throw new Exception("Stable channel offered a testing release");handler.DescriptorOverride=null;
+   if(SourceUpdater.NewerVersion("0.28.1","0.28.1")||SourceUpdater.NewerVersion("0.28.0","0.28.1")||!SourceUpdater.NewerVersion("0.28.2","0.28.1")||!SourceUpdater.NewerVersion("0.1.0-test.10","0.1.0-test.9"))throw new Exception("Release ordering failed");
    handler.Status=HttpStatusCode.TooManyRequests;var limited=await SourceUpdater.Check(client,root);if(limited.Checked||limited.Available||!limited.Update.Contains("429"))throw new Exception("Rate limit was reported as up-to-date");
    handler.Status=HttpStatusCode.OK;handler.Body="{}";if((await SourceUpdater.Check(client,root)).Checked)throw new Exception("Invalid response was accepted");handler.Fail=true;if((await SourceUpdater.Check(client,root)).Checked)throw new Exception("Offline was reported as up-to-date");handler.Fail=false;
    using var canceled=new CancellationTokenSource();canceled.Cancel();try{await SourceUpdater.Check(client,root,canceled.Token);throw new Exception("Cancellation ignored");}catch(OperationCanceledException){}

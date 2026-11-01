@@ -12,15 +12,32 @@ public sealed record SourceUpdateCheck(bool Checked,bool Available,string Update
 public sealed record SourceUpdateChannel
 {
  public string Repository {get;}public string Token {get;}public string Name {get;}
- public string Api=>"https://api.github.com/repos/"+Repository;
- SourceUpdateChannel(string repository,string token,string name){Repository=repository;Token=token;Name=name;}
+ public string Api {get;}
+ SourceUpdateChannel(string repository,string token,string name,string? gateway=null){Repository=repository;Token=token;Name=name;Api=gateway==null?"https://api.github.com/repos/"+Repository:gateway.TrimEnd('/')+"/v1/testing/github";}
  public static SourceUpdateChannel Stable {get;}=new("MineShprot1/Spectra","","stable");
- public static SourceUpdateChannel Testing(string token)=>new("MineShprot1/Spectra-Testing",token,"testing");
+ public static SourceUpdateChannel Testing(string service,string secret)=>new("MineShprot1/Spectra-Testing",secret,"testing",service);
  public HttpRequestMessage Request(string path){var request=new HttpRequestMessage(HttpMethod.Get,Api+path);if(Token!="")request.Headers.Authorization=new("Bearer",Token);return request;}
  public override string ToString()=>Name+":"+Repository;
 }
 public static class SourceUpdater
 {
+ public sealed record ReleaseIdentity(string Channel,string Version);
+ public static ReleaseIdentity ParseRelease(string json,string expectedChannel)
+ {
+  var value=JsonSerializer.Deserialize<ReleaseIdentity>(json,Store.Json)??throw new IOException("Неверный канал обновления");
+  var pattern=expectedChannel=="stable"?@"\A\d+\.\d+\.\d+\z":@"\A\d+\.\d+\.\d+-test\.\d+\z";
+  if(value.Channel!=expectedChannel||value.Version==null||!Regex.IsMatch(value.Version,pattern))throw new IOException("Неверный канал обновления");return value;
+ }
+ public static bool NewerVersion(string candidate,string current)
+ {
+  static int[] Parts(string value)=>Regex.Matches(value,@"\d+").Select(m=>int.TryParse(m.Value,out var number)?number:0).ToArray();
+  var left=Parts(candidate);var right=Parts(current);for(var i=0;i<Math.Max(left.Length,right.Length);i++){var a=i<left.Length?left[i]:0;var b=i<right.Length?right[i]:0;if(a!=b)return a>b;}return false;
+ }
+ static async Task<ReleaseIdentity> ReadRelease(SourceUpdateChannel channel,string sha,HttpClient client,CancellationToken cancellation)
+ {
+  using var request=channel.Request("/contents/launcher-channel.json?ref="+sha);request.Headers.Accept.ParseAdd("application/vnd.github.raw+json");request.Headers.CacheControl=new(){NoCache=true};
+  using var response=await client.SendAsync(request,cancellation).ConfigureAwait(false);response.EnsureSuccessStatusCode();var json=await response.Content.ReadAsStringAsync(cancellation).ConfigureAwait(false);if(json.Length>4096)throw new IOException("Неверный канал обновления");return ParseRelease(json,channel.Name);
+ }
  public static bool ValidCommit(string sha)=>Regex.IsMatch(sha,@"^[0-9a-f]{40}$");
  public static string InstalledCommit(string? directory=null)
  {
@@ -38,8 +55,9 @@ public static class SourceUpdater
    if(!response.IsSuccessStatusCode)return new(false,false,"Проверка коммитов недоступна · GitHub "+(int)response.StatusCode);
    var raw=await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);if(raw.Length>1024*1024)return new(false,false,"Сервер обновлений вернул неверный ответ");
    if(JsonNode.Parse(raw) is not JsonArray {Count:>0} commits||commits[0] is not JsonObject item||!ValidCommit(item.Str("sha")))return new(false,false,"Сервер обновлений вернул неверный ответ");
-   var sha=item.Str("sha");var installed=InstalledCommit(directory);var name=item["commit"].Str("message").Split('\n')[0].Trim();if(name=="")name=sha[..7];var available=installed!=sha||BuildIdentity.Channel!=channel.Name;
-   return new(true,available,available?"Найден новый коммит Spectra "+sha[..7]:"Исходники Spectra актуальны",name,name,sha,channel.Name);
+   var sha=item.Str("sha");var release=await ReadRelease(channel,sha,client??Net.Http,timeout.Token).ConfigureAwait(false);
+   var installed=InstalledCommit(directory);var name=item["commit"].Str("message").Split('\n')[0].Trim();if(name=="")name=sha[..7];var available=BuildIdentity.Channel!=channel.Name||installed!=sha&&NewerVersion(release.Version,BuildIdentity.Version);
+   return new(true,available,available?"Найдено обновление Spectra "+release.Version:"Исходники Spectra актуальны",release.Version,name,sha,channel.Name);
   }catch(OperationCanceledException) when(cancellation.IsCancellationRequested){throw;}
   catch(Exception ex) when(ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException or IOException){return new(false,false,"Не удалось проверить коммиты · можно продолжить запуск");}
  }
@@ -48,6 +66,8 @@ public static class SourceUpdater
  {
   channel??=SourceUpdateChannel.Stable;
   if(!ValidCommit(sha))throw new IOException("Некорректный SHA коммита");
+  var release=await ReadRelease(channel,sha,Net.Http,CancellationToken.None);
+  if(BuildIdentity.Channel==channel.Name&&!NewerVersion(release.Version,BuildIdentity.Version))throw new IOException("Эта версия уже установлена или устарела");
   if(InstalledCommit()==sha&&BuildIdentity.Channel==channel.Name)throw new IOException("Этот коммит уже установлен");
   var sdk=new ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};sdk.ArgumentList.Add("--list-sdks");
   try{using var p=Process.Start(sdk)??throw new IOException("Не удалось найти .NET SDK");var output=await p.StandardOutput.ReadToEndAsync();await p.WaitForExitAsync();if(!output.Split('\n').Any(x=>x.TrimStart().StartsWith("8.")))throw new IOException("Для обновления из исходников установите .NET SDK 8 x64");}
@@ -123,8 +143,9 @@ public static class SourceUpdater
     var stdout=p.StandardOutput.ReadToEndAsync();var stderr=p.StandardError.ReadToEndAsync();using var buildTimeout=new CancellationTokenSource(TimeSpan.FromMinutes(15));
     try{await p.WaitForExitAsync(buildTimeout.Token);}catch(OperationCanceledException){p.Kill(true);throw new IOException("Сборка обновления превысила 15 минут");}
     var log=await stdout+"\n"+await stderr;await File.WriteAllTextAsync(Path.Combine(store.Root,"updates","last-build.log"),log);
-    if(p.ExitCode!=0||!File.Exists(Path.Combine(publish,"Spectra.exe")))throw new IOException("Новый коммит не собрался. Текущая версия сохранена; подробности: updates/last-build.log");
+   if(p.ExitCode!=0||!File.Exists(Path.Combine(publish,"Spectra.exe")))throw new IOException("Новый коммит не собрался. Текущая версия сохранена; подробности: updates/last-build.log");
    }
+   var builtVersion=FileVersionInfo.GetVersionInfo(Path.Combine(publish,"Spectra.exe")).ProductVersion?.Split('+')[0];if(builtVersion!=release.Version)throw new IOException("Версия сборки не совпадает с каналом обновления");
    await File.WriteAllTextAsync(Path.Combine(publish,"build-commit.txt"),sha);
    await File.WriteAllTextAsync(Path.Combine(publish,"build-commit-name.txt"),commitName);
    var localOauth=Path.Combine(AppContext.BaseDirectory,"microsoft-oauth.json");if(File.Exists(localOauth))File.Copy(localOauth,Path.Combine(publish,"microsoft-oauth.json"),true);

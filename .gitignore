@@ -16,3 +16,6 @@ build-commit-name.txt
 **/*signing-key*.pem
 **/*.testing-key.txt
 **/__pycache__/
+**/.dev.vars
+**/.env
+**/.wrangler/

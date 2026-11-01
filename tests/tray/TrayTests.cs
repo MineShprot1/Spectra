@@ -11,7 +11,7 @@ static class TrayTests
  {
   var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
   MemoryTests.Run();
-  TestingAccessTests.Run();
+  Task.Run(TestingAccessTests.Run).GetAwaiter().GetResult();
   AvatarTests.Run();
   MediaTests.Run();
   NotificationTests.Run();
