@@ -9,7 +9,7 @@ export default {
  async fetch(request,env){
   try{
    const url=new URL(request.url),now=Math.floor(Date.now()/1000);
-   if(url.pathname==='/health'&&request.method==='GET'){let ready=!!env.DB&&!!env.ADMIN_KEY&&!!env.GITHUB_TOKEN;if(ready)try{await env.DB.prepare('SELECT key_hash FROM testing_keys LIMIT 1').bind().first();}catch{ready=false;}return json({service:'Spectra Network Dev',ready});}
+   if(url.pathname==='/health'&&request.method==='GET'){let ready=!!env.DB&&!!env.ADMIN_KEY&&!!env.GITHUB_TOKEN;if(ready)try{await env.DB.prepare('SELECT key_hash FROM testing_keys LIMIT 1').bind().first();}catch{ready=false;}return json({service:'Spectra Network Dev',gatewayRevision:2,ready});}
    if(url.pathname.startsWith('/admin/')){
     if(!await equalSecret(bearer(request),env.ADMIN_KEY))return json({error:'Unauthorized'},401);
     if(request.method!=='POST')return json({error:'Method not allowed'},405);
@@ -52,8 +52,13 @@ export default {
     if(path.startsWith('/git/trees/'))query.set('recursive','1');
     if(path==='/contents/launcher-channel.json'){const ref=url.searchParams.get('ref');if(!/^[a-f0-9]{40}$/.test(ref||''))return json({error:'Invalid ref'},400);query.set('ref',ref);}
     const suffix=query.size?'?'+query.toString():'';
-    const response=await fetch('https://api.github.com/repos/'+repository+path+suffix,{headers:{'Authorization':'Bearer '+env.GITHUB_TOKEN,'User-Agent':'Spectra-Network-Dev','Accept':path.startsWith('/git/blobs/')||path.startsWith('/contents/')?'application/vnd.github.raw+json':'application/vnd.github+json','Accept-Encoding':'identity'},redirect:'error'});
-    if(!response.ok)return json({error:'Testing repository unavailable',status:response.status},response.status===429?429:502);
+    const githubToken=typeof env.GITHUB_TOKEN==='string'?env.GITHUB_TOKEN.trim():'';
+    if(!githubToken||/[^\x21-\x7e]/.test(githubToken))return json({error:'GITHUB_TOKEN must be a single-line text secret',code:'github_token_config'},503);
+    // workerd supports only "manual" and "follow". "error" throws before
+    // sending a request, even though Node's fetch accepts it.
+    const response=await fetch('https://api.github.com/repos/'+repository+path+suffix,{headers:{'Authorization':'Bearer '+githubToken,'User-Agent':'Spectra-Network-Dev','Accept':path.startsWith('/git/blobs/')||path.startsWith('/contents/')?'application/vnd.github.raw+json':'application/vnd.github+json','Accept-Encoding':'identity'},redirect:'manual'});
+    if(response.status>=300&&response.status<400)return json({error:'GitHub redirect refused',code:'github_redirect',status:response.status},502);
+    if(!response.ok)return json({error:'Testing repository unavailable',code:'github_http_error',status:response.status},response.status===429?429:502);
     return new Response(response.body,{status:200,headers:{'Content-Type':response.headers.get('Content-Type')||'application/octet-stream','Cache-Control':'no-store'}});
    }
    return json({error:'Not found'},404);

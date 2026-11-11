@@ -96,12 +96,14 @@ def clipboard(text):
     if os.name != "nt":
         raise OSError("Clipboard output requires Windows; use --no-copy --output instead")
     user, kernel = ctypes.windll.user32, ctypes.windll.kernel32
-    kernel.GetConsoleWindow.restype = ctypes.c_void_p
-    user.GetForegroundWindow.restype = ctypes.c_void_p
+    # A foreground window can belong to an elevated process. Create our own
+    # invisible message window; OpenClipboard then never borrows another app's HWND.
+    user.CreateWindowExW.argtypes = [ctypes.c_ulong, ctypes.c_wchar_p, ctypes.c_wchar_p,
+        ctypes.c_ulong, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+    user.CreateWindowExW.restype = ctypes.c_void_p
+    user.DestroyWindow.argtypes = [ctypes.c_void_p]
     user.OpenClipboard.argtypes = [ctypes.c_void_p]
-    owner = kernel.GetConsoleWindow() or user.GetForegroundWindow()
-    if not owner:
-        raise OSError("Open the generator in a terminal to copy a key")
     kernel.GlobalAlloc.restype = ctypes.c_void_p
     kernel.GlobalAlloc.argtypes = [ctypes.c_uint, ctypes.c_size_t]
     kernel.GlobalLock.restype = ctypes.c_void_p
@@ -110,16 +112,13 @@ def clipboard(text):
     kernel.GlobalFree.argtypes = [ctypes.c_void_p]
     user.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
     user.SetClipboardData.restype = ctypes.c_void_p
+    owner = user.CreateWindowExW(0, "STATIC", "Spectra clipboard", 0, 0, 0, 0, 0,
+                                 ctypes.c_void_p(-3), None, None, None)
+    if not owner:
+        raise OSError("Could not create a clipboard owner window")
     raw = text.encode("utf-16-le") + b"\0\0"
-    for attempt in range(20):
-        if user.OpenClipboard(owner):
-            break
-        time.sleep(0.05)
-    else:
-        raise OSError("Clipboard is busy; run the generator again")
-    handle = None
+    handle, opened = None, False
     try:
-        user.EmptyClipboard()
         handle = kernel.GlobalAlloc(0x0002, len(raw))
         if not handle:
             raise OSError("Clipboard allocation failed")
@@ -128,13 +127,22 @@ def clipboard(text):
             raise OSError("Clipboard lock failed")
         ctypes.memmove(pointer, raw, len(raw))
         kernel.GlobalUnlock(handle)
-        if not user.SetClipboardData(13, handle):
+        for attempt in range(40):
+            if user.OpenClipboard(owner):
+                opened = True
+                break
+            time.sleep(0.05)
+        if not opened:
+            raise OSError("Clipboard is busy; close clipboard utilities and retry")
+        if not user.EmptyClipboard() or not user.SetClipboardData(13, handle):
             raise OSError("Could not copy the key")
-        handle = None  # Windows owns the allocation after SetClipboardData.
+        handle = None  # Windows owns the HGLOBAL after SetClipboardData.
     finally:
+        if opened:
+            user.CloseClipboard()
         if handle:
             kernel.GlobalFree(handle)
-        user.CloseClipboard()
+        user.DestroyWindow(owner)
 
 
 SETTINGS = HOME / "testing-service.dat"

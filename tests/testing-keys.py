@@ -20,15 +20,19 @@ class GeneratorTests(unittest.TestCase):
             def __init__(self, function): self.function = function
             def __call__(self, *args): return self.function(*args)
         buffer = ctypes.create_string_buffer(256)
-        copied, owners = [], []
+        copied, owners, destroyed = [], [], []
+        def borrowed_window():
+            raise AssertionError("Clipboard must not borrow an elevated foreground/console window")
         class Kernel:
-            GetConsoleWindow = Call(lambda: 12345)
+            GetConsoleWindow = Call(borrowed_window)
             GlobalAlloc = Call(lambda flags, size: ctypes.addressof(buffer))
             GlobalLock = Call(lambda handle: handle)
             GlobalUnlock = Call(lambda handle: 1)
             GlobalFree = Call(lambda handle: 0)
         class User:
-            GetForegroundWindow = Call(lambda: 9999)
+            CreateWindowExW = Call(lambda *args: 12345)
+            DestroyWindow = Call(lambda handle: destroyed.append(handle) or 1)
+            GetForegroundWindow = Call(borrowed_window)
             OpenClipboard = Call(lambda owner: owners.append(owner) or 1)
             EmptyClipboard = Call(lambda: 1)
             CloseClipboard = Call(lambda: 1)
@@ -38,6 +42,7 @@ class GeneratorTests(unittest.TestCase):
         with patch.object(keys.ctypes, 'windll', Fake()):
             keys.clipboard('Ключ SPTEST2')
         self.assertEqual(owners, [12345])
+        self.assertEqual(destroyed, [12345])
         self.assertEqual(copied[0][0], 13)
         self.assertEqual(buffer.raw[:len('Ключ SPTEST2'.encode('utf-16-le'))].decode('utf-16-le'), 'Ключ SPTEST2')
 

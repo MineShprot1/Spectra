@@ -13,10 +13,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
  const winner=winners[0];assert.equal((await request('/v1/testing/redeem','POST',{key:coupon,installationId:winner.id,secret:winner.secret})).status,200,'lost response recovery on original installation');
  assert.equal((await request('/v1/testing/session','GET',null,winner.secret)).status,200);assert.equal((await request('/v1/testing/session','GET',null,'f'.repeat(64))).status,401);
  const nativeFetch=globalThis.fetch;let upstream=[];
- try{globalThis.fetch=async(url,options)=>{upstream.push({url,options});return new Response('[]',{headers:{'Content-Type':'application/json'}});};
+ try{globalThis.fetch=async(url,options)=>{if(options.redirect==='error')throw new TypeError('Invalid redirect value: workerd supports only follow and manual');upstream.push({url,options});return new Response('[]',{headers:{'Content-Type':'application/json'}});};
   assert.equal((await request('/v1/testing/github/commits','GET',null,winner.secret)).status,200);
   assert.equal(upstream[0].url,'https://api.github.com/repos/MineShprot1/Spectra-Testing/commits?per_page=1&sha=main');assert.equal(upstream[0].options.headers.Authorization,'Bearer server-only-fixture');
+  assert.equal(upstream[0].options.redirect,'manual','Cloudflare-compatible redirect mode');
   assert.equal((await request('/v1/testing/github/contents/other-repo','GET',null,winner.secret)).status,404);assert.equal((await request('/v1/testing/github/git/blobs/'+'a'.repeat(40),'GET',null,'x')).status,401);assert.equal(upstream.length,1);
+  globalThis.fetch=async(url,options)=>{assert.equal(options.redirect,'manual');return new Response(null,{status:302,headers:{Location:'https://untrusted.example'}});};const redirected=await request('/v1/testing/github/commits','GET',null,winner.secret);assert.equal(redirected.status,502);assert.equal((await redirected.json()).code,'github_redirect');
  }finally{globalThis.fetch=nativeFetch;}
  const expired='SPTEST2.expired';await request('/admin/keys','POST',{keyHash:await digest(expired),label:'Expired',expires},env.ADMIN_KEY);sqlite.prepare('UPDATE testing_keys SET expires=0 WHERE key_hash=?').run(await digest(expired));assert.equal((await request('/v1/testing/redeem','POST',{key:expired,installationId:'f'.repeat(32),secret:'f'.repeat(64)})).status,409);
  await request('/admin/revoke','POST',{installationId:winner.id},env.ADMIN_KEY);assert.equal((await request('/v1/testing/session','GET',null,winner.secret)).status,401);assert.equal((await request('/v1/testing/redeem','POST',{key:coupon,installationId:winner.id,secret:winner.secret})).status,409);

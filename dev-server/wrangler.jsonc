@@ -1,7 +1,7 @@
 {
   "name": "spectra-network-dev",
   "main": "worker.mjs",
-  "compatibility_date": "2026-11-01",
+  "compatibility_date": "2026-10-30",
   "workers_dev": true,
   "d1_databases": [
     { "binding": "DB", "database_name": "spectra-network-dev", "database_id": "REPLACE_WITH_D1_DATABASE_ID" }
