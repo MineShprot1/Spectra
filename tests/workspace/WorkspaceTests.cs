@@ -38,12 +38,30 @@ try{foreach(var env in new[]{"client","server","*"}){var path=Path.Combine(folde
  Archive("quilt.jar","quilt.mod.json","{\"quilt_loader\":{\"version\":\"2\",\"metadata\":{\"name\":\"Quilt sample\",\"icon\":\"icon.png\"},\"depends\":[]}}");
  Archive("forge.jar","META-INF/mods.toml","[[mods]]\nmodId=\"sample\"\ndisplayName = \"Forge sample\"\nversion = \"3\"\nlogoFile = \"icon.png\"\n");
  var legacyLibrary=Path.Combine(gameFolder,"libraries","example","library.jar");Directory.CreateDirectory(Path.GetDirectoryName(legacyLibrary)!);File.WriteAllText(legacyLibrary,"legacy bytes");await new SharedLibraries(store).Prepare();Check(File.ReadAllText(Path.Combine(store.Root,"cache","libraries","example","library.jar"))=="legacy bytes"&&File.Exists(legacyLibrary),"existing libraries seed the shared cache without removing instance files");
+ var themes=new ThemeLibrary(store);var theme=themes.Save(System.Text.Json.Nodes.JsonNode.Parse("{\"format\":1,\"name\":\"Fixture\",\"css\":\"button{}\",\"buttons\":[],\"layout\":{},\"background\":\"\"}")!);var themePath=Path.Combine(folder,"fixture.spectratheme");theme["script"]="ui.text({text: 'Hello'});";themes.Export(theme,themePath);var imported=themes.Import(themePath);Check(imported.Str("script")==theme.Str("script"),"live theme script survives compressed export/import");Check(imported.Str("name")=="Fixture"&&imported.Str("id")!=theme.Str("id"),"compressed theme export/import and independent library identity");var packed=themes.Encode(theme);Check(themes.ReadArchive(packed).Str("name")=="Fixture","workshop preview reads archive without subscribing");var subscribed=themes.ImportWorkshop(packed,new string('a',32));var subscribedAgain=themes.ImportWorkshop(packed,new string('a',32));Check(subscribed.Str("origin")=="workshop"&&subscribed.Str("id")==subscribedAgain.Str("id"),"workshop provenance and repeated subscriptions deduplicate");
  var game=new GameService(store,new Authentication(store,_=>{}),_=>{});try{
   var entries=System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(game.Files(instance.Id,"mods"),Store.Json))!.AsArray();Check(entries.Count==4,"corrupted mod is retained in the list alongside healthy mods");
   foreach(var title in new[]{"Fabric sample","Quilt sample","Forge sample"}){var entry=entries.Single(e=>e?["label"]?.ToString()==title);Check(entry?["icon"]?.ToString().StartsWith("https://data.spectra.local/cache/content-icons/")==true,title+" metadata and cached icon");}
   Check(Directory.GetFiles(Path.Combine(store.Root,"cache","content-icons")).Length==1,"identical mod icons deduplicate on disk instead of duplicating base64 in messages");
   var method=typeof(GameService).GetMethod("CreateLauncher",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;var launcher=method.Invoke(game,[gameFolder]);Check(launcher!=null,"launcher accepts shared library path");
   var actions=new LibraryActions(store,game);try{actions.Delete(instance.Id,"mods",["../outside"],[]);throw new Exception("Accepted path escape");}catch(InvalidOperationException){}Check(File.Exists(Path.Combine(mods,"fabric.jar")),"bulk deletion rejects paths outside the category");
+  using(var running=new System.Diagnostics.Process()){
+   game.Running[instance.Id]=running;
+   foreach(var kind in new[]{"mods","resources","shaders"}){
+    var category=GameService.KindFolder(kind);var dir=Path.Combine(gameFolder,category);Directory.CreateDirectory(dir);var relative=category+"/live-test.jar";File.WriteAllText(Path.Combine(gameFolder,relative),"fixture");
+    actions.Enable(instance.Id,kind,[relative],false);Check(File.Exists(Path.Combine(gameFolder,relative+".disabled")),"disable "+kind+" while instance is running");
+    actions.Enable(instance.Id,kind,[relative+".disabled"],true);Check(File.Exists(Path.Combine(gameFolder,relative)),"enable "+kind+" while instance is running");
+    if(kind=="mods"){game.Toggle(instance.Id,relative);game.Toggle(instance.Id,relative+".disabled");}
+    actions.Delete(instance.Id,kind,[relative],[]);Check(!File.Exists(Path.Combine(gameFolder,relative)),"delete "+kind+" while instance is running");
+   }
+   foreach(var kind in new[]{"worlds","screenshots"}){
+    var category=GameService.KindFolder(kind);var relative=category+"/live-test"+(kind=="screenshots"?".png":"");var absolute=Path.Combine(gameFolder,relative);Directory.CreateDirectory(Path.GetDirectoryName(absolute)!);if(kind=="worlds"){Directory.CreateDirectory(absolute);File.WriteAllText(Path.Combine(absolute,"level.dat"),"fixture");}else File.WriteAllBytes(absolute,png);
+    actions.Delete(instance.Id,kind,[relative],[]);Check(!File.Exists(absolute)&&!Directory.Exists(absolute),"delete "+kind+" while instance is running");
+   }
+   actions.Server(instance.Id,"add",-1,"Fixture","localhost:25565");actions.Delete(instance.Id,"servers",[],[0]);Check(((List<object>)Nbt.Load(Path.Combine(gameFolder,"servers.dat"))!["servers"]).Count==0,"delete saved server while instance is running");
+   try{actions.Delete(instance.Id,"mods",["../outside"],[]);throw new Exception("Accepted live path escape");}catch(InvalidOperationException){}
+   game.Running.TryRemove(instance.Id,out _);
+  }
   store.Config.Preferences.HideQuickLaunch=true;store.Config.Preferences.ChatNotifications=false;store.Save();var restoredStore=new Store(store.Root);Check(restoredStore.Config.Preferences.HideQuickLaunch&&!restoredStore.Config.Preferences.ChatNotifications,"launcher preferences survive native persistence");
  }finally{game.Playtime.Dispose();}
  var bedrock=new BedrockService(store);var extract=typeof(BedrockService).GetMethod("ExtractPackage",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;

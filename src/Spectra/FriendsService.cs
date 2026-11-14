@@ -84,7 +84,7 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
  {
   using var request=new HttpRequestMessage(data==null?HttpMethod.Get:HttpMethod.Post,endpoint+path);if(bearer!="")request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",bearer);
   if(data!=null)request.Content=new StringContent(JsonSerializer.Serialize(data,WireJson),Encoding.UTF8,"application/json");
-  using var timeout=new CancellationTokenSource(path.StartsWith("/social/",StringComparison.Ordinal)?TimeSpan.FromSeconds(15):TimeSpan.FromMinutes(5));using var response=await http.SendAsync(request,timeout.Token);var raw=await response.Content.ReadAsStringAsync();if(raw.Length>524288)throw new IOException("Слишком большой ответ сети Spectra");
+  using var timeout=new CancellationTokenSource(path.StartsWith("/social/",StringComparison.Ordinal)?TimeSpan.FromSeconds(15):TimeSpan.FromMinutes(5));using var response=await http.SendAsync(request,timeout.Token);var raw=await response.Content.ReadAsStringAsync();if(raw.Length>(path.StartsWith("/workshop/download/",StringComparison.Ordinal)?900000:524288))throw new IOException("Слишком большой ответ сети Spectra");
   JsonNode? result;try{result=JsonNode.Parse(raw);}catch{throw new IOException("Сервер сети Spectra вернул неверный ответ");}
   if(path=="/social/mail"&&data==null&&result is JsonObject mailbox&&response.Headers.Date is {} serverDate)mailbox["serverTime"]=serverDate.ToUnixTimeSeconds();
   if(response.StatusCode==HttpStatusCode.Unauthorized)throw new FriendsSessionExpired();

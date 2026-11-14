@@ -215,6 +215,15 @@ public partial class MainWindow : Window
    }
    case "preferences":{store.Config.Preferences=d.Deserialize<LauncherPreferences>(Store.Json)??new();store.Save();if(!store.Config.Preferences.Notifications||!store.Config.Preferences.SystemNotifications)socialDesktop.Clear();return State();}
    case "friendsWindow":socialDesktop.Show();Emit(new{type="openFriends"});return null;
+   case "themeWorkshop":{var path=d.Str("path");if(!System.Text.RegularExpressions.Regex.IsMatch(path,@"^/workshop/(list|pending|review/[a-f0-9]{32})$"))throw new IOException("Invalid workshop route");return await friends.SocialCall(path,d["body"]);}
+   case "themePreview":{var id=d.Str("id");if(!System.Text.RegularExpressions.Regex.IsMatch(id,@"^[a-f0-9]{32}$"))throw new IOException("Invalid theme");var value=await friends.SocialCall("/workshop/download/"+id);return new ThemeLibrary(store).ReadArchive(value.Str("archive"));}
+   case "themeSubscribe":{var id=d.Str("id");if(!System.Text.RegularExpressions.Regex.IsMatch(id,@"^[a-f0-9]{32}$"))throw new IOException("Invalid theme");var value=await friends.SocialCall("/workshop/download/"+id);return new ThemeLibrary(store).ImportWorkshop(value.Str("archive"),id);}
+   case "themeUpload":{var theme=d["theme"]??throw new IOException("Invalid theme");if(theme.Str("origin")=="workshop")throw new IOException("Workshop themes cannot be republished");return await friends.SocialCall("/workshop/upload",new{name=theme.Str("name"),archive=new ThemeLibrary(store).Encode(theme),origin=theme.Str("origin")});}
+   case "themeLibrary":return new ThemeLibrary(store).List();
+   case "themeSave":return new ThemeLibrary(store).Save(d["theme"]??throw new IOException("Invalid theme"));
+   case "themeRemove":new ThemeLibrary(store).Remove(d.Str("id"));return null;
+   case "themeImport":{var picker=new Microsoft.Win32.OpenFileDialog{Filter="Spectra theme|*.spectratheme"};return picker.ShowDialog(this)==true?new ThemeLibrary(store).Import(picker.FileName):null;}
+   case "themeExport":{var theme=d["theme"]??throw new IOException("Invalid theme");var picker=new Microsoft.Win32.SaveFileDialog{Filter="Spectra theme|*.spectratheme",DefaultExt=".spectratheme",FileName=string.Concat(theme.Str("name").Select(c=>Path.GetInvalidFileNameChars().Contains(c)?'_':c))+".spectratheme"};if(picker.ShowDialog(this)==true)new ThemeLibrary(store).Export(theme,picker.FileName);return null;}
    case "mediaImport":case "mediaRemove":case "mediaConfigure":case "mediaBlur":case "mediaPoster":case "mediaPreview":return await MediaCommand(action,d);
    case "uiScale":{var scale=d["scale"]!.GetValue<double>();if(!double.IsFinite(scale)||scale<0.65||scale>1.5)throw new IOException("Масштаб: 65–150%");store.Config.InterfaceScale=scale;store.Save();Browser.ZoomFactor=scale;return State();}
    case "geminiKey":crashAssistant.SetKey(d.Str("key"));return State();

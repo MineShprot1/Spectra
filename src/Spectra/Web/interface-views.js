@@ -17,7 +17,7 @@ const SpectraInterfaceViews=(()=>{
   if(minecraft){const label=document.createElement('strong');label.className='reference-edition';label.textContent='MINECRAFT: '+(edition==='java'?'JAVA EDITION':'BEDROCK EDITION');tabs.append(label);}
   const entries=[['Версии','versions'],['Сборки','instances'],['Обзор','discover'],[state?.profile?.name||'Профиль','profile']];
   for(const [label,target] of entries){const b=button(label,()=>navigate(target),null,target==='profile'&&!!state?.profile?.name);b.classList.toggle('active',target===page);tabs.append(b);}
-  const settings=button('Настройки',()=>navigate('settings'),'settings');settings.className='reference-settings';settings.setAttribute('aria-label',text('Настройки'));settings.title=text('Настройки');tabs.append(settings);
+  const settings=button('Настройки',()=>navigate('settings'),'settings');settings.className='reference-settings';settings.setAttribute('aria-label',text('Настройки'));settings.title=text('Настройки');tabs.append(settings);const editor=button('Редактор интерфейса',()=>navigate('themeStudio'),'edit');editor.className='reference-editor';editor.title=text('Редактор интерфейса');editor.setAttribute('aria-label',text('Редактор интерфейса'));tabs.append(editor);
  }
  function sidebar(){
   let side=document.querySelector('#minecraftNavigation');
@@ -31,6 +31,7 @@ const SpectraInterfaceViews=(()=>{
   for(const [label,target,icon,edition] of [['Обзор','discover','home'],['Java Edition','versions','cube','java'],['Bedrock Edition','versions','terrain','bedrock'],['Сборки','instances','versions'],['Профиль','profile','profile'],['Настройки','settings','settings']]){
    const b=button(label,()=>{if(edition)localStorage.setItem('spectra.versionEdition',edition);navigate(target);},icon);b.classList.toggle('active',page===target&&(!edition||(localStorage.getItem('spectra.versionEdition')||'java')===edition));if(edition){b.dataset.railEdition=edition;const image=document.createElement('img');image.className='edition-icon';image.src='assets/edition-'+edition+'.svg';image.alt='';b.querySelector('.pixel-icon').replaceWith(image);b.querySelector('span:last-child').textContent='MINECRAFT:\n'+edition.toUpperCase()+' EDITION';}if(target==='settings')b.classList.add('mc-settings');side.append(b);
   }
+  const editor=button('Редактор интерфейса',()=>navigate('themeStudio'),'edit');editor.className='mc-editor';side.append(editor);
  }
  function restore(){const layout=main.querySelector('.interface-library');if(!layout)return;for(const [marker,node] of layout._moved||[])if(marker.isConnected)marker.replaceWith(node);if(layout._searchMarker?.isConnected)layout._searchMarker.replaceWith(layout.querySelector('.interface-index input'));const content=layout.querySelector('.interface-native');while(content?.firstChild)layout.before(content.firstChild);layout.remove();main.querySelectorAll('.interface-selected').forEach(el=>el.classList.remove('interface-selected'));for(const list of main.querySelectorAll('[data-interface-native-view]')){if(list.dataset.interfaceNativeView)list.classList.add(...list.dataset.interfaceNativeView.split(' '));delete list.dataset.interfaceNativeView;}main.querySelectorAll('.reference-page-tools:empty').forEach(node=>node.remove());}
  function refresh(){

@@ -10,7 +10,9 @@
     "test:localization": "node tools/build-locales.cjs --check && node tests/localization.cjs && node tools/audit-locales.cjs --check",
     "test:localization-ui": "node tests/localization-ui.cjs",
     "test:interface-views": "node tests/interface-views-ui.cjs && node tests/edition-switch-ui.cjs && node tests/theme-motion-ui.cjs && node tests/navigation-parity-ui.cjs",
-    "test:stable": "node tests/stable-transfer-ui.cjs"
+    "test:stable": "node tests/stable-transfer-ui.cjs",
+    "build:theme-runtime": "node tools/build-theme-runtime.cjs",
+    "test:theme-live": "node tools/build-theme-runtime.cjs --check && node tests/theme-live-ui.cjs && node tests/theme-shell-ui.cjs"
   },
   "devDependencies": {
     "acorn": "^8.15.0",
