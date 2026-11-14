@@ -1,0 +1,35 @@
+const {chromium}=require('playwright'),http=require('node:http'),path=require('node:path'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const root=path.resolve(__dirname,'../src/Spectra/Web');const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}try{res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.json':'application/json','.svg':'image/svg+xml','.ttf':'font/ttf'}[path.extname(file)]||'application/octet-stream'});res.end(fs.readFileSync(file));}catch{res.writeHead(404).end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch();try{const p=await browser.newPage({viewport:{width:1200,height:850}}),errors=[];p.on('pageerror',e=>{errors.push(e.message);console.log('pageerror',e.stack)});p.setDefaultTimeout(8000);await p.goto('http://127.0.0.1:'+server.address().port+'/index.html?sample=1');await p.locator('.instance-card').first().waitFor();await p.emulateMedia({reducedMotion:'reduce'});
+
+
+for(const theme of ['gradient','modern','windows','liquid','aero','steam','minecraft']){
+ await p.evaluate(theme=>{SpectraAppearance.setTheme(theme);return navigate('settings');},theme);
+ assert.equal(await p.locator(`[data-theme-view="${theme}"] option`).count(),['steam','minecraft'].includes(theme)?3:2);
+ await p.selectOption(`[data-theme-view="${theme}"]`,'legacy');assert.equal(await p.evaluate(()=>document.body.dataset.interfaceView),'legacy');
+ await p.selectOption(`[data-theme-view="${theme}"]`,'normal');assert.equal(await p.evaluate(()=>JSON.parse(localStorage.spectraAppearance).themeViews[document.body.dataset.theme]),'normal');
+ await p.evaluate(()=>navigate('instances'));await p.screenshot({path:`test-results/interface-${theme}-normal.png`});assert(await p.locator('#importPack').isVisible());assert(await p.locator('.instance-card [data-launch]').first().isVisible());await p.evaluate(()=>navigate('settings'));
+}
+for(const theme of ['steam','minecraft']){
+ await p.evaluate(theme=>{SpectraAppearance.setTheme(theme);const c=SpectraAppearance.themeConfig();c.themeViews[theme]='custom';state.views={...state.views,instances:'list',versions:'tiles'};SpectraAppearance.apply(c);return navigate('instances');},theme);
+ await p.waitForSelector('.interface-library');assert.equal(await p.locator('.interface-selected').count(),1);
+ const names=await p.locator('.interface-items>button').allTextContents();assert(names.length>1);
+ if(theme==='minecraft')await p.locator('.interface-picker').click();await p.locator('.interface-items>button').nth(1).click();assert.equal(await p.locator('.interface-cover h2').textContent(),names[1]);
+ assert(await p.locator('.interface-selected [data-launch]').isVisible());
+ await p.screenshot({path:`test-results/interface-${theme}-instances.png`});
+ if(theme==='steam'){const index=await p.locator('.interface-index').boundingBox(),detail=await p.locator('.interface-detail').boundingBox();assert(index.x>detail.x);}
+ else assert(await p.locator('#minecraftNavigation').isVisible());
+ if(theme==='minecraft')await p.locator('.interface-picker').click();await p.locator('.interface-index input').fill('no such instance');assert.equal(await p.locator('.interface-items>button:visible').count(),0);await p.locator('.interface-index input').fill('');
+ await p.evaluate(()=>{localStorage.setItem('spectra.installed.java','closed');return navigate('versions');});await p.waitForSelector('.interface-library');assert(await p.locator('.interface-selected [data-play-version]').isVisible());
+ if(theme==='minecraft')await p.locator('.interface-picker').click();await p.locator('#versionSearch').fill('1.20');await p.waitForFunction(()=>[...document.querySelectorAll('.interface-items>button')].every(b=>b.textContent.includes('1.20')));assert(await p.locator('.interface-selected [data-play-version]').isVisible());
+ await p.screenshot({path:`test-results/interface-${theme}-versions.png`});
+ await p.locator('#versionSearch').fill('no version matches this query');await p.waitForSelector('.reference-empty');assert.equal(await p.locator('.interface-library').count(),1);assert.equal(await p.locator('#versionSearch').count(),1);await p.locator('#versionSearch').fill('1.20');await p.waitForSelector('.interface-selected [data-play-version]');
+ await p.evaluate(()=>{const c=SpectraAppearance.themeConfig();c.themeViews[c.theme]='normal';SpectraAppearance.apply(c);});await p.waitForFunction(()=>!document.querySelector('.interface-library'));assert.equal(await p.locator('#versionSearch').count(),1);await p.locator('#versionSearch').fill('1.21');await p.waitForSelector('[data-version]');await p.evaluate(()=>{const c=SpectraAppearance.themeConfig();c.themeViews[c.theme]='custom';SpectraAppearance.apply(c);});await p.waitForSelector('.interface-library');
+
+ await p.evaluate(()=>{const original=api;api=async(action,data)=>action==='bedrockVersions'?{installed:[{id:'installed:uwp',name:'MinecraftUWP',version:'1.21.0'}],available:[],imported:[]}:original(action,data);localStorage.setItem('spectra.versionEdition','bedrock');return navigate('versions');});await p.waitForSelector('.interface-selected [data-bedrock-play]');assert.equal(await p.locator('#bedrockSearch').count(),1);assert(await p.locator('.interface-selected [data-bedrock-play]').isVisible());
+ await p.evaluate(()=>{localStorage.setItem('spectra.versionEdition','java');const c=SpectraAppearance.themeConfig();c.themeModes[c.theme]='light';SpectraAppearance.apply(c);return navigate('instances');});await p.waitForSelector('.interface-library');await p.screenshot({path:`test-results/interface-${theme}-light.png`});await p.evaluate(()=>{const c=SpectraAppearance.themeConfig();c.themeModes[c.theme]='dark';SpectraAppearance.apply(c);});
+ await p.setViewportSize({width:760,height:700});await p.evaluate(()=>navigate('instances'));await p.waitForSelector('.interface-library');assert(await p.locator('.interface-selected [data-launch]').isVisible());assert(await p.locator('#main').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await p.screenshot({path:`test-results/interface-${theme}-narrow.png`});await p.setViewportSize({width:1200,height:850});
+ await p.evaluate(()=>navigate('settings'));assert.equal(await p.locator('.interface-library').count(),0);
+ await p.selectOption(`[data-theme-view="${theme}"]`,'normal');await p.evaluate(()=>navigate('instances'));assert.equal(await p.locator('.interface-library').count(),0);assert(await p.locator('.instance-card').first().isVisible());
+}
+assert.deepEqual(errors,[]);console.log('PASS theme views: per-theme settings, persistent config, real selectable cards/actions, filters and navigation');
+}finally{await browser.close();server.close();}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -120,8 +120,8 @@ try {
   }
  }
  if([SpectraUpdateFiles]::Read((Under $task.install 'build-commit.txt')).Trim() -ne $task.commit){throw 'Installed commit verification failed'}
- # Cache is optional and never part of the application transaction.
- try{if(Test-Path -LiteralPath $task.cache){Remove-Item -LiteralPath $task.cache -Recurse -Force};Move-Item -LiteralPath $task.source -Destination $task.cache}catch{}
+ # Verified source files are cached by the downloader before compilation.
+ # Keep that resumable cache; never replace it with build output (bin/obj).
  [SpectraUpdateFiles]::Delete($task.failureMarker)
  ReportResult $true 'Installed files verified; starting new executable.'
  RestartLauncher $false

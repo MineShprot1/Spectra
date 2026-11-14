@@ -1,0 +1,16 @@
+const {chromium}=require('playwright'),http=require('node:http'),path=require('node:path'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const root=path.resolve(__dirname,'../src/Spectra/Web');const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}try{res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.json':'application/json','.svg':'image/svg+xml','.ttf':'font/ttf'}[path.extname(file)]||'application/octet-stream'});res.end(fs.readFileSync(file));}catch{res.writeHead(404).end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch();try{const p=await browser.newPage({viewport:{width:1200,height:850}}),errors=[];p.on('pageerror',e=>{errors.push(e.message);console.log('pageerror',e.message)});p.setDefaultTimeout(8000);await p.goto('http://127.0.0.1:'+server.address().port+'/index.html?sample=1');await p.locator('.instance-card').first().waitFor();await p.emulateMedia({reducedMotion:'reduce'});
+
+
+await p.emulateMedia({reducedMotion:'no-preference'});
+for(const theme of ['dark','steam','minecraft','gradient','modern','windows','aero','liquid']){
+ await p.evaluate(theme=>{const c=SpectraAppearance.themeConfig();c.theme=theme;c.themeViews[theme]='normal';SpectraAppearance.apply(c);return navigate('instances');},theme);
+ const play=p.locator('.instance-card [data-launch]').first();await play.waitFor();await p.waitForFunction(()=>document.querySelector('.instance-card [data-launch]')?.dataset.depth==='raised');
+ await play.hover();await p.mouse.down();await p.waitForTimeout(180);
+ assert.equal(await play.evaluate(el=>getComputedStyle(el).translate),'0px 3px',theme+' pressed depth');assert.equal(await play.evaluate(el=>getComputedStyle(el).transform),'none',theme+' no bouncing');await p.mouse.move(0,0);await p.mouse.up();
+ const nav=p.locator('#navigation>button[data-page="instances"]');assert.equal(await nav.evaluate(el=>getComputedStyle(el).scale),'1.06',theme+' active navigation scale');assert.equal(await nav.evaluate(el=>getComputedStyle(el,'::after').display),'none',theme+' active navigation underline hidden');assert((await nav.evaluate(el=>getComputedStyle(el).transitionProperty)).includes('scale'));
+ if(theme==='minecraft'){for(const selector of ['#titlebar','#navigation','#shell>footer']){const style=await p.locator(selector).evaluate(el=>{const s=getComputedStyle(el);return[s.backgroundColor,s.backgroundImage,s.boxShadow,s.backdropFilter];});assert.deepEqual(style,['rgba(0, 0, 0, 0)','none','none','none'],selector+' fully transparent');}await p.screenshot({path:'test-results/minecraft-normal-transparent.png'});}
+}
+await p.emulateMedia({reducedMotion:'reduce'});assert.equal(await p.locator('.instance-card [data-launch]').first().evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
+assert.deepEqual(errors,[]);console.log('PASS normal themes: shared pressed depth, quiet hover, active navigation animation, transparent Minecraft bars, reduced motion');
+}finally{await browser.close();server.close();}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,0 +1,20 @@
+const {chromium}=require('playwright'),http=require('node:http'),path=require('node:path'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const root=path.resolve(__dirname,'../src/Spectra/Web');const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}try{res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.json':'application/json','.svg':'image/svg+xml','.ttf':'font/ttf'}[path.extname(file)]||'application/octet-stream'});res.end(fs.readFileSync(file));}catch{res.writeHead(404).end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch();try{const p=await browser.newPage({viewport:{width:1200,height:850}}),errors=[];p.on('pageerror',e=>{errors.push(e.message);console.log('pageerror',e.message)});p.setDefaultTimeout(8000);await p.goto('http://127.0.0.1:'+server.address().port+'/index.html?sample=1');await p.locator('.instance-card').first().waitFor();await p.emulateMedia({reducedMotion:'reduce'});
+
+
+const metrics=()=>p.locator('#navigation').evaluate(el=>{const css=getComputedStyle(el),rect=el.getBoundingClientRect();return{nav:Object.fromEntries(['height','minHeight','padding','gap','flexDirection'].map(k=>[k,css[k]])),buttons:[...el.querySelectorAll(':scope>button[data-page]')].filter(b=>b.dataset.page!=='themeStudio').map(b=>{const s=getComputedStyle(b),r=b.getBoundingClientRect();return{page:b.dataset.page,style:Object.fromEntries(['fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','height','minHeight','padding','gap'].map(k=>[k,s[k]])),width:b.offsetWidth,left:b.offsetParent===el?b.offsetLeft:b.offsetLeft-el.offsetLeft};})};});
+for(const width of [1200,900])for(const size of [100,140]){
+ await p.setViewportSize({width,height:850});await p.evaluate(size=>{document.body.style.setProperty('--navigation-font-size',13*size/100+'px');document.body.style.setProperty('--navigation-button-height',42*size/100+'px');document.body.style.setProperty('--navigation-padding',10*size/100+'px');},size);
+ for(const position of ['top','bottom','left','right']){
+  let baseline;
+  for(const theme of ['dark','minecraft','steam','gradient','modern','windows','aero','liquid']){
+   await p.evaluate(({theme,position})=>{const c=SpectraAppearance.themeConfig();c.theme=theme;c.navigationPosition=position;c.themeViews[theme]='normal';SpectraAppearance.apply(c);return navigate('instances');},{theme,position});await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(25);
+   const actual=await metrics();if(!baseline)baseline=actual;else assert.deepEqual(actual,baseline,`${theme} ${position} width=${width} size=${size}`);
+  }
+ }
+}
+await p.evaluate(()=>{SpectraAppearance.setTheme('steam');const c=SpectraAppearance.themeConfig();c.navigationPosition='top';c.themeViews.steam='custom';SpectraAppearance.apply(c);return navigate('instances');});await p.waitForSelector('.reference-tabs');
+assert.deepEqual(await p.locator('.reference-tabs>button:not(.reference-back,.reference-forward,.reference-settings,.reference-editor) span').allTextContents(),['Версии','Сборки','Обзор','Профиль']);
+await p.evaluate(()=>{const c=SpectraAppearance.themeConfig();c.theme='minecraft';c.themeViews.minecraft='custom';SpectraAppearance.apply(c);});await p.waitForSelector('#minecraftNavigation');assert.equal(await p.locator('#navigation').isVisible(),false);assert.equal(await p.locator('.reference-tabs').count(),0);assert.equal(await p.locator('#minecraftNavigation .mc-editor').count(),0);await p.screenshot({path:'test-results/minecraft-without-top-tabs.png'});
+assert.deepEqual(errors,[]);console.log('PASS shared normal navigation: exact typography, dimensions and gaps at both sizes, widths and all placements; Spectra labels in Steam; no Minecraft top tabs');
+}finally{await browser.close();server.close();}})().catch(e=>{console.error(e);process.exitCode=1});

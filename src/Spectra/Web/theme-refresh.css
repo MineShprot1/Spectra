@@ -1,6 +1,6 @@
 /* Requested theme updates only. Spectra dark and Minecraft retain their geometry. */
-html body[data-theme=dark][data-color-mode=light] button:not(.primary,.play,.store-feature-art,.store-project-tile,.theme-preview-choice,.account-choice),html body:is([data-theme=gradient],[data-theme=modern]) button:not(.primary,.play,.store-feature-art,.store-project-tile,.theme-preview-choice,.account-choice){background:transparent!important;box-shadow:none!important}
-html body:is([data-theme=gradient],[data-theme=modern]) button:not(.primary,.play):hover,html body[data-theme=dark][data-color-mode=light] button:not(.primary,.play):hover{background:color-mix(in srgb,var(--theme-text) 8%,transparent)!important}
+html body[data-theme=dark][data-color-mode=light] button:not(.primary,.play,.store-feature-art,.store-project-tile,.theme-preview-choice,.account-choice):not(.edition-switch>button),html body:is([data-theme=gradient],[data-theme=modern]) button:not(.primary,.play,.store-feature-art,.store-project-tile,.theme-preview-choice,.account-choice):not(.edition-switch>button){background:transparent!important;box-shadow:none!important}
+html body[data-theme=dark][data-color-mode=light] button:not(.primary,.play):hover{background:color-mix(in srgb,var(--theme-text) 8%,transparent)!important}
 html body[data-theme=modern] :is(.primary,.play,#quickPlay,#editorPlay){background:var(--theme-accent)!important;background-image:none!important;color:#142037!important}
 html body[data-theme=steam][data-color-mode=dark]{--ui-font:Arial,'Segoe UI',sans-serif;--heading-font:Arial,'Segoe UI',sans-serif;background:#171d25!important}
 html body[data-theme=steam][data-color-mode=dark] :is(#titlebar,#navigation,#shell>footer){background:#171d25!important;border-color:#303742!important;box-shadow:none!important}
@@ -47,5 +47,11 @@ html body:is([data-theme=steam],[data-theme=windows],[data-theme=aero],[data-the
 html body[data-theme=aero][data-color-mode] .instance-card:has(.card-bg) :is(h3,.instance-meta,.muted,p,small){color:#effcff!important;text-shadow:0 1px 3px #001b37bb!important}
 html body[data-theme=aero][data-color-mode=light] #main>section>.section-label{background:#ecffffdd;border:1px solid #fff9;border-radius:8px;padding:10px 12px}
 
-html body:is([data-theme=modern],[data-theme=gradient])[data-color-mode] button:not(.primary):not(.play),html body[data-theme=dark][data-color-mode=light] button:not(.primary):not(.play){background:transparent!important;background-image:none!important;box-shadow:none!important}
-html body:is([data-theme=modern],[data-theme=gradient])[data-color-mode] button:not(.primary):not(.play):hover,html body[data-theme=dark][data-color-mode=light] button:not(.primary):not(.play):hover{background:#ffffff0c!important}
+html body[data-theme=dark][data-color-mode=light] button:not(.primary):not(.play):not(.edition-switch>button){background:transparent!important;background-image:none!important;box-shadow:none!important}
+html body[data-theme=dark][data-color-mode=light] button:not(.primary):not(.play):hover{background:#ffffff0c!important}
+
+/* Transparent controls share the standard theme's independent navigation indicator. */
+html body:is([data-theme=modern],[data-theme=gradient])[data-color-mode] button:not(.primary):not(.play):not(.store-feature-art):not(.store-project-tile):not(.theme-preview-choice):not(.account-choice),
+html body:is([data-theme=modern],[data-theme=gradient])[data-color-mode] :is(#shell,#modal,#titlebar,#friendsPanel,#accountMenu,#quickLaunch) button:not(.primary):not(.play):not(.store-feature-art):not(.store-project-tile):not(.theme-preview-choice):not(.account-choice):not(.edition-switch>button){background:transparent!important;box-shadow:none!important}
+html body:is([data-theme=modern],[data-theme=gradient])[data-color-mode] #navigation>button,
+html body:is([data-theme=modern],[data-theme=gradient])[data-color-mode] #navigation>button:is(:hover,:active,:focus-visible){background:transparent!important;box-shadow:none!important}

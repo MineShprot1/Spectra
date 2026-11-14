@@ -8,7 +8,9 @@
     "build:crypto": "node tools/build-social-crypto.cjs",
     "build:locales": "node tools/build-locales.cjs",
     "test:localization": "node tools/build-locales.cjs --check && node tests/localization.cjs && node tools/audit-locales.cjs --check",
-    "test:localization-ui": "node tests/localization-ui.cjs"
+    "test:localization-ui": "node tests/localization-ui.cjs",
+    "test:interface-views": "node tests/interface-views-ui.cjs && node tests/edition-switch-ui.cjs && node tests/theme-motion-ui.cjs && node tests/navigation-parity-ui.cjs",
+    "test:stable": "node tests/stable-transfer-ui.cjs"
   },
   "devDependencies": {
     "acorn": "^8.15.0",

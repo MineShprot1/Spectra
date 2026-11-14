@@ -11,6 +11,7 @@ static class UpdateTests
  }
  public static async Task Run()
  {
+  await SourceFilesTests.Run();
   var root=Path.GetFullPath(Path.Combine(Path.GetTempPath(),"Spectra-update-tests-"+Guid.NewGuid().ToString("N")));Directory.CreateDirectory(root);
   try{
    var a=new string('a',40);var b=new string('b',40);File.WriteAllText(Path.Combine(root,"build-commit.txt"),a);

@@ -84,8 +84,9 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
  {
   using var request=new HttpRequestMessage(data==null?HttpMethod.Get:HttpMethod.Post,endpoint+path);if(bearer!="")request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",bearer);
   if(data!=null)request.Content=new StringContent(JsonSerializer.Serialize(data,WireJson),Encoding.UTF8,"application/json");
-  using var response=await http.SendAsync(request);var raw=await response.Content.ReadAsStringAsync();if(raw.Length>524288)throw new IOException("Слишком большой ответ сети Spectra");
+  using var timeout=new CancellationTokenSource(path.StartsWith("/social/",StringComparison.Ordinal)?TimeSpan.FromSeconds(15):TimeSpan.FromMinutes(5));using var response=await http.SendAsync(request,timeout.Token);var raw=await response.Content.ReadAsStringAsync();if(raw.Length>524288)throw new IOException("Слишком большой ответ сети Spectra");
   JsonNode? result;try{result=JsonNode.Parse(raw);}catch{throw new IOException("Сервер сети Spectra вернул неверный ответ");}
+  if(path=="/social/mail"&&data==null&&result is JsonObject mailbox&&response.Headers.Date is {} serverDate)mailbox["serverTime"]=serverDate.ToUnixTimeSeconds();
   if(response.StatusCode==HttpStatusCode.Unauthorized)throw new FriendsSessionExpired();
   if(!response.IsSuccessStatusCode)throw new FriendsRequestException((int)response.StatusCode,result.Str("error") is {Length:>0} error?error:"Сеть Spectra недоступна");return result??new JsonObject();
  }
@@ -93,7 +94,7 @@ public sealed class FriendsService(Store store,Authentication auth,GameService g
   if(!store.Config.HideOnlineStatus&&store.Config.ShareGameActivity&&!game.Running.IsEmpty&&PackPublisher!=null&&game.Activities.Values.Any(x=>x.Loader!="vanilla")){try{shared=await PackPublisher();}catch(Exception e) when(e is IOException or HttpRequestException or TaskCanceledException){LastSharingError=e.Message;}}
   // Re-read privacy after asynchronous uploads so a late heartbeat cannot undo a privacy change.
   var visible=store.Config.ShareGameActivity&&!store.Config.HideOnlineStatus;var data=JsonSerializer.SerializeToNode(game.FriendPresence(visible,LanAddress),Store.Json)!.AsObject();if(visible){var stats=game.Playtime.Snapshot();data["activity"]=JsonSerializer.SerializeToNode(new{totalSeconds=stats.TotalSeconds,top=stats.Items.Where(e=>e.Seconds>0).Take(3)},Store.Json);}
-  if(visible&&game.Running.IsEmpty&&BedrockService.IsRunning()){data["playing"]=true;data["gameState"]="menu";data["version"]="Bedrock";data["loader"]="bedrock";data["pack"]="Minecraft Bedrock";}data["online"]=!store.Config.HideOnlineStatus;data["sharedPack"]=visible&&!game.Running.IsEmpty?shared:"";await Call("/presence",data);
+  if(visible&&game.Running.IsEmpty&&BedrockService.IsRunning()){data["playing"]=true;data["gameState"]="menu";data["version"]="Bedrock";data["loader"]="bedrock";data["pack"]="Minecraft Bedrock";}data["idle"]=!store.Config.HideOnlineStatus&&UserActivity.IsAway;data["online"]=!store.Config.HideOnlineStatus;data["sharedPack"]=visible&&!game.Running.IsEmpty?shared:"";await Call("/presence",data);
  }
  public async Task Upload(string path,string file,string expected,long size)
  {

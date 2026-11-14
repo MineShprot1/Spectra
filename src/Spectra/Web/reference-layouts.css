@@ -1,0 +1,190 @@
+/* Reference application layouts. All rules stay inside built-in custom views. */
+html body[data-theme=minecraft][data-interface-view=normal] :is(#titlebar,#navigation,#shell>footer){background:transparent!important;background-image:none!important;box-shadow:none!important;backdrop-filter:none!important;border-color:transparent!important}
+html body[data-interface-view=normal]:not([data-theme=legacy]) button[data-depth=raised]{box-shadow:0 3px 0 color-mix(in srgb,var(--theme-accent) 40%,#000)!important;transition:translate .12s,box-shadow .12s,filter .12s!important;transform:none!important}
+html body[data-interface-view=normal]:not([data-theme=legacy]) button[data-depth=raised]:hover{translate:0 0;transform:none!important}
+html body[data-interface-view=normal]:not([data-theme=legacy]) button[data-depth=raised]:active{translate:0 3px;transform:none!important;box-shadow:0 0 0 transparent!important;opacity:1!important}
+html body[data-interface-view=normal]:not([data-theme=legacy]) button[data-depth=flat]{transform:none!important;translate:0 0;transition:color .15s,opacity .15s!important}
+html body[data-interface-view=normal]:not([data-theme=legacy]) #navigation>button{background:transparent!important;box-shadow:none!important;border-color:transparent!important;transform:none!important;translate:0 0;transition:color .16s,scale .16s!important}
+html body[data-interface-view=normal]:not([data-theme=legacy]) #navigation>button.active{scale:1.06;color:var(--theme-text)!important}
+html body[data-interface-view=normal]:not([data-theme=legacy]) #navigation>button::after{display:none!important}
+html body[data-interface-view=normal]:not([data-theme=legacy]) #navigation>button:hover{transform:none!important;translate:0 0}
+.reference-tabs{display:none}
+html body.builtin-custom-view #navigation>button,html body.builtin-custom-view #navigation>.nav-spacer{display:none!important}
+html body.builtin-custom-view #navigation .reference-tabs{display:flex;width:100%;height:100%;align-items:center;gap:26px;min-width:0}
+html body.builtin-custom-view #navigation .reference-tabs>button{position:relative;flex:none;border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;transform:none!important;translate:none!important;scale:1!important;padding:8px 0!important;min-height:42px!important;font:400 21px Arial,'Segoe UI',sans-serif!important;text-transform:uppercase;color:var(--reference-text)!important;letter-spacing:0}
+html body.builtin-custom-view #navigation .reference-tabs>.reference-settings{margin-left:auto;display:grid;place-items:center;width:36px}
+.reference-settings>span:last-child{display:none}
+html body.builtin-custom-view #navigation .reference-tabs>button:after{display:none}
+html body.builtin-custom-view #navigation .reference-tabs>button.active{color:var(--reference-accent)!important}
+html body.builtin-custom-view #navigation .reference-tabs>button.active:after{display:block;content:'';position:absolute;bottom:0;left:0;right:0;width:100%;height:3px;background:var(--reference-accent);box-shadow:none;border-radius:0}
+.reference-edition{display:none}
+.reference-cover-edition{display:none}
+html body.builtin-custom-view{--reference-text:#dcdedf;--reference-muted:#8f98a6;--reference-panel:#242930;--reference-bg:#1b2838;--reference-accent:#1a9fff;--reference-field:#20242b}
+html body.builtin-custom-view #main:has(.interface-library){padding:0!important;background:var(--reference-bg)!important}
+html body.builtin-custom-view #main:has(.interface-library)>section{padding:0;margin:0;max-width:none!important}
+html body.builtin-custom-view .interface-library{margin:0!important;min-height:100%;grid-template-columns:minmax(0,1fr) clamp(210px,24vw,300px);align-items:start;gap:0}
+html body.builtin-custom-view .interface-cover{height:clamp(260px,31vw,430px);border:0;box-shadow:none;border-radius:0!important}
+html body.builtin-custom-view .interface-cover-art{background-image:url('assets/minecraft-launcher-cover.png');filter:none;opacity:1}
+html body.builtin-custom-view .interface-cover-art:has(img){background:none}
+html body.builtin-custom-view .interface-cover-art img{opacity:1}
+html body.builtin-custom-view .interface-detail{background:linear-gradient(#233d53,#1b2838 560px);min-width:0}
+html body.builtin-custom-view .interface-cover-copy{padding:28px 32px}
+html body.builtin-custom-view .interface-cover h2{font:600 clamp(30px,4vw,56px)/1.1 Arial,sans-serif!important;text-shadow:0 2px 10px #0008!important;color:#fff!important}
+html body.builtin-custom-view .interface-cover-copy>small{color:#d8eafa!important;font:12px Arial,sans-serif;letter-spacing:3px}
+html body.builtin-custom-view .interface-index{align-self:stretch;position:sticky;top:0;max-height:calc(100vh - 152px);height:calc(100vh - 152px);background:var(--reference-panel)!important;padding:10px 8px;overflow:auto;border:0;gap:0}
+html body.builtin-custom-view .interface-index header{background:linear-gradient(120deg,#363b44,#292e35);padding:14px;font:18px Arial,sans-serif;color:var(--reference-text);margin:0 0 12px}
+html body.builtin-custom-view .interface-index input{color:var(--reference-text)!important;background:var(--reference-field)!important;border:0!important;box-shadow:none!important;border-radius:3px!important;padding:12px!important;height:40px!important;font:14px Arial,sans-serif!important}
+html body.builtin-custom-view .interface-items{padding:4px 0;overflow:auto;min-height:100px}
+html body.builtin-custom-view .interface-items>button{font:15px Arial,sans-serif!important;min-height:38px!important;padding:6px 10px!important;gap:9px;color:#a9b0bd!important;background:transparent!important;border:0!important;box-shadow:none!important}
+html body.builtin-custom-view .interface-items>button.active{background:#40506a!important;color:#fff!important}
+html body.builtin-custom-view .interface-items>button:hover{background:#364151!important}
+html body.builtin-custom-view .interface-items img{width:25px;height:25px;object-fit:cover}
+html body.builtin-custom-view .interface-native{padding:20px 26px 12px;min-height:96px;background:transparent!important}
+html body.builtin-custom-view .interface-native .interface-selected{background:transparent!important;min-height:64px!important;gap:18px;box-shadow:none!important}
+html body.builtin-custom-view .interface-native .instance-meta{display:none!important}
+html body.builtin-custom-view .interface-native .card-actions{display:contents!important}
+html body.builtin-custom-view .interface-native .instance-launch-actions{order:0;display:flex!important;flex:none!important;flex-direction:row-reverse!important;gap:4px;width:auto!important}
+html body.builtin-custom-view .interface-native :is(.play,.version-play,[data-bedrock-play]){height:54px!important;min-height:54px!important;max-height:54px!important;padding:10px 28px!important;width:auto!important;flex:none!important;font:24px Arial,sans-serif!important;color:#fff!important;background:linear-gradient(95deg,#68bd12,#0caf57)!important;border:0!important;border-radius:3px!important;box-shadow:none!important;white-space:nowrap;letter-spacing:0}
+html body.builtin-custom-view .interface-native [data-multi]{width:38px!important;height:54px!important;min-height:54px!important;max-height:54px!important;background:#0cad55!important;border:0!important;color:#fff!important;box-shadow:none!important}
+html body.builtin-custom-view .interface-native .instance-utilities{order:1;width:auto!important;flex:1;display:flex!important;flex-wrap:wrap;justify-content:flex-end;gap:5px;padding:0!important;border:0!important}
+html body.builtin-custom-view .interface-native .instance-utilities>button{width:34px!important;height:34px!important;min-height:34px!important;border:0!important;border-radius:4px!important;background:#ffffff0b!important;color:#a9b5c5!important;box-shadow:none!important}
+html body.builtin-custom-view .interface-native .version-card>div:not(.version-art),html body.builtin-custom-view .interface-native .version-card>.pill{display:none!important}
+html body.builtin-custom-view .interface-native .version-card>[data-delete-version],html body.builtin-custom-view .interface-native .version-card>[data-bedrock-delete],html body.builtin-custom-view .interface-native .version-card>[data-bedrock-download]{display:none!important}
+.reference-links{margin:6px 26px 0;padding:0 12px;display:flex;align-items:center;flex-wrap:wrap;border:1px solid #ffffff0b;background:#ffffff04;min-height:46px;gap:12px}
+html body.builtin-custom-view .reference-links>button{background:transparent!important;box-shadow:none!important;border:0!important;color:var(--reference-muted)!important;font:14px Arial,sans-serif!important;padding:10px!important;flex:1;white-space:nowrap}
+html body.builtin-custom-view .reference-links>button:hover{color:var(--reference-text)!important}
+.reference-information{display:flex;gap:32px;padding:28px 32px;color:var(--reference-text)}
+.reference-information>div{display:grid;gap:8px}.reference-information small{color:var(--reference-muted);font:11px Arial,sans-serif;text-transform:uppercase;letter-spacing:1px}.reference-information strong{font:17px Arial,sans-serif}
+.reference-information:empty,.reference-links:empty{display:none}
+html body.builtin-custom-view .reference-page-tools .heading{display:block!important;margin:0!important;padding:0!important;border:0!important;min-height:0!important}
+html body.builtin-custom-view .reference-page-tools .heading>div:first-child{display:none!important}
+html body.builtin-custom-view .reference-page-tools .small-gap{display:flex!important;flex-wrap:wrap;gap:5px!important;justify-content:stretch}
+html body.builtin-custom-view .reference-page-tools .small-gap>button{flex:1;min-height:32px!important;padding:6px 8px!important;font:11px Arial,sans-serif!important;white-space:normal}
+html body.builtin-custom-view .reference-page-tools .toolbar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;margin:0;border:0!important;background:transparent!important}
+html body.builtin-custom-view .reference-page-tools .toolbar>*{min-width:0;font:11px Arial,sans-serif!important}
+html body.builtin-custom-view .reference-page-tools .toolbar select{width:100%;padding:8px!important}
+html body.builtin-custom-view .reference-page-tools .toolbar button{padding:6px!important}
+html body.builtin-custom-view #main:has(.interface-library)>section>p{margin:0;padding:8px 20px;max-height:62px;overflow:auto;font-size:11px}
+/* Minecraft: one edition heading, horizontal tabs, an uninterrupted hero and launch strip. */
+html body.builtin-custom-view[data-theme=minecraft]{--reference-bg:#242322;--reference-panel:#302e2c;--reference-text:#fff;--reference-muted:#aaa6a2;--reference-accent:#52a535}
+html body.builtin-custom-view[data-theme=minecraft] #shell:not([hidden]){grid-template-columns:230px minmax(0,1fr)!important;grid-template-rows:100px minmax(0,1fr) 36px!important}
+html body.builtin-custom-view[data-theme=minecraft] #navigation{height:100px!important;min-height:100px!important;padding:0 26px!important;background:#242322!important}
+html body.builtin-custom-view[data-theme=minecraft] #navigation .reference-tabs{display:flex;align-items:flex-end;gap:26px;position:relative;padding:40px 0 10px;box-sizing:border-box}
+html body.builtin-custom-view[data-theme=minecraft] #navigation .reference-edition{display:block;position:absolute;top:18px;left:0;font:bold 15px Arial,sans-serif;color:var(--reference-text)}
+html body.builtin-custom-view[data-theme=minecraft] #navigation .reference-tabs>button{font:20px Arial,sans-serif!important;text-transform:none;padding:8px 0!important;min-height:36px!important}
+html body.builtin-custom-view[data-theme=minecraft] #navigation .reference-tabs>button.active{font-weight:bold!important;color:#fff!important}
+html body.builtin-custom-view[data-theme=minecraft] #navigation .reference-tabs>.reference-settings{display:none!important}
+html body.builtin-custom-view[data-theme=minecraft] #minecraftNavigation{border-right:3px solid #151413!important;background:#302e2c!important}
+html body.builtin-custom-view[data-theme=minecraft] #minecraftNavigation>button{min-height:76px;font:700 14px Arial,sans-serif!important;padding:16px 18px!important;border-bottom:3px solid #151413!important;border-top:2px solid #ffffff0d!important;background:transparent!important;gap:14px}
+html body.builtin-custom-view[data-theme=minecraft] #minecraftNavigation>button.active{background:#252422!important;box-shadow:inset 4px 0 #fff!important}
+html body.builtin-custom-view[data-theme=minecraft] #minecraftNavigation .mc-account{min-height:100px;font-size:16px!important;font-weight:400!important}
+html body.builtin-custom-view[data-theme=minecraft] .interface-library{grid-template-columns:minmax(185px,.9fr) minmax(0,2fr)!important;min-height:0;position:relative}
+html body.builtin-custom-view[data-theme=minecraft] .interface-cover{height:clamp(280px,37vw,560px)!important;grid-column:1/-1;grid-row:1;background:#31382d}
+html body.builtin-custom-view[data-theme=minecraft] .interface-cover:after{background:linear-gradient(#0002,transparent 45%,#0002)}
+html body.builtin-custom-view[data-theme=minecraft] .interface-cover-copy{align-self:flex-start;padding:30px 18px;width:100%;text-align:center}
+html body.builtin-custom-view[data-theme=minecraft] .interface-cover-copy>small{display:block;font:900 clamp(30px,5vw,65px)/1 SpectraPixel,monospace!important;letter-spacing:-3px;color:#e6e3dc!important;text-shadow:0 3px #77776f,0 7px #242521,3px 7px #151612,-3px 5px #151612}
+html body.builtin-custom-view[data-theme=minecraft] .reference-cover-edition{display:block;font:bold clamp(12px,1.7vw,21px) SpectraPixel,monospace;letter-spacing:1px;margin-top:10px;color:#eee;text-shadow:2px 3px #151612}
+html body.builtin-custom-view[data-theme=minecraft] .interface-cover h2{display:none!important}
+html body.builtin-custom-view[data-theme=minecraft] .interface-index{grid-column:1;grid-row:2;position:relative;height:auto!important;max-height:none!important;overflow:visible!important;align-self:stretch;padding:14px 12px;background:#292725!important;border-top:2px solid #54504b}
+html body.builtin-custom-view[data-theme=minecraft] .interface-index header{display:none!important}
+html body.builtin-custom-view[data-theme=minecraft] .interface-picker{height:62px!important;min-height:62px!important;padding:12px!important;background:#302e2c!important;border:1px solid #59943a!important;color:#fff!important;font:14px Arial,sans-serif!important}
+html body.builtin-custom-view[data-theme=minecraft] .interface-index.picker-open>input{top:80px}
+html body.builtin-custom-view[data-theme=minecraft] .interface-index.picker-open>.interface-items{top:122px;background:#302e2c!important}
+html body.builtin-custom-view[data-theme=minecraft] .interface-native{grid-column:2;grid-row:2;padding:14px 22px!important;min-height:94px!important;background:#292725!important;border-top:2px solid #54504b}
+html body.builtin-custom-view[data-theme=minecraft] .interface-native .instance-card.interface-selected{display:flex!important;flex-wrap:nowrap;gap:8px;justify-content:center}
+html body.builtin-custom-view[data-theme=minecraft] .interface-native .instance-launch-actions{width:100%!important;flex:1!important;justify-content:center!important;flex-direction:row!important}
+html body.builtin-custom-view[data-theme=minecraft] .interface-native :is(.play,.version-play,[data-bedrock-play]){background:#3c8524!important;border-radius:0!important;box-shadow:inset 0 4px #65ae43,inset 0 -4px #245317,0 3px #10170c!important;border:2px solid #172311!important;font:bold 27px SpectraPixel,monospace!important;height:62px!important;min-height:62px!important;max-height:62px!important;flex:1!important;max-width:360px!important;text-transform:uppercase}
+html body.builtin-custom-view[data-theme=minecraft] .interface-native [data-multi]{height:62px!important;min-height:62px!important;max-height:62px!important;background:#37342f!important;border:1px solid #57524b!important;order:2}
+html body.builtin-custom-view[data-theme=minecraft] .interface-native .instance-utilities{display:none!important}
+html body.builtin-custom-view[data-theme=minecraft] .reference-links{grid-column:1/-1;grid-row:3;margin:0;padding:10px 20px;background:#191817;border:0}
+html body.builtin-custom-view[data-theme=minecraft] .reference-information{grid-column:1/-1;grid-row:4;background:#191817;padding:24px 28px}
+html body.builtin-custom-view[data-theme=minecraft] .reference-page-tools{padding:8px 18px;background:#242322;display:flex;align-items:center;justify-content:flex-end;gap:12px}
+html body.builtin-custom-view[data-theme=minecraft] .reference-page-tools .toolbar{padding:0}.reference-page-tools:empty{display:none!important}
+html body.builtin-custom-view[data-theme=minecraft] .reference-page-tools .toolbar>button{font-size:10px!important}
+html body.builtin-custom-view[data-theme=minecraft] .reference-page-tools .small-gap>button{font-size:11px!important;min-height:28px!important;padding:4px 12px!important}
+html body.builtin-custom-view[data-theme=minecraft] #main:has(.interface-library) .edition-switch{margin:8px 18px!important}
+/* Light variants keep the reference geometry and readable artwork labels. */
+html body.builtin-custom-view[data-color-mode=light]{--reference-text:#273b4a;--reference-muted:#607080;--reference-panel:#dae1e8;--reference-bg:#e7edf2;--reference-field:#f7fafc}
+html body.builtin-custom-view[data-color-mode=light] .interface-detail{background:#e7edf2}
+html body.builtin-custom-view[data-color-mode=light] .interface-index header{background:#c9d4df;color:#273b4a}
+html body.builtin-custom-view[data-color-mode=light] .interface-items>button{color:#3a5062!important}
+html body.builtin-custom-view[data-color-mode=light] .interface-items>button.active{background:#b2cfe6!important;color:#153b57!important}
+html body.builtin-custom-view[data-color-mode=light] .interface-items>button:hover{background:#c4d7e7!important}
+html body.builtin-custom-view[data-color-mode=light][data-theme=minecraft] #navigation{background:#efede6!important}
+html body.builtin-custom-view[data-color-mode=light][data-theme=minecraft] #navigation .reference-tabs>button.active{color:#252c20!important}
+html body.builtin-custom-view[data-color-mode=light][data-theme=minecraft] #minecraftNavigation{background:#dedbd2!important}
+html body.builtin-custom-view[data-color-mode=light][data-theme=minecraft] #minecraftNavigation>button{border-bottom-color:#b9b6ad!important;color:#272d23!important}
+html body.builtin-custom-view[data-color-mode=light][data-theme=minecraft] #minecraftNavigation>button.active{background:#f7f5ef!important;box-shadow:inset 4px 0 #43872c!important}
+html body.builtin-custom-view[data-color-mode=light][data-theme=minecraft] :is(.interface-index,.interface-native,.reference-page-tools){background:#e1ded5!important}
+html body.builtin-custom-view[data-color-mode=light][data-theme=minecraft] :is(.reference-links,.reference-information){background:#efede6}
+html body.builtin-custom-view[data-color-mode=light][data-theme=minecraft] .interface-picker{background:#f7f5ef!important;color:#252c20!important}
+@media(max-width:1000px){html body.builtin-custom-view #navigation .reference-tabs{gap:20px}html body.builtin-custom-view #navigation .reference-tabs>button{font-size:18px!important}html body.builtin-custom-view[data-theme=minecraft] #shell:not([hidden]){grid-template-columns:190px minmax(0,1fr)!important}html body.builtin-custom-view[data-theme=minecraft] #minecraftNavigation>button{padding:14px 12px!important;font-size:12px!important}.reference-information{gap:20px;padding:22px}.reference-links{margin-left:18px;margin-right:18px}}
+@media(max-width:760px){html body.builtin-custom-view .interface-library{grid-template-columns:minmax(0,1fr) 190px}html body.builtin-custom-view #navigation .reference-tabs{gap:16px}html body.builtin-custom-view #navigation .reference-tabs>button{font-size:15px!important}html body.builtin-custom-view .interface-native{padding:16px}html body.builtin-custom-view .interface-native .instance-utilities{display:none!important}html body.builtin-custom-view .reference-links{gap:2px;margin:0 12px}html body.builtin-custom-view .reference-links>button{padding:8px 3px!important;font-size:11px!important}html body.builtin-custom-view[data-theme=minecraft] #shell:not([hidden]){grid-template-columns:155px minmax(0,1fr)!important}html body.builtin-custom-view[data-theme=minecraft] .interface-library{grid-template-columns:minmax(150px,.8fr) minmax(0,1.3fr)!important}html body.builtin-custom-view[data-theme=minecraft] .interface-native{padding:14px 10px!important}html body.builtin-custom-view[data-theme=minecraft] .interface-native :is(.play,.version-play,[data-bedrock-play]){font-size:19px!important;padding:8px 12px!important}html body.builtin-custom-view[data-theme=minecraft] .reference-page-tools{flex-wrap:wrap}.reference-information{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){html body[data-interface-view=normal]:not([data-theme=legacy]) button{transition:none!important;animation:none!important}}
+html body.builtin-custom-view .reference-page-tools [data-view]{display:none!important}
+#minecraftNavigation .edition-icon{width:36px;height:36px;flex:none;image-rendering:pixelated}
+#minecraftNavigation [data-rail-edition]>span:last-child{white-space:pre-line;line-height:1.55}
+html body.builtin-custom-view #navigation .reference-tabs>.reference-back,html body.builtin-custom-view #navigation .reference-tabs>.reference-forward{width:26px;min-width:26px;padding:0!important;opacity:.6}
+.reference-back>span:last-child,.reference-forward>span:last-child{display:none}
+.reference-back>.pixel-icon{rotate:180deg}
+html body.builtin-custom-view #navigation .reference-tabs>.reference-back:disabled,html body.builtin-custom-view #navigation .reference-tabs>.reference-forward:disabled{opacity:.22}
+@media(max-width:760px){html body.builtin-custom-view #navigation .reference-tabs{gap:12px}html body.builtin-custom-view #navigation .reference-tabs>button{font-size:14px!important}html body.builtin-custom-view #navigation .reference-tabs>.reference-back,html body.builtin-custom-view #navigation .reference-tabs>.reference-forward{width:20px;min-width:20px}}
+.reference-manage{margin-left:auto;align-self:start;min-width:145px;font:13px Arial,sans-serif;color:var(--reference-text)}
+.reference-manage>summary{cursor:pointer;padding:10px;background:#ffffff08;border:1px solid #ffffff0d;list-style:none}
+.reference-manage>summary:after{content:'⌄';margin-left:12px}
+html body.builtin-custom-view .reference-manage>button{display:block;width:100%;text-align:left;padding:9px 12px;font:12px Arial,sans-serif!important;border:0!important;background:var(--reference-panel)!important;box-shadow:none!important;color:var(--reference-text)!important}
+html body.builtin-custom-view .reference-manage>button:hover{color:var(--reference-accent)!important}
+html body.builtin-custom-view[data-theme=minecraft] .interface-cover:not(.has-cover-image) .interface-cover-copy{display:none}
+html body.builtin-custom-view[data-theme=steam] .interface-native .instance-utilities>button:not([data-edit],[data-folder=instance],[data-delete]){display:none!important}
+@media(max-width:760px){.reference-manage{margin-left:0}}
+@media(prefers-reduced-motion:reduce){html body[data-interface-view=normal]:not([data-theme=legacy]) :is(button,button[data-depth=raised],button[data-depth=flat],#navigation>button){transition:none!important;animation:none!important}}
+.reference-empty{padding:12px 0;font:15px Arial,sans-serif;color:var(--reference-text)}
+html body.builtin-custom-view .interface-native :is(.instance-list,.version-list,.instance-card){width:100%!important;max-width:none!important}
+html body.builtin-custom-view .interface-native .instance-utilities{max-width:none!important;margin-left:auto}
+html body.builtin-custom-view[data-theme=steam] .interface-detail{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto}
+html body.builtin-custom-view[data-theme=steam] .interface-cover{grid-column:1;grid-row:1}
+html body.builtin-custom-view[data-theme=steam] .interface-native{grid-column:1;grid-row:2}
+html body.builtin-custom-view[data-theme=steam] .reference-information{grid-column:1;grid-row:2;align-self:center;padding:12px 0;margin-left:310px;margin-right:140px;gap:24px;pointer-events:none}
+html body.builtin-custom-view[data-theme=steam] .reference-links{grid-column:1;grid-row:3;margin-bottom:24px}
+.reference-links .reference-manage{font-size:11px;position:relative;min-width:130px;margin-left:auto}
+.reference-links .reference-manage[open]>button{position:relative;z-index:3}
+@media(max-width:1000px){html body.builtin-custom-view[data-theme=steam] .reference-information{grid-row:4;margin:0;padding:8px 24px 28px;gap:20px}.reference-links .reference-manage{margin:0}.reference-links{flex-wrap:wrap}}
+html body.builtin-custom-view #navigation .reference-tabs>.reference-editor{display:grid;place-items:center;width:32px;min-width:32px;margin:0;font-size:14px!important}
+.reference-editor>span:last-child{display:none}
+html body.builtin-custom-view[data-theme=minecraft] #navigation .reference-tabs>.reference-editor{margin-left:auto}
+/* The normal interface uses the same navigation geometry in every system theme. */
+html body[data-interface-view=normal]:not([data-theme=legacy]) #navigation{gap:30px!important;padding:12px 30px!important;height:78px!important;min-height:calc(var(--navigation-button-height,42px) + 24px)!important;align-items:center;box-sizing:border-box}
+html body[data-interface-view=normal]:not([data-theme=legacy]) #navigation>button{font-family:var(--navigation-font-family,SpectraPixel,'Segoe UI',sans-serif)!important;font-size:var(--navigation-font-size,13px)!important;font-weight:400!important;line-height:1.4!important;letter-spacing:normal!important;text-transform:none!important;min-height:var(--navigation-button-height,42px)!important;height:var(--navigation-button-height,42px)!important;padding:8px var(--navigation-padding,10px)!important;display:inline-flex;align-items:center;justify-content:center;gap:9px;box-sizing:border-box;flex-shrink:0}
+html body[data-interface-view=normal][data-navigation=top]:not([data-theme=legacy]) #shell:not([hidden]){display:flex!important;flex-direction:column!important}
+html body[data-interface-view=normal][data-navigation=bottom]:not([data-theme=legacy]) #shell:not([hidden]){grid-template-rows:minmax(0,1fr) auto 46px!important}
+html body[data-interface-view=normal]:is([data-navigation=left],[data-navigation=right]):not([data-theme=legacy]) #navigation{height:auto!important;min-height:0!important;padding:18px 8px!important;gap:14px!important}
+html body[data-interface-view=normal]:is([data-navigation=left],[data-navigation=right]):not([data-theme=legacy]) #navigation>button{width:46px!important;min-width:46px!important}
+@media(max-width:1000px){html body[data-interface-view=normal]:not([data-theme=legacy]):not([data-navigation=left],[data-navigation=right]) #navigation{gap:18px!important}}
+/* Minecraft custom view uses its left rail instead of a second navigation row. */
+html body.builtin-custom-view[data-theme=minecraft] #navigation{display:none!important}
+html body.builtin-custom-view[data-theme=minecraft] #shell:not([hidden]){grid-template-rows:0 minmax(0,1fr) 36px!important}
+html body.builtin-custom-view[data-theme=minecraft] #minecraftNavigation>.mc-editor{min-height:38px!important;padding:8px 18px!important;font-size:11px!important}
+html body.builtin-custom-view[data-theme=minecraft] #minecraftNavigation>.mc-editor .pixel-icon{width:18px;height:18px}
+html body[data-interface-view=normal]:not([data-theme=legacy]) #navigation>button{border:0!important}
+html body[data-interface-view=normal]:not([data-theme=legacy]) #titlebar{height:50px!important;min-height:50px!important;box-sizing:border-box}
+html body[data-interface-view=normal]:not([data-theme=legacy]) #shell:not([hidden]){height:calc(100% - 50px)!important}
+html body[data-interface-view=normal]:is([data-navigation=left],[data-navigation=right]):not([data-theme=legacy]) #shell:not([hidden]){display:grid!important;grid-template-columns:66px minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr) 46px!important}
+html body[data-interface-view=normal]:is([data-navigation=left],[data-navigation=right]):not([data-theme=legacy]) #navigation{grid-column:1!important;grid-row:1!important;align-self:stretch;width:auto!important}
+html body[data-interface-view=normal][data-navigation=left]:not([data-theme=legacy]) #main{grid-column:2!important;grid-row:1!important}
+html body[data-interface-view=normal][data-navigation=right]:not([data-theme=legacy]) #shell:not([hidden]){grid-template-columns:minmax(0,1fr) 66px!important}
+html body[data-interface-view=normal][data-navigation=right]:not([data-theme=legacy]) #navigation{grid-column:2!important}
+html body[data-interface-view=normal][data-navigation=right]:not([data-theme=legacy]) #main{grid-column:1!important;grid-row:1!important}
+html body[data-interface-view=normal]:is([data-navigation=left],[data-navigation=right]):not([data-theme=legacy]) #shell>footer{grid-column:1/-1!important;grid-row:2!important}
+html body[data-interface-view=normal][data-navigation=bottom]:not([data-theme=legacy]) #shell:not([hidden]){display:grid!important;grid-template-columns:minmax(0,1fr)!important}
+html body[data-interface-view=normal][data-navigation=bottom]:not([data-theme=legacy]) #navigation{grid-column:1!important;grid-row:2!important}
+html body[data-interface-view=normal][data-navigation=bottom]:not([data-theme=legacy]) #main{grid-column:1!important;grid-row:1!important}
+html body[data-interface-view=normal][data-navigation=bottom]:not([data-theme=legacy]) #shell>footer{grid-column:1!important;grid-row:3!important}
+html body[data-interface-view=normal]:not([data-theme=legacy]) #navigation{border:0!important}
+/* Edition controls keep their raised edge in both catalogs. Reserve room for it. */
+html body #main .edition-switch{height:38px!important;min-height:38px!important;align-items:flex-start}
+html body #main .edition-switch>button{translate:0 0!important;box-shadow:inset 0 1px 0 #ffffff30,0 3px 0 var(--edition-edge,color-mix(in srgb,var(--theme-panel) 75%,var(--theme-text)))!important;transition:translate .12s,box-shadow .12s,background .15s!important;transform:none!important}
+html body #main .edition-switch>button:active:not(:disabled){translate:0 3px!important;box-shadow:inset 0 1px 0 #0002,0 0 0 transparent!important;opacity:1!important;transform:none!important}
+html body #main>.versions-page>.edition-switch{margin-bottom:14px!important}
+@media(prefers-reduced-motion:reduce){html body #main .edition-switch>button{transition:none!important}}
+
+html body #main .edition-switch>button.active{--edition-edge:color-mix(in srgb,var(--theme-accent) 50%,#000)}

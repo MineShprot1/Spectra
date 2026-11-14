@@ -14,6 +14,7 @@ static class CatalogTests
  {
   var store=new Store();var game=new GameService();var catalog=new CatalogService(store,game,_=>{});var target=new Instance{Version="1.21.1",Loader="fabric"};store.Config.Instances.Add(target);
   try{
+   await DependencyTests.Run(store,game,catalog,target);
    Net.Reply=url=>url.Contains("/search?")?Json("{\"hits\":[]}"):new JsonArray();await catalog.Search("test","resources",target.Id,0,["16x","blocks","vanilla-like"]);
    var search=Net.Requests.Last(u=>u.Contains("modrinth"));var facets=Uri.UnescapeDataString(search.Split("facets=")[1]);Check(facets.Contains("categories:16x")&&facets.Contains("categories:blocks")&&facets.Contains("versions:1.21.1"),"Filters or compatibility missing");await Reject(()=>catalog.Search("","mods",target.Id,0,["potato"]),"Cross-kind filter accepted");
    Console.WriteLine("PASS: catalogue filters preserve version/loader and reject tags from another content type");

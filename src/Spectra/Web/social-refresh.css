@@ -46,3 +46,8 @@ html body #socialChat .chat-header :is(.chat-header-action,.chat-more>summary){p
 html body #socialChat .chat-header :is(.chat-header-action,.chat-more>summary):hover{background:color-mix(in srgb,var(--theme-text) 9%,transparent)!important;border-color:var(--social-line)!important}
 html body #socialChat #chatGameInvite .pixel-icon{width:18px;height:18px}
 .update-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:22px}.update-actions button{font-size:12px;padding:10px 14px}.update-failed #updateDetail{max-width:440px;margin-inline:auto;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+
+[data-presence=away]{--presence-color:var(--theme-accent,#9fc8f3)}[data-presence=playing-away]{--presence-color:#8fbe62}
+:is([data-presence=away],[data-presence=playing-away]) :is(.identity-status,.friend-details>small){opacity:.5}
+:is([data-presence=away],[data-presence=playing-away]) .friend-avatar{opacity:.65}
+#chatPresence{display:inline-flex;align-items:center;gap:5px}#chatPresence:before{content:'';width:6px;height:6px;background:#71b8ed}#chatPresence[data-presence=playing]:before,#chatPresence[data-presence=playing-away]:before{background:#8bc76b}#chatPresence[data-presence=offline]:before{background:#888}#chatPresence:is([data-presence=away],[data-presence=playing-away]){opacity:.5}

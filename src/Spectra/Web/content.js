@@ -3,7 +3,7 @@ const SpectraContent=(()=>{
  let edition=localStorage.getItem('spectra.discoverEdition')||'java',kind='modpacks',ticket=0;
  const names={mods:'МОДЫ',shaders:'ШЕЙДЕРЫ',modpacks:'МОДПАКИ',skins:'СКИНЫ',worlds:'КАРТЫ',addons:'АДДОНЫ',resources:'ТЕКСТУР ПАКИ',servers:'СЕРВЕРЫ'};
  function categories(){return edition==='java'?['modpacks','mods','shaders','resources','worlds','servers']:['addons','skins','worlds','resources'];}
- function editionControls(){return `<div class="edition-switch"><button data-content-edition="java" class="${edition==='java'?'active':''}">Java Edition</button><button data-content-edition="bedrock" class="${edition==='bedrock'?'active':''}">Bedrock Edition</button></div>`;}
+ function editionControls(){if(typeof SpectraBedrock!=='undefined')return SpectraBedrock.switcher(edition,'data-content-edition');return `<div class="edition-switch"><button data-content-edition="java" class="${edition==='java'?'active':''}">Java Edition</button><button data-content-edition="bedrock" class="${edition==='bedrock'?'active':''}">Bedrock Edition</button></div>`;}
  function categoryControl(){return `<select id="contentKind" aria-label="Категория контента">${categories().map(k=>`<option value="${k}" ${kind===k?'selected':''}>${names[k]}</option>`).join('')}</select>`;}
  function bindControls(){ $$('[data-content-edition]').forEach(b=>b.onclick=()=>{edition=b.dataset.contentEdition;localStorage.setItem('spectra.discoverEdition',edition);kind=categories()[0];return render();});$('#contentKind').onchange=()=>{kind=$('#contentKind').value;return render();};}
  async function render(){
